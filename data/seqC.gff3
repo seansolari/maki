@@ -1,0 +1,13 @@
+##gff-version 3
+##feature-ontology https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/v3.1/so.obo
+# Annotated with Bakta
+# Software: v1.10.3
+# Database: v5.1, full
+# DOI: 10.1099/mgen.0.000685
+# URL: github.com/oschwengers/bakta
+##sequence-region genome1 1 19
+NC_000913.3	Pyrodigal	CDS	1	11	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+NC_000913.3	Pyrodigal	CDS	1	18	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+##FASTA
+>NC_000913.3 Escherichia coli str. K-12 substr. MG1655, complete genome
+AGCTTTTCATTCTGACTG

@@ -1,0 +1,20 @@
+##gff-version 3
+##feature-ontology https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/v3.1/so.obo
+# Annotated with Bakta
+# Software: v1.10.3
+# Database: v5.1, full
+# DOI: 10.1099/mgen.0.000685
+# URL: github.com/oschwengers/bakta
+##sequence-region genome1 1 24
+genome1	Pyrodigal	CDS	1	5	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+genome1	Pyrodigal	CDS	17	23	.	+	0	ID=OOLAGM_00003;Name=TetR3 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR3
+genome1	Pyrodigal	CDS	11	16	.	-	0	ID=OOLAGM_00002;Name=TetR2 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR2
+##sequence-region genome2 1 22
+genome2	Pyrodigal	CDS	1	6	.	+	0	ID=OOLAGM_00004;Name=TetR4 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR4
+genome2	Pyrodigal	CDS	2	10	.	+	0	ID=OOLAGM_00005;Name=TetR5 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR5
+genome2	Pyrodigal	CDS	1	14	.	-	0	ID=OOLAGM_00006;Name=TetR6 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR6
+##FASTA
+>genome1 test sequence
+ACGAGNCGGTGGCAANGAAGTTN
+>genome2 other test sequence
+GTGTCGGAGGNCTCCATCGAC

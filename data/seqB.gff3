@@ -1,0 +1,24 @@
+##gff-version 3
+##feature-ontology https://github.com/The-Sequence-Ontology/SO-Ontologies/blob/v3.1/so.obo
+# Annotated with Bakta
+# Software: v1.10.3
+# Database: v5.1, full
+# DOI: 10.1099/mgen.0.000685
+# URL: github.com/oschwengers/bakta
+contig_one	Pyrodigal	CDS	1	12	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_two	Pyrodigal	CDS	1	12	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_three	Pyrodigal	CDS	1	12	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_four	Pyrodigal	CDS	1	11	.	+	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_one	Pyrodigal	CDS	1	12	.	-	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_two	Pyrodigal	CDS	1	12	.	-	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_three	Pyrodigal	CDS	1	12	.	-	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+contig_four	Pyrodigal	CDS	1	11	.	-	0	ID=OOLAGM_00001;Name=TetR1 family transcriptional regulator;locus_tag=OOLAGM_00001;product=TetR family transcriptional regulator;Dbxref=SO:0001217,UniRef:UniRef50_A0A1Z4C077;gene=tetR1
+##FASTA
+>contig_one
+TACACTTACTCG
+>contig_two
+TACTCGGACTCA
+>contig_three
+GACTCAGACTCA
+>contig_four
+ACGNACNACGT
