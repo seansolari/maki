@@ -14,135 +14,14 @@
 #include <unistd.h>
 
 #include "archive_format.hpp"
-#include "crc32.hpp"
+#include "sink_policies.hpp"
 #include "sink_manager.hpp"
 
-// ============================ Policies ======================================
-
-struct NoAlignment
-{
-  static constexpr std::uint32_t value = 0;
-  template <class WriteZerosFn>
-  static void before_write(int /*fd*/, std::uint64_t /*offset*/, WriteZerosFn && /*wz*/) {}
-};
-
-template <std::uint32_t AlignBytes>
-struct AlignTo
-{
-  static_assert((AlignBytes & (AlignBytes - 1)) == 0, "AlignTo<N>: N must be power of two");
-  static constexpr std::uint32_t value = AlignBytes;
-  template <class WriteZerosFn>
-  static void before_write(int /*fd*/, std::uint64_t current_offset, WriteZerosFn &&write_zeros)
-  {
-    if constexpr (AlignBytes)
-    {
-      const std::uint64_t mis = current_offset & (AlignBytes - 1);
-      if (mis)
-        write_zeros(AlignBytes - mis);
-    }
-  }
-};
-
-struct NoPreallocate
-{
-  static void on_open(int /*fd*/) {}
-};
-
-template <std::uint64_t Bytes>
-struct Preallocate
-{
-  static void on_open(int fd)
-  {
-    // Best-effort; ignore ENOSYS/EOPNOTSUPP
-    (void)::posix_fallocate(fd, 0, static_cast<off_t>(Bytes));
-  }
-};
-
-template <>
-struct Preallocate<0>
-{
-  std::uint64_t bytes;
-
-  void on_open(int fd)
-  {
-    // Best-effort; ignore ENOSYS/EOPNOTSUPP
-    (void)::posix_fallocate(fd, 0, static_cast<off_t>(bytes));
-  }
-};
-
-struct NoFadvise
-{
-  static void on_open(int /*fd*/) {}
-};
-
-struct FadviseSequential
-{
-  static void on_open(int fd)
-  {
-    (void)::posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL);
-  }
-};
-
-// CRC32 policy
-struct CRC32
-{
-  static std::uint32_t compute(const std::uint8_t *data, std::size_t len)
-  {
-    return crc32_compute(data, len);
-  }
-};
-
-struct NoChecksum
-{
-  static std::uint32_t compute(const std::uint8_t * /*data*/, std::size_t /*len*/)
-  {
-    return 0;
-  }
-};
-
-// ========================== POSIX helpers ===================================
-
-namespace detail
-{
-
-  inline int open_writable_posix(const std::string &path, std::uint32_t mode)
-  {
-    int fd = ::open(path.c_str(), O_CREAT | O_TRUNC | O_WRONLY, mode);
-    if (fd < 0)
-      throw std::system_error(errno, std::generic_category(), "open");
-    return fd;
-  }
-
-  inline void close_posix(int fd)
-  {
-    ::close(fd);
-  }
-
-  inline void write_all(int fd, const void *buf, std::size_t len)
-  {
-    const std::uint8_t *p = static_cast<const std::uint8_t *>(buf);
-    std::size_t left = len;
-    while (left > 0)
-    {
-      ssize_t w = ::write(fd, p, left);
-      if (w < 0)
-        throw std::system_error(errno, std::generic_category(), "write");
-      p += static_cast<std::size_t>(w);
-      left -= static_cast<std::size_t>(w);
-    }
-  }
-
-} // namespace detail
-
-
-/**
- * Compressed data to be inserted into the archive.
- */
-class ArchivePayload
+struct ArchivePayload
 {
   std::vector<uint8_t> bytes;
-  uint64_t elem_count;
-  uint64_t bit_width;
+  std::uint64_t elem_count;
+  std::uint8_t bit_width;
 };
 
 // ========================= ArchiveWriter ====================================
@@ -168,7 +47,7 @@ public:
                          PreallocPolicy prealloc = PreallocPolicy{})
       : version_(version), magic_(magic), prealloc_(prealloc)
   {
-    fd_ = detail::open_writable_posix(path, mode);
+    fd_ = io::open_writable_posix(path, mode);
     // File-level policies
     prealloc_.on_open(fd_);
     FadvisePolicy::on_open(fd_);
@@ -179,7 +58,7 @@ public:
   ~ArchiveWriter()
   {
     if (fd_ >= 0)
-      detail::close_posix(fd_);
+      io::close_posix(fd_);
   }
 
   // Optional: reserve TOC capacity upfront for scalability (millions of chunks)
@@ -196,12 +75,13 @@ public:
       throw std::invalid_argument("append_raw_packed: null data with nonzero len");
 
     // Align (if requested) before writing the chunk
-    AlignmentPolicy::before_write(fd_, offset_, &{ write_zeros_(pad); });
+    AlignmentPolicy::before_write(fd_, offset_, [&]
+                                  { write_zeros_(pad); });
 
     const std::uint64_t chunk_off = offset_;
     if (len)
     {
-      detail::write_all(fd_, data, len);
+      io::write_all(fd_, data, len);
       offset_ += len;
     }
 
@@ -239,7 +119,7 @@ public:
     if (!toc_.empty())
     {
       // Write TOC as contiguous array
-      detail::write_all(fd_, toc_.data(), toc_.size() * sizeof(ChunkMeta));
+      io::write_all(fd_, toc_.data(), toc_.size() * sizeof(ChunkMeta));
       offset_ += toc_.size() * sizeof(ChunkMeta);
     }
 
@@ -249,7 +129,7 @@ public:
     f.version = version_;
     f.magic = magic_;
 
-    detail::write_all(fd_, &f, sizeof(Footer));
+    io::write_all(fd_, &f, sizeof(Footer));
     offset_ += sizeof(Footer);
 
     // Flush metadata for durability
@@ -267,7 +147,7 @@ private:
     while (left)
     {
       const std::size_t n = left > ZB ? ZB : static_cast<std::size_t>(left);
-      detail::write_all(fd_, Z, n);
+      io::write_all(fd_, Z, n);
       offset_ += n;
       left -= n;
     }
@@ -286,4 +166,7 @@ private:
 };
 
 template <class A, class P, class F, class C>
-struct sink_payload<ArchiveWriter<A,P,F,C>> { using type = ArchivePayload; };
+struct sink_payload<ArchiveWriter<A, P, F, C>>
+{
+  using type = ArchivePayload;
+};

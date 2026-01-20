@@ -13,9 +13,16 @@
 //        k-mer in the sample graph.
 // -----------------------------------------------------------------------------
 
-#include <filesystem>
+#include <utility>
 
-namespace fs = std::filesystem;
+#include "maki/graph/archive/sdsl_writer.hpp"
+#include "maki/graph/archive/vector_writer.hpp"
+
+using WDBGSinks = std::tuple<
+    SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> -> sdsl::int_vector<4>
+    SdslIntVectorInMemorySink<1>, // succ: sdsl::bit_vector -> sdsl::bit_vector
+    VectorInMemorySink<uint64_t>  // counts: std::vector<uint64_t> -> std::vector<uint64_t>
+    >;
 
 struct Buffers
 {
@@ -23,9 +30,3 @@ struct Buffers
   sdsl::bit_vector succ;
   std::vector<uint64_t> counts;
 };
-
-using WDBGSinks = std::tuple<
-    , // edges: sdsl::int_vector<4> -> sdsl::int_vector<4>
-    , // succ: sdsl::bit_vector -> sdsl::bit_vector
-    , // counts: std::vector<uint64_t> -> std::vector<uint64_t>
-    >;

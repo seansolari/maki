@@ -17,6 +17,10 @@
 
 #include <filesystem>
 
+#include "maki/graph/archive/byte_writer.hpp"
+#include "maki/graph/archive/sdsl_writer.hpp"
+#include "maki/graph/archive/archive_writer.hpp"
+
 namespace fs = std::filesystem;
 
 struct BufferPaths
@@ -28,9 +32,9 @@ struct BufferPaths
 };
 
 using CDBGSinks = std::tuple<
-    , // edges: std::vector<uint8_t> -> FILE
-    , // succ: sdsl::bit_vector -> sdsl::int_vector_handle
-    , // colours: std::vector<uint8_t> -> Archive
+    ByteArraySink<>,            // edges: std::vector<uint8_t> -> FILE
+    SdslIntVectorOnDiskSink<1>, // succ: sdsl::bit_vector -> sdsl::int_vector_handle
+    ArchiveWriter<>             // colours: std::vector<uint8_t> -> Archive
     >;
 
 struct ColouredKmerBuffers
@@ -46,16 +50,14 @@ struct ColouredKmerBuffers
 
 void constructCDBG()
 {
-  BufferPaths outp { main };
+  BufferPaths outp{main};
 
   CDBGSinks Sinks{
-    { outp.edges }, // consume edges
-    { outp.succ },  // consume succ
-    { outp.colours }
-  };
+      {outp.edges}, // consume edges
+      {outp.succ},  // consume succ
+      {outp.colours}};
 
   for (each suffix)
   {
-
   }
 }
