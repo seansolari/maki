@@ -183,26 +183,6 @@ FetchContent_Declare(
     GIT_TAG        v1.2.0 # adjust tag/branch/commit as needed
     )
 
-# zstd --
-
-FetchContent_Declare(
-    zstd
-    URL "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-1.5.7.tar.gz"
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-    SOURCE_SUBDIR build/cmake
-    )
-
-set(ZSTD_BUILD_STATIC ON)
-set(ZSTD_BUILD_SHARED OFF)
-
-# ZStr --
-
-FetchContent_Declare(
-    ZStrGitRepo
-    GIT_REPOSITORY    "https://github.com/mateidavid/zstr"
-    GIT_TAG           "master"
-    )
-
 # GTest --
 
 FetchContent_Declare (
@@ -235,47 +215,13 @@ FetchContent_Declare (
 
 set (TBB_STRICT OFF)
 
-# GSL --
+# STxxL --
 
 FetchContent_Declare (
-    GNUScientificLibrary
-    GIT_REPOSITORY https://github.com/ampl/gsl.git
-    GIT_TAG        e0a58e532577d3112a01a98fcc511438fc19b871 # v20211111
-    )
-
-set (NO_AMPL_BINDINGS ON)
-set (GSL_DISABLE_TESTS ON)
-
-# Boost.Multiprecision --
-
-FetchContent_Declare (
-    BoostMultiprecisionGit
-    GIT_REPOSITORY https://github.com/boostorg/multiprecision.git
-    GIT_TAG        Boost_1_89_0
-    )
-
-# HighFive --
-
-FetchContent_Declare (
-    HighFive
-    GIT_REPOSITORY https://github.com/highfive-devs/highfive
-    GIT_TAG        0e308c244ef32d847a2f11c38878f419a8df8543 # v-3.0.0-beta2 (latest)
-    )
-
-# memory --
-
-FetchContent_Declare (
-    FoonathanMemory
-    GIT_REPOSITORY https://github.com/foonathan/memory
-    GIT_TAG        79d054caaa491d9b6ed7cc65a3a84b495578e6c1 # Version 0.7-4 (May 3, 2025)
-    )
-
-# hyperloglog --
-
-FetchContent_Declare (
-    hll
-    GIT_REPOSITORY https://github.com/arashbm/hyperloglog
-    GIT_TAG        162c125f3a8a9447726fc69b6ee69a87f8c01d79 # v-1.0.0 (latest)
+    stxxl_fetch
+    GIT_REPOSITORY https://github.com/stxxl/stxxl
+    GIT_TAG        1.4.1
+    FIND_PACKAGE_ARGS NAMES STXXL
     )
 
 ##
@@ -283,16 +229,9 @@ FetchContent_Declare (
 FetchContent_MakeAvailable (
     seqan3_fetch_content
     gtl
-    zstd
-    ZStrGitRepo
     googletest
-    googlelogging
     onetbb
-    GNUScientificLibrary
-    BoostMultiprecisionGit
-    HighFive
-    FoonathanMemory
-    hll
+    stxxl_fetch
     )
 
 # ----------------------------------------------------------------------------
@@ -306,25 +245,6 @@ if (_MAKI_HAVE_SDSL)
 else ()
     maki_config_error (
         "The SDSL library is required, but wasn't found. Get it from https://github.com/xxsds/sdsl-lite")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require BRENT - Zero-finders
-# ----------------------------------------------------------------------------
-
-find_path (BRENT_SRC_DIR
-        NAMES brent/brent.hpp
-        HINTS "${MAKI_INCLUDE_DIR}")
-
-if (BRENT_SRC_DIR)
-    # find source files 
-    file (GLOB BRENT_SOURCE_FILES CONFIGURE_DEPENDS "${BRENT_SRC_DIR}/brent/*.cpp")
-    maki_config_print ("Found BRENT source files:    ${BRENT_SOURCE_FILES}")
-    set (MAKI_DEPENDENCY_SOURCE_FILES ${MAKI_DEPENDENCY_SOURCE_FILES} ${BRENT_SOURCE_FILES})
-    maki_config_print ("Required dependency:          BRENT found.")
-else ()
-    maki_config_error (
-        "The BRENT library is required, but wasn't found. Get it from https://people.math.sc.edu/Burkardt/cpp_src/brent/brent.html")
 endif ()
 
 # ----------------------------------------------------------------------------
@@ -383,57 +303,16 @@ else ()
 endif ()
 
 # ----------------------------------------------------------------------------
-# Require zstd - Fastest Integer Compression
+# Require OMP
 # ----------------------------------------------------------------------------
 
-if (TARGET zstd)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} libzstd_static)
-    set (MAKI_DEPENDENCY_INCLUDE_DIRS ${MAKI_DEPENDENCY_INCLUDE_DIRS} ${zstd_SOURCE_DIR}/lib)
-    # collect desired attributes
-    maki_config_print ("Required dependency:        zstd-${zstd_VERSION} found.")
+find_package(OpenMP REQUIRED)
+
+if (TARGET OpenMP::OpenMP_CXX)
+    maki_config_print ("Required dependency:        OMP found.")
+    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} OpenMP::OpenMP_CXX)
 else ()
-    maki_config_error ("Dependency zstd not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require ZStr - C++ ZLib wrapper
-# ----------------------------------------------------------------------------
-
-find_package(ZLIB 1.2.3 REQUIRED)
-
-if (TARGET ZLIB::ZLIB)
-    maki_config_print ("Required dependency:        zlib-${ZLIB_VERSION_STRING} found.")
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} ZLIB::ZLIB)
-else ()
-    maki_config_error ("Dependency zlib not found.")
-endif ()
-
-if (TARGET zstr)
-    # collect desired attributes
-    get_target_property (zstr_VERSION zstr VERSION)
-    maki_config_print ("Required dependency:        zstr-${zstr_VERSION} found.")
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} zstr::zstr)
-else ()
-    maki_config_error ("Dependency zstr not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require MurmurHash
-# ----------------------------------------------------------------------------
-
-find_path (MURMUR_SRC_DIR
-        NAMES MurmurHash/MurmurHash3.h
-        HINTS "${MAKI_INCLUDE_DIR}")
-
-if (MURMUR_SRC_DIR)
-    # find source files 
-    file (GLOB MURMUR_SOURCE_FILES CONFIGURE_DEPENDS "${MURMUR_SRC_DIR}/MurmurHash/*.cpp")
-    set_source_files_properties(${MURMUR_SOURCE_FILES} PROPERTIES COMPILE_FLAGS "-O3 -Wno-implicit-fallthrough")
-    maki_config_print ("Found MurmurHash3 source files:    ${MURMUR_SOURCE_FILES}")
-    set (MAKI_DEPENDENCY_SOURCE_FILES ${MAKI_DEPENDENCY_SOURCE_FILES} ${MURMUR_SOURCE_FILES})
-    maki_config_print ("Required dependency:          MurmurHash3 found.")
-else ()
-    maki_config_error ("Dependency MurmurHash3 not found.")
+    maki_config_error ("Dependency OpenMP not found.")
 endif ()
 
 # ----------------------------------------------------------------------------
@@ -447,19 +326,6 @@ if (TARGET GTest::gtest_main)
     maki_config_print ("Required dependency:        googletest-${GTest_VERSION} found.")
 else ()
     maki_config_error ("Dependency GTest not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require GLog - Logging
-# ----------------------------------------------------------------------------
-
-if (TARGET glog::glog)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} glog::glog)
-    # collect desired attributes
-    get_target_property (glog_VERSION glog::glog VERSION)
-    maki_config_print ("Required dependency:        glog-${glog_VERSION} found.")
-else ()
-    maki_config_error ("Dependency glog not found.")
 endif ()
 
 # ----------------------------------------------------------------------------
@@ -495,68 +361,16 @@ if (UNIX)
 endif()
 
 # ----------------------------------------------------------------------------
-# Require GSL
+# Require STxxL
 # ----------------------------------------------------------------------------
 
-if (TARGET gsl)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} gsl)
+if (TARGET STXXL)
+    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} stxxl::stxxl)
     # collect desired attributes
-    get_target_property (gsl_VERSION gsl VERSION)
-    maki_config_print ("Required dependency:        gsl-${gsl_VERSION} found.")
+    get_target_property (STXXL_VERSION stxxl::stxxl VERSION)
+    maki_config_print ("Required dependency:        STXXL-${STXXL_VERSION} found.")
 else ()
-    maki_config_error ("Dependency gsl not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require Boost.Multiprecision - Arbitrary Precision Arithmetic
-# ----------------------------------------------------------------------------
-
-if (TARGET Boost::multiprecision)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} Boost::multiprecision)
-    # collect desired attributes
-    get_target_property (bmp_VERSION Boost::multiprecision VERSION)
-    maki_config_print ("Required dependency:        Boost::multiprecision-${bmp_VERSION} found.")
-else ()
-    maki_config_error ("Dependency Boost::multiprecision not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require HighFive - HDF5
-# ----------------------------------------------------------------------------
-
-if (TARGET HighFive)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} HighFive)
-    # collect desired attributes
-    get_target_property (HighFive_VERSION HighFive VERSION)
-    maki_config_print ("Required dependency:        HighFive-${HighFive_VERSION} found.")
-else ()
-    maki_config_error ("Dependency HighFive not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require memory - Memory Allocation
-# ----------------------------------------------------------------------------
-
-if (TARGET foonathan_memory)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} foonathan_memory)
-    # collect desired attributes
-    get_target_property (foonathan_memory_VERSION foonathan_memory VERSION)
-    maki_config_print ("Required dependency:        foonathan_memory-${foonathan_memory_VERSION} found.")
-else ()
-    maki_config_error ("Dependency foonathan_memory not found.")
-endif ()
-
-# ----------------------------------------------------------------------------
-# Require hll - hyperloglog
-# ----------------------------------------------------------------------------
-
-if (TARGET hyperloglog)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} hyperloglog)
-    # collect desired attributes
-    get_target_property (hll_VERSION hyperloglog VERSION)
-    maki_config_print ("Required dependency:        hyperloglog-${hll_VERSION} found.")
-else ()
-    maki_config_error ("Dependency hyperloglog not found.")
+    maki_config_error ("Dependency STXXL not found.")
 endif ()
 
 # ----------------------------------------------------------------------------

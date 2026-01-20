@@ -1,0 +1,17 @@
+## To do:
+
+### High priority
+
+ - edge writing thread that streams thread output to std::vector<uint8_t>
+ - colour writing thread that writes to a quick and easy format
+   - colours graph compression, bzip2 for colour arrays
+   - both accept data from threads
+   - buffer colour output so each buffer has consistent size
+ - pwm wavelet matrix construction and tests (see Copilot output)
+ - only suffix-wise graph construction, threads write to set of temp buffers
+ - write seed data to disk
+ - adapt count and classify for colours
+
+### Low priority
+
+ - separate build deps between index and classify
