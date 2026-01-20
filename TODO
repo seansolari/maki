@@ -2,8 +2,9 @@
 
 ### High priority
 
- - edge writing thread that streams thread output to std::vector<uint8_t>
- - suffix-wise analysis
+ - parse filter and fasta
+ - extract terminals
+ - count and plan suffixes
  - colour writing thread that writes to a quick and easy format
    - colours graph compression, bzip2 for colour arrays
    - both accept data from threads

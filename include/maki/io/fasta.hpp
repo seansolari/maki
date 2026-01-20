@@ -22,7 +22,7 @@
 #include <seqan3/alphabet/views/all.hpp>
 #include <zstr.hpp>
 #include <maki/utils.hpp>
-#include <maki/colourEncoder.hpp>
+#include "maki/colour/colourEncoder.hpp"
 
 namespace fs = std::filesystem;
 
@@ -43,12 +43,12 @@ struct gffToken
 
 struct gffRecord
 {
-  uint64_t featureId; // (internal) feature ID
-  int64_t  begin = 0;  // start (field 4), GFF: 1-based inclusive
-  int64_t  end   = 0;  // end   (field 5), GFF: 1-based inclusive
-  char strand = '.';       // '+', '-', '.', '?' (field 7)
-  std::string id;          // "<accession>-<ID>" if ID found; empty otherwise
-  bool ignore = false;     // true if no ID attribute was supplied
+  uint64_t featureId;  // (internal) feature ID
+  int64_t begin = 0;   // start (field 4), GFF: 1-based inclusive
+  int64_t end = 0;     // end   (field 5), GFF: 1-based inclusive
+  char strand = '.';   // '+', '-', '.', '?' (field 7)
+  std::string contig;      // contig ID
+  bool ignore = false; // true if no ID attribute was supplied
 
   friend bool operator==(const gffRecord &, const gffRecord &);
   friend bool operator!=(const gffRecord &, const gffRecord &);

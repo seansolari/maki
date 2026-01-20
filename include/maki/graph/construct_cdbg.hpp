@@ -50,12 +50,20 @@ struct ColouredKmerBuffers
 
 void constructCDBG()
 {
+  // extract terminals
+
+  // create suffix plan
+
+  // prepare output buffers
+
   BufferPaths outp{main};
 
   CDBGSinks Sinks{
-      {outp.edges}, // consume edges
-      {outp.succ},  // consume succ
-      {outp.colours}};
+      {outp.edges},    // consume edges
+      {outp.succ},     // consume succ
+      {outp.colours}}; // consume colours
+
+  // suffix-wise processing
 
   for (each suffix)
   {
