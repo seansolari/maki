@@ -34,7 +34,7 @@
 # Compiled images
 *.sif
 
-build/
+/build/
 
 .DS_Store
 

@@ -32,11 +32,19 @@ option (ENABLE_MAKI_TESTING "Enable testing suite" ON)
 configure_file (cmake/maki.h.in include/maki/maki.h)
 configure_file (${CMAKE_SOURCE_DIR}/cmake/CTestCustom.cmake ${CMAKE_BINARY_DIR} @ONLY)
 
-# main build executable(s)
-file (GLOB MAKI_MAIN_SOURCE CONFIGURE_DEPENDS "${MAKI_CLONE_DIR}/src/main.cpp")
-add_executable (maki ${MAKI_MAIN_SOURCE})
-target_link_libraries (maki maki::maki)
-list (APPEND MAKI_EXECUTABLES maki)
+# collect sources
+add_subdirectory ("src")
+
+# two executables
+# 1) maki-build
+add_executable(maki-build ${MAKI_BUILD_SOURCES} "${MAKI_CLONE_DIR}/src/build.cpp")
+target_link_libraries (maki-build maki::maki)
+
+# 2) maki-clsasify
+add_executable(maki-classify ${MAKI_CLASSIFY_SOURCES} "${MAKI_CLONE_DIR}/src/classify.cpp")
+target_link_libraries (maki-classify maki::maki)
+
+list (APPEND MAKI_EXECUTABLES maki-build maki-classify)
 
 # custom test targets
 if (ENABLE_MAKI_TESTING)

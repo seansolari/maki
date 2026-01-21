@@ -8,6 +8,10 @@ find_path (MAKI_CLONE_DIR
 find_path (MAKI_INCLUDE_DIR
            NAMES maki/version.hpp
            HINTS "${MAKI_CLONE_DIR}/include")
+# external header-only libs
+find_path (MAKI_DEPENDENCY_INCLUDE_DIRS
+           NAMES sdsl/version.hpp
+           HINTS "${MAKI_CLONE_DIR}/extern")
 
 # extract version from maki/version.hpp header
 file (STRINGS "${MAKI_INCLUDE_DIR}/maki/version.hpp" MAKI_VERSION_HPP

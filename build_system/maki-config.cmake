@@ -126,14 +126,11 @@ if (MAKI_INCLUDE_DIR)
 else ()
     maki_config_error ("maki include directory could not be found (MAKI_INCLUDE_DIR: '${MAKI_INCLUDE_DIR}')")
 endif ()
-
-# ----------------------------------------------------------------------------
-# Find source files
-# ----------------------------------------------------------------------------
-
-file (GLOB MAKI_SOURCES CONFIGURE_DEPENDS "${MAKI_CLONE_DIR}/src/*.cpp")
-list (FILTER MAKI_SOURCES EXCLUDE REGEX ".*main\\.cpp$")
-maki_config_print ("Found sources: ${MAKI_SOURCES}")
+if (MAKI_DEPENDENCY_INCLUDE_DIRS)
+    maki_config_print ("maki dependencies include dir found:   ${MAKI_DEPENDENCY_INCLUDE_DIRS}")
+else ()
+    maki_config_error ("maki dependencies include directory could not be found (MAKI_DEPENDENCY_INCLUDE_DIRS: '${MAKI_DEPENDENCY_INCLUDE_DIRS}')")
+endif ()
 
 # ----------------------------------------------------------------------------
 # Collect submodules
@@ -513,7 +510,6 @@ if (MAKI_FOUND AND NOT TARGET maki::maki)
                                 ${MAKI_INCLUDE_DIR}
                                 ${MAKI_DEPENDENCY_INCLUDE_DIRS}
                                 )
-    target_sources (maki_maki INTERFACE ${MAKI_SOURCES} ${MAKI_DEPENDENCY_SOURCE_FILES})
     target_link_libraries (maki_maki INTERFACE maki_compiler_flags ${MAKI_LIBRARIES})
     target_compile_definitions (maki_maki INTERFACE ${MAKI_DEFINITIONS})
     target_compile_options (maki_maki INTERFACE ${MAKI_CXX_FLAGS_LIST})
