@@ -120,11 +120,6 @@ get_filename_component (_CMAKE_CXX_COMPILER_BIN ${CMAKE_CXX_COMPILER} DIRECTORY)
 list (APPEND CMAKE_PREFIX_PATH ${_CMAKE_CXX_COMPILER_BIN}/../)
 maki_config_print ("CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
 
-# * `MAKI_CLONE_DIR` was already found in maki-config-version.cmake
-#find_path (MAKI_SUBMODULES_DIR
-#           NAMES sdsl-lite
-#           HINTS "${MAKI_CLONE_DIR}/extern")
-
 # * `MAKI_INCLUDE_DIR` was already found in maki-config-version.cmake
 if (MAKI_INCLUDE_DIR)
     maki_config_print ("maki include dir found:   ${MAKI_INCLUDE_DIR}")
@@ -364,14 +359,14 @@ endif()
 # Require STxxL
 # ----------------------------------------------------------------------------
 
-if (TARGET STXXL)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} stxxl::stxxl)
-    # collect desired attributes
-    get_target_property (STXXL_VERSION stxxl::stxxl VERSION)
-    maki_config_print ("Required dependency:        STXXL-${STXXL_VERSION} found.")
-else ()
-    maki_config_error ("Dependency STXXL not found.")
-endif ()
+#if (TARGET STXXL)
+#    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} stxxl::stxxl)
+#    # collect desired attributes
+#    get_target_property (STXXL_VERSION stxxl::stxxl VERSION)
+#    maki_config_print ("Required dependency:        STXXL-${STXXL_VERSION} found.")
+#else ()
+#    maki_config_error ("Dependency STXXL not found.")
+#endif ()
 
 # ----------------------------------------------------------------------------
 # Compile time options and build parameters
