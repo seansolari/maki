@@ -15,8 +15,8 @@
 
 #include <utility>
 
-#include "maki/graph/archive/sdsl_writer.hpp"
-#include "maki/graph/archive/vector_writer.hpp"
+#include "maki/build/graph/archive/sdsl_writer.hpp"
+#include "maki/build/graph/archive/vector_writer.hpp"
 
 using WDBGSinks = std::tuple<
     SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> -> sdsl::int_vector<4>

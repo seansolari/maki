@@ -17,10 +17,10 @@
 
 #include <filesystem>
 
-#include "maki/io/fasta.hpp"
-#include "maki/graph/archive/byte_writer.hpp"
-#include "maki/graph/archive/sdsl_writer.hpp"
-#include "maki/graph/archive/archive_writer.hpp"
+#include "maki/build/io/fasta.hpp"
+#include "maki/build/graph/archive/byte_writer.hpp"
+#include "maki/build/graph/archive/sdsl_writer.hpp"
+#include "maki/build/graph/archive/archive_writer.hpp"
 
 namespace fs = std::filesystem;
 

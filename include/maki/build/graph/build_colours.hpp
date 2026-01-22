@@ -1,13 +1,16 @@
 #pragma once
 #include <cstdint>
+#include <atomic>
 #include <vector>
 #include <string>
 #include <string_view>
 #include <mutex>
+
 #include <oneapi/tbb/tbb_allocator.h>
 #include <gtl/phmap.hpp>
-#include "maki/core/map.hpp"
-#include "maki/build/utils.hpp"
+
+#include "maki/core/utils/map.hpp"
+#include "maki/build/utils/bits.hpp"
 
 // ----------------------------------------------------------------
 // Colours

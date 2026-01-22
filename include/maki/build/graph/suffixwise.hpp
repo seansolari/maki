@@ -6,7 +6,8 @@
 #include <memory>
 #include <mutex>
 #include <oneapi/tbb/parallel_pipeline.h>
-#include "maki/graph/archive/sink_manager.hpp"
+
+#include "maki/build/graph/archive/sink_manager.hpp"
 
 struct BuildOptions
 {

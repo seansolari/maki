@@ -15,8 +15,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "archive_format.hpp"
-#include "crc32.hpp"
+#include "maki/core/graph/archive_format.hpp"
+#include "maki/core/utils/crc32.hpp"
 
 // ------------------------------ Reader --------------------------------------
 

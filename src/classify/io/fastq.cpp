@@ -1,4 +1,4 @@
-#include <maki/reads.hpp>
+#include "maki/classify/io/fastq.hpp"
 
 #include <algorithm>
 #include <numeric>

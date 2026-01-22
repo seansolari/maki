@@ -15,7 +15,7 @@
 #define MSINK_POSIX 0
 #endif
 
-#include "crc32.hpp"
+#include "maki/core/utils/crc32.hpp"
 
 // --------------------------- Alignment Policy -------------------------------
 
