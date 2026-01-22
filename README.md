@@ -21,7 +21,7 @@ $ mamba install conda-forge::hdf5-static hcc::szip
 
 ```{console}
 $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build --config Release --target maki_build_targets -j $(nproc --all) --
+$ cmake --build build --config Release --target maki-build -j $(nproc --all) --
 ```
 
 #### Note - conda-packaged compilers (VSCode)

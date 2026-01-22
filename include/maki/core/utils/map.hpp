@@ -2,9 +2,12 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-#include <utility>
 #include <string_view>
+#include <syncstream>
+
+#include <gtl/phmap.hpp>
 #include <oneapi/tbb/tbb_allocator.h>
+#include <oneapi/tbb/parallel_for.h>
 
 /**
  * Map sets of values to integers. Groups of `Int`s form the keys, which are byte-packed for compression.
@@ -143,7 +146,7 @@ public:
     return _data.end();
   }
 
-  void flush(std::ostream &) const
+  void flush(std::ostream &bos) const
   {
     oneapi::tbb::parallel_for((size_t)0, _data.subcnt(), (size_t)1, [&](size_t submapIndex) -> void
                               {
@@ -171,7 +174,7 @@ public:
   }
 
   template <typename Fn>
-  void pforEach(size_t grainsize, Fn f_) const
+  void pforEach(Fn f_) const
   {
     oneapi::tbb::parallel_for((size_t)0, _data.subcnt(), (size_t)1, [&](size_t submapIndex) -> void
                               { _data.with_submap(submapIndex, [&](const Map::EmbeddedSet &set) -> void

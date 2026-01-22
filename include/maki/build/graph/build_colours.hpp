@@ -3,7 +3,6 @@
 #include <atomic>
 #include <vector>
 #include <string>
-#include <string_view>
 #include <mutex>
 
 #include <oneapi/tbb/tbb_allocator.h>
@@ -32,6 +31,8 @@ using ColourMap = gtl::parallel_flat_hash_map<
 struct Colours
 {
   Colours() : ids(), _cid(0) {}
+  Colours(const Colours&) =delete;
+  Colours& operator=(const Colours&) =delete;
 
   ColourMap ids;
 

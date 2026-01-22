@@ -8,10 +8,9 @@
 #include <string_view>
 #include <ranges>
 
-#include <glog/logging.h>
 #include <oneapi/tbb.h>
-#include <seqan3/alphabet/nucleotide/dna5.hpp>
 #include <seqan3/io/sequence_file/all.hpp>
+#include <seqan3/alphabet/views/complement.hpp>
 #include <indicators/progress_bar.hpp>
 
 bool gffToken::operator==(const gffToken &rhs) const
@@ -22,6 +21,11 @@ bool gffToken::operator==(const gffToken &rhs) const
 bool gffToken::operator!=(const gffToken &rhs) const
 {
   return (featureId != rhs.featureId) || (begin != rhs.begin) || (end != rhs.end);
+}
+
+std::ostream& operator<<(std::ostream &os, const gffToken &tkn)
+{
+  return os << "GFF-token[" << tkn.featureId << ", " << tkn.begin << ", " << tkn.end << "]";
 }
 
 // Lightweight helpers
@@ -230,8 +234,8 @@ bool operator!=(const gffRecord &lhs, const gffRecord &rhs)
 
 bool GenomeAnnotationList::AnnotLess::operator()(const gffRecord &lhs, const gffRecord &rhs) const
 {
-  if (lhs.id != rhs.id)
-    return lhs.id < rhs.id;
+  if (lhs.accn != rhs.accn)
+    return lhs.accn < rhs.accn;
   else if (lhs.strand != rhs.strand)
     return lhs.strand < rhs.strand;
   else
@@ -240,8 +244,8 @@ bool GenomeAnnotationList::AnnotLess::operator()(const gffRecord &lhs, const gff
 
 bool GenomeAnnotationList::ContigStrandLess::operator()(const gffRecord &lhs, const gffRecord &rhs) const
 {
-  if (lhs.id != rhs.id)
-    return lhs.id < rhs.id;
+  if (lhs.accn != rhs.accn)
+    return lhs.accn < rhs.accn;
   else
     return lhs.strand < rhs.strand;
 }
@@ -304,15 +308,15 @@ AnnotatedSequenceEdgeIterator::AnnotatedSequenceEdgeIterator(
 {
     if (inputSeqPos >= k)
     {
-        while ((inputAnnotIter != inputAnnotEnd) && (inputAnnotIter->beginPos <= inputSeqPos - k))
+        while ((inputAnnotIter != inputAnnotEnd) && (inputAnnotIter->begin <= inputSeqPos - k))
         {
             currentAnnots.push_back(*inputAnnotIter);
             ++numCurrentAnnots;
             ++inputAnnotIter;
         }
 
-        std::size_t numRemoved = std::erase_if(currentAnnots, [&inputSeqPos = inputSeqPos](const Gff3Token &rec)
-                                          { return rec.endPos <= inputSeqPos; });
+        std::size_t numRemoved = std::erase_if(currentAnnots, [&inputSeqPos = inputSeqPos](const gffToken &rec)
+                                          { return rec.end <= inputSeqPos; });
         numCurrentAnnots -= numRemoved;
     }
 }
@@ -326,15 +330,15 @@ void AnnotatedSequenceEdgeIterator::operator++()
 
     // remove any annotations that ended before this contig
 
-    std::size_t numRemoved = std::erase_if(currentAnnots, [&inputSeqPos = inputSeqPos](const Gff3Token &rec)
-                                      { return rec.endPos == inputSeqPos; });
+    std::size_t numRemoved = std::erase_if(currentAnnots, [&inputSeqPos = inputSeqPos](const gffToken &rec)
+                                      { return rec.end == inputSeqPos; });
     numCurrentAnnots -= numRemoved;
 
     // get new annotations that started within this region
 
     if (inputSeqPos >= k)
     {
-        while ((inputAnnotIter != inputAnnotEnd) && (inputAnnotIter->beginPos == inputSeqPos - k))
+        while ((inputAnnotIter != inputAnnotEnd) && (inputAnnotIter->begin == inputSeqPos - k))
         {
             currentAnnots.push_back(*inputAnnotIter);
             ++numCurrentAnnots;
@@ -357,11 +361,8 @@ std::string AnnotatedSequenceEdgeIterator::currentAnnotsToString() const
     return data.str();
 }
 
-FeatureSegment::FeatureSegment(const Dna4Sequence &seq_, std::size_t begin_, std::size_t end_, uint64_t id_, bool terminal_ = false)
-  : FeatureSegment(seq.begin() + begin_, seq().begin() + end_, id_, terminal_) {}
-
-FeatureSegment::FeatureSegment(Dna4SequenceConstIter begin_, Dna4SequenceConstIter end_, uint64_t id_, bool terminal_ = false)
-  : _begin(begin_), _end(end_), _id(id_), _endIsTerminal(terminal_) {}
+FeatureSegment::FeatureSegment(Dna4SequenceConstIter seq_, size_t begin_, size_t end_, uint64_t id_, bool terminal_)
+  : _it(seq_), _begin(begin_), _end(end_), _id(id_), _endIsTerminal(terminal_) {}
 
 std::size_t FeatureSegment::numKmers(std::size_t k) const noexcept
 {
@@ -378,8 +379,8 @@ std::size_t FeatureSegment::numTerminals(std::size_t k) const noexcept
         assert(_end >= k);
         return k;
     }
-    else
-        return 0;
+  else
+      return 0;
 }
 
 std::size_t FeatureSegment::numEdges(std::size_t k) const noexcept
@@ -412,8 +413,9 @@ bool AnnotatedSequenceSegmentIterator::operator!=([[maybe_unused]] const Annotat
 FeatureSegment AnnotatedSequenceSegmentIterator::operator*() const
 {
   return FeatureSegment(
-    inputSeqIter + currentSegmentBegin,
-    inputSeqIter + currentSegmentEnd,
+    inputSeqIter,
+    currentSegmentBegin,
+    currentSegmentEnd,
     currentSegmentFeatureId,
     (currentSegmentEnd == inputSeqLength) && (currentSegmentFeatureId == nullFeatureId)
   );
@@ -423,17 +425,17 @@ void AnnotatedSequenceSegmentIterator::operator++()
 {
     if (inputAnnotIter != inputAnnotEnd)
     {
-        if (inputAnnotIter->beginPos + k > inputEdgePos)
+        if (inputAnnotIter->begin + k > inputEdgePos)
         {
             currentSegmentBegin = inputEdgePos - k;
-            inputEdgePos = inputAnnotIter->beginPos + k;
+            inputEdgePos = inputAnnotIter->begin + k;
             currentSegmentEnd = inputEdgePos;
             currentSegmentFeatureId = /*unannotated*/nullFeatureId;
         }
         else
         {
-            currentSegmentBegin = inputAnnotIter->beginPos;
-            currentSegmentEnd = inputAnnotIter->endPos;
+            currentSegmentBegin = inputAnnotIter->begin;
+            currentSegmentEnd = inputAnnotIter->end;
             currentSegmentFeatureId = inputAnnotIter->featureId;
             inputEdgePos = std::max(inputEdgePos, currentSegmentEnd);
             ++inputAnnotIter;
@@ -470,9 +472,10 @@ namespace
   std::vector<int64_t> findNs(const seqan3::dna5_vector &sequence)
   {
     std::vector<int64_t> positions;
-    positions.reserve(sequence.size() / 1000);
+    int64_t size = static_cast<int64_t>(sequence.size());
+    positions.reserve(static_cast<std::size_t>(size) / 1000);
 
-    for (int64_t i = 0; i < sequence.size(); ++i)
+    for (int64_t i = 0; i < size; ++i)
     {
       if (sequence[i] == 'N'_dna5)
       {
@@ -486,47 +489,47 @@ namespace
 
 }
 
-void Dna4Contig::_insertOrientation(SequenceVector &vec, std::ranges::random_access_range auto&& sequence, uint64_t seqFeatureId, const std::vector<size_t> &nPos, AnnotRange annots, std::size_t minAnnotSize)
+void Dna4Contig::_insertOrientation(SequenceVector &vec, std::ranges::random_access_range auto&& sequence, uint64_t seqFeatureId, const std::vector<int64_t> &nPositions, AnnotRange annots, std::size_t minAnnotSize)
 {
   // sort annotations by start position
   annots.sortByStart();
   // insert fragments
   AnnotationTokenList currentAnnots;
-  std::size_t seqPos = 0;
-  for (std::size_t nPos : nPositions) {
+  int64_t seqPos = 0;
+  for (int64_t nPos : nPositions) {
       std::size_t nextContigSize = nPos - seqPos;
       if (nextContigSize >= minFragmentSize)
-          _insertFragment(vec, seqPos, nPos, seqFeatureId, annots, currentAnnots, minAnnotSize);
+          _insertFragment(vec, sequence, seqPos, nPos, seqFeatureId, annots, currentAnnots, minAnnotSize);
       seqPos += nextContigSize + 1;
   }
   if (std::ranges::size(sequence) - seqPos >= minFragmentSize)
-      _insertFragment(vec, seqPos, std::ranges::size(sequence), seqFeatureId, annots, currentAnnots, minAnnotSize);
+      _insertFragment(vec, sequence, seqPos, std::ranges::size(sequence), seqFeatureId, annots, currentAnnots, minAnnotSize);
 }
 
-void Dna4Contig::_insertFragment(SequenceVector &vec, std::ranges::random_access_range auto&& sequence, std::size_t startPos, std::size_t endPos, uint64_t seqFeatureId, AnnotRange &annots, AnnotationTokenList &currentAnnots, std::size_t minAnnotSize)
+void Dna4Contig::_insertFragment(SequenceVector &vec, std::ranges::random_access_range auto&& sequence, int64_t startPos, int64_t endPos, uint64_t seqFeatureId, AnnotRange &annots, AnnotationTokenList &currentAnnots, std::size_t minAnnotSize)
 {
   std::size_t fragmentSize = endPos - startPos;
   totalLength += fragmentSize;
   AnnotatedSequence &seqObj = vec.emplace_back(seqFeatureId, fragmentSize);
-  for (auto it = sequence.begin() + startPos; it != (sequence.begin() + endPos); ++it) {
-    auto c = static_cast<seqan3::dna4>(*it);
-    seqObj.sequence.push_back(c);
+  for (auto && c_ : std::ranges::subrange(sequence.begin() + startPos, sequence.begin() + endPos))
+  {
+    seqObj.sequence.push_back(static_cast<seqan3::dna4>(c_));
   }
   // remove any annotations that ended before this contig
-  std::erase_if(currentAnnots, [startPos](const Gff3Token &rec) { return rec.endPos <= startPos; });
+  std::erase_if(currentAnnots, [startPos](const gffToken &rec) { return rec.end <= startPos; });
   // get new annotations that started within this region
   auto annotEnd = annots.encloseStart(endPos);
   while (annots.begin != annotEnd) {
-    const Gff3Record &nextAnnot = *annots.begin;
-    if (nextAnnot.endPos > startPos)
+    const gffRecord &nextAnnot = *annots.begin;
+    if (nextAnnot.end > startPos)
       currentAnnots.push_back(nextAnnot.asToken());
     ++annots.begin;
   }
   // add annotations to contig
-  for (const Gff3Token &annotToPush : currentAnnots) {
-    Gff3Token nextAnnot = annotToPush;
-    nextAnnot.beginPos = nextAnnot.beginPos < startPos ? 0 : nextAnnot.beginPos - startPos;
-    nextAnnot.endPos = nextAnnot.endPos > endPos ? fragmentSize : nextAnnot.endPos - startPos;
+  for (const gffToken &annotToPush : currentAnnots) {
+    gffToken nextAnnot = annotToPush;
+    nextAnnot.begin = nextAnnot.begin < startPos ? 0 : nextAnnot.begin - startPos;
+    nextAnnot.end = nextAnnot.end > endPos ? fragmentSize : nextAnnot.end - startPos;
     if (nextAnnot.size() >= minAnnotSize)
       seqObj.annotations.emplace_back(std::move(nextAnnot));
   }
@@ -534,7 +537,7 @@ void Dna4Contig::_insertFragment(SequenceVector &vec, std::ranges::random_access
 
 void Dna4Contig::insert(const seqan3::dna5_vector &sequence, uint64_t seqFeatureId, AnnotRange annots, std::size_t minAnnotSize)
 {
-  std::size_t seqLength = sequence.size();
+  int64_t seqLength = static_cast<int64_t>(sequence.size());
   auto nPositions = ::findNs(sequence);
 
   // insert forward
@@ -614,9 +617,9 @@ std::size_t Dna4Genome::numFragments() const
 }
 
 // number of starting terminals, does not include trailing terminal edge
-std::size_t Dna4Genome::numTerminals(uint8_t k) const
+std::size_t Dna4Genome::numTerminals(std::size_t k) const
 {
-  return std::size_t{k} * numFragments();
+  return k * numFragments();
 }
 
 std::size_t Dna4Genome::medianContigSize() const
@@ -666,14 +669,14 @@ void Dna4Genome::reset_memory()
   std::vector<Dna4Contig>{}.swap(contigs);
 }
 
-ChunkedDna4Genome::ChunkedDna4Genome(Dna4Genome &&genome, std::size_t granularity, std::size_t overlap)
-    : _genome(std::move(genome)), _chunks()
+void ChunkedDna4Genome::chunk(std::size_t granularity, std::size_t overlap)
 {
-  std::size_t ntChunkSize = std::max(_genome.medianContigSize() / granularity, overlap);
+  if (!chunks.empty())
+    chunks.clear();
 
-  // chunk contigs
-
-  for (const Dna4Contig &ctg : _genome.contigs)
+  std::size_t ntChunkSize = std::max(genome.medianContigSize() / granularity, overlap);
+  
+  for (const Dna4Contig &ctg : genome.contigs)
   {
     for (const SequenceVector *drn : {&ctg.sequences.first, &ctg.sequences.second})
     {
@@ -688,24 +691,18 @@ ChunkedDna4Genome::ChunkedDna4Genome(Dna4Genome &&genome, std::size_t granularit
         while (i < rec.sequence.size())
         {
           j = std::min(rec.sequence.size(), i + ntChunkSize);
-          _chunks.emplace_back(std::ref(rec.sequence), i - overlap, j, rec.nullFeatureId);
+          chunks.emplace_back(rec.sequence.cbegin(), i - overlap, j, rec.nullFeatureId);
           i = j;
         }
-        _chunks.back().setEndToTerminal();
+        chunks.back().setEndToTerminal();
       }
     }
   }
 }
 
-void ChunkedDna4Genome::reset_memory()
-{
-  _genome.reset_memory();
-  std::vector<FeatureSegment>{}.swap(_chunks);
-}
-
 std::size_t chunks(const std::vector<ChunkedDna4Genome> &genomes)
 {
-  return std::accumulate(genomes.begin(), genomes.end(), (std::size_t)0, [](std::size_t rtot, const ChunkedDna4Genome &g){ return rtot + g.chunks(); });
+  return std::accumulate(genomes.begin(), genomes.end(), (std::size_t)0, [](std::size_t rtot, const ChunkedDna4Genome &g){ return rtot + g.chunks.size(); });
 }
 
 void parseAnnotationStream(GenomeAnnotationList &annots, Colours &colours, zstr::ifstream &gffStream)
@@ -840,7 +837,7 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream, Colours &co
   }
 }
 
-Dna4Genome parseGFF(fs::path gff3File, Colours &colours, std::size_t k)
+Dna4Genome parseGFF(const std::string &gff3File, Colours &colours, std::size_t k)
 {
   // base input file stream that reads bytes
   zstr::ifstream zis(gff3File);
@@ -861,68 +858,44 @@ Dna4Genome parseGFF(fs::path gff3File, Colours &colours, std::size_t k)
   for (auto &&rec : seqInput)
   {
     Dna4Contig &outContig = genome.contigs.emplace_back(rec.id().substr(0, rec.id().find(' ')), k);
-    AnnotRange contigAnnots = annots.findContig(outContig.contigName);
+    AnnotRange contigAnnots = annots.findContig(outContig.accn);
     outContig.insert(rec.sequence(), /*unannotated regions*/0ull, contigAnnots, k + 1);
   }
 
   return genome;
 }
 
-ChunkedDna4Genome parseFilterFNA(fs::path fastaFile, Colours &colours, std::size_t granularity, std::size_t k)
+ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours, std::size_t granularity, std::size_t k)
 {
   // base input file stream that reads bytes
   zstr::ifstream zis(fastaFile);
   std::string fastaData(std::istreambuf_iterator<char>(zis), {});
 
   // process stream data
-  Dna4Genome genome{};
+  ChunkedDna4Genome obj;
   std::istringstream fs(fastaData);
-  parseFastaStream(genome, fs, colours, k);
+  parseFastaStream(obj.genome, fs, colours, k);
 
-  // chunk genome
-  ChunkedDna4Genome chunked(std::move(genome), granularity, k);
+  // create genome slices
+  obj.chunk(granularity, k);
 
-  return chunked;
+  return obj;
 }
 
-std::vector<SequenceContainer *> combineViews(const std::vector<Dna4Genome> &gff, const std::vector<ChunkedDna4Genome> &fna)
+std::vector<const SequenceContainer *> combineViews(const std::vector<Dna4Genome> &gff, const std::vector<ChunkedDna4Genome> &fna)
 {
-  std::vector<SequenceContainer *> views;
-  views.reserve(a.size() + chunks(b));
+  std::vector<const SequenceContainer *> views;
+  views.reserve(gff.size() + chunks(fna));
   for (const auto &seq : gff)
   {
     views.push_back(&seq);
   }
   for (const auto &seq : fna)
   {
-    for (const auto &chunk : seq)
+    for (const auto &chunk : seq.chunks)
     {
       views.push_back(&chunk);
     }
   }
   return views;
-}
-
-std::size_t SequenceRange::numKmers(uint8_t k) const noexcept
-{
-  std::size_t kmers = numInternalKmers(k);
-  if (endIsTerminal())
-    ++kmers;
-  return kmers;
-}
-
-std::size_t SequenceRange::numTerminals(std::size_t k) const noexcept
-{
-  if (_begin == 0)
-  {
-    assert(_end >= k);
-    return k;
-  }
-  else
-    return 0;
-}
-
-std::size_t SequenceRange::numEdges(std::size_t k) const noexcept
-{
-  return numKmers(k) + numTerminals(k);
 }

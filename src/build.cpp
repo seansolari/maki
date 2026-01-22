@@ -3,8 +3,8 @@
 #include <string>
 
 #include "maki/core/seq/seq_io.hpp"
+#include "maki/build/graph/build_colours.hpp"
 #include "maki/build/io/fasta.hpp"
-#include "maki/colour/encoder.hpp"
 
 struct BuildParameters
 {
@@ -16,16 +16,16 @@ struct BuildParameters
   uint64_t threads = 16;
 };
 
-int main(int argc, char const *argv[])
+int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[])
 {
   BuildParameters params{};
   auto genomeFiles = readFilePaths(params.queryFile.data(), Gff3FileType);
-  auto filterFiles = readFilePaths(params.filterFile.data(), FastaFileType)
+  auto filterFiles = readFilePaths(params.filterFile.data(), FastaFileType);
   
   // parse input sequences
   Colours colours;
-  auto genomes = parseWithColour(genomeFiles, colours, parseGFF, params.k);
-  auto filters = parseWithColour(filterFiles, colours, parseFilterFNA, params.threads, params.k);
+  auto genomes = parse(genomeFiles, parseGFF, colours, (std::size_t)params.k);
+  auto filters = parse(filterFiles, parseFilterFNA, colours, (std::size_t)params.threads, (std::size_t)params.k);
 
   // suffix-wise construct graph buffers
   auto view = combineViews(genomes, filters);

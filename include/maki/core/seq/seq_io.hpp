@@ -1,12 +1,10 @@
 
 #pragma once
-#include <vector>
-#include <filesystem>
+#include <string>
+#include <string_view>
 
-#include <seqan3/alphabet/container/bitpacked_sequence.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
-
-namespace fs = std::filesystem;
+#include <seqan3/alphabet/container/bitpacked_sequence.hpp>
 
 namespace parsing
 {
@@ -60,6 +58,6 @@ constexpr std::string_view FQ_EXTENSIONS[2] = {".fq", ".fastq"};
 std::string_view removeCompressedExtensions(std::string_view filePath);
 
 InputFileType detectFileType(std::string_view inputFile);
-std::vector<fs::path> readFilePaths(const char *manifest_file, InputFileType filter);
+std::vector<std::string> readFilePaths(const char *manifest_file, InputFileType filter);
 
 std::string_view extractSequenceName(std::string_view path);

@@ -1,30 +1,18 @@
 #pragma once
-#include <array>
 #include <cassert>
-#include <concepts>
 #include <cstdint>
-#include <filesystem>
-#include <fstream>
-#include <initializer_list>
 #include <iostream>
-#include <iterator>
-#include <random>
-#include <unordered_set>
-#include <span>
-#include <sstream>
+#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
-#include <glog/logging.h>
-#include <seqan3/alphabet/views/all.hpp>
 #include <zstr.hpp>
+#include <indicators/progress_bar.hpp>
+#include <seqan3/alphabet/nucleotide/all.hpp>
 
 #include "maki/core/seq/seq_io.hpp"
 #include "maki/core/seq/seq_concepts.hpp"
 #include "maki/build/graph/build_colours.hpp"
-
-namespace fs = std::filesystem;
 
 using namespace seqan3::literals;
 
@@ -43,6 +31,8 @@ struct gffToken
 
   std::size_t size() const noexcept { return end - begin; }
 };
+
+std::ostream& operator<<(std::ostream&, const gffToken&);
 
 struct gffRecord
 {
@@ -160,14 +150,13 @@ class AnnotatedSequenceSegmentSentinel
 {
 };
 
-class FeatureSegment
+class FeatureSegment final : public SequenceContainer
 {
 public:
-  FeatureSegment(Dna4Sequence const &seq_, size_t begin_, size_t end_, uint64_t id_, bool terminal = false);
-  FeatureSegment(Dna4SequenceConstIter begin_, Dna4SequenceConstIter end_, uint64_t id_, bool terminal = false);
+  FeatureSegment(Dna4SequenceConstIter seq_, size_t begin_, size_t end_, uint64_t id_, bool terminal = false);
 
-  Dna4SequenceConstIter begin() const { return _begin; }
-  Dna4SequenceConstIter end() const { return _end; }
+  Dna4SequenceConstIter begin() const { return _it+_begin; }
+  Dna4SequenceConstIter end() const { return _it+_end; }
 
   std::size_t size() const noexcept { return _end - _begin; }
   std::size_t numInternalKmers(std::size_t k) const noexcept { assert(size() >= k); return size() - k; }
@@ -179,7 +168,9 @@ public:
   void setEndToTerminal() { _endIsTerminal = true; }
 
 protected:
-  Dna4SequenceConstIter _begin, _end;
+  Dna4SequenceConstIter _it;
+  std::size_t _begin;
+  std::size_t _end;
   uint64_t _id;
   bool _endIsTerminal;
 };
@@ -252,6 +243,26 @@ struct Dna4Contig
   void insert(const seqan3::dna5_vector &, uint64_t seqFeatureId, AnnotRange annots, std::size_t minAnnotSize);
   std::size_t numKmers(uint8_t k) const;
   inline std::size_t numFragments() const noexcept { return sequences.first.size() + sequences.second.size(); }
+
+protected:
+  // Insert view of annotated fragment.
+  void _insertFragment(SequenceVector &vec,
+                      std::ranges::random_access_range auto&& sequence,
+                      int64_t startPos,
+                      int64_t endPos,
+                      uint64_t seqFeatureId,
+                      AnnotRange &annots,
+                      AnnotationTokenList &currentAnnots,
+                      std::size_t minAnnotSize);
+  
+  // Insert annotated contig.
+  void _insertOrientation(SequenceVector &vec,
+                          std::ranges::random_access_range auto&& sequence,
+                          uint64_t seqFeatureId,
+                          const std::vector<int64_t> &nPositions,
+                          AnnotRange annots,
+                          std::size_t minAnnotSize);
+
 };
 
 struct Dna4Genome final : public SequenceContainer
@@ -262,7 +273,7 @@ struct Dna4Genome final : public SequenceContainer
   std::size_t numKmers(uint8_t k) const;
   inline std::size_t numContigs() const noexcept { return contigs.size(); }
   std::size_t numFragments() const;
-  std::size_t numTerminals(uint8_t k) const;
+  std::size_t numTerminals(std::size_t k) const;
   std::size_t medianContigSize() const;
   std::size_t rss() const;
   void reset_memory();
@@ -272,25 +283,12 @@ struct Dna4Genome final : public SequenceContainer
 // Parsing large FNA files (filters)
 // ---------------------------------------------------------------------------
 
-class ChunkedDna4Genome final : public SequenceContainer
+struct ChunkedDna4Genome
 {
-public:
-  ChunkedDna4Genome(Dna4Genome &&genome, std::size_t granularity, std::size_t overlap);
+  Dna4Genome genome;
+  std::vector<FeatureSegment> chunks;
 
-  auto begin() const { return _chunks.begin(); }
-  auto end() const { return _chunks.end(); }
-
-  operator Dna4Genome const &() const noexcept { return _genome; }
-  operator std::vector<FeatureSegment> &() noexcept { return _chunks; }
-  operator const std::vector<FeatureSegment> &() const noexcept { return _chunks; }
-  const FeatureSegment &operator[](std::size_t i) const { return _chunks[i]; }
-  std::size_t chunks() const noexcept { return _chunks.size(); }
-  std::size_t numEdges() const noexcept { return _genome.length() + _genome.numFragments(); }
-  void reset_memory();
-
-protected:
-  Dna4Genome _genome;
-  std::vector<FeatureSegment> _chunks;
+  void chunk(std::size_t granularity, std::size_t overlap);
 };
 
 std::size_t chunks(const std::vector<ChunkedDna4Genome> &genomes);
@@ -303,12 +301,12 @@ void parseAnnotationStream(GenomeAnnotationList &annots, Colours &colours, zstr:
 void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream, std::size_t minContigSize);
 void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream, Colours &colours, std::size_t minContigSize);
 
-Dna4Genome parseGFF(fs::path gffFile, Colours &colours, std::size_t k);
-ChunkedDna4Genome parseFilterFNA(fs::path fastaFile, Colours &colours, std::size_t granularity, std::size_t k);
-std::vector<SequenceContainer *> combineViews(const std::vector<Dna4Genome>&, const std::vector<ChunkedDna4Genome>&);
+Dna4Genome parseGFF(const std::string &gffFile, Colours &colours, std::size_t k);
+ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours, std::size_t granularity, std::size_t k);
+std::vector<const SequenceContainer *> combineViews(const std::vector<Dna4Genome>&, const std::vector<ChunkedDna4Genome>&);
 
 template<typename ReturnType, typename ...Args>
-std::vector<ReturnType> parseWithColour(const std::vector<fs::path> &files, Colours &colours, ReturnType (*fn)(Args...), Args... args)
+std::vector<ReturnType> parse(const std::vector<std::string> &files, ReturnType (*fn)(const std::string&, Args...), Args&&... args)
 {
   std::size_t N = files.size();
   std::vector<ReturnType> result(N);
@@ -327,10 +325,7 @@ std::vector<ReturnType> parseWithColour(const std::vector<fs::path> &files, Colo
       indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
       indicators::option::MaxProgress{N}};
 
-  tbb::parallel_for((std::size_t)0, N, (std::size_t)1, [&](std::size_t i) { result[i] = fn(files[i], colours, args...); pbar.tick(); });
+  tbb::parallel_for((std::size_t)0, N, (std::size_t)1, [&](std::size_t i) { result[i] = fn(files[i], args...); pbar.tick(); });
 
   return result;
 }
-
-std::vector<Dna4Genome> parseWithColour(const std::vector<fs::path> &gffs, Colours &colours, std::size_t minContigSize);
-

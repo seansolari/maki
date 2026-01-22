@@ -1,5 +1,7 @@
 #include "maki/core/seq/seq_io.hpp"
 
+#include <filesystem>
+
 std::string toString(const Dna4Sequence &seq)
 {
   std::string result;
@@ -76,38 +78,38 @@ std::string_view removeCompressedExtensions(std::string_view filePath)
         return UnknownFileType;
     }
 
-    std::vector<fs::path> readFilePaths(const char *manifest_file)
+    std::vector<std::string> readFilePaths(const char *manifest_file, InputFileType filter)
   {
-    std::ifstream manifest(manifest_file, InputFileType filter);
+    std::ifstream manifest(manifest_file);
     // read lines from file
-    std::vector<fs::path> files;
-    std::copy(std::istream_iterator<fs::path>(manifest),
-              std::istream_iterator<fs::path>(),
+    std::vector<std::string> files;
+    std::copy(std::istream_iterator<std::string>(manifest),
+              std::istream_iterator<std::string>(),
               std::back_inserter(files));
     // validate all these files exist
     std::size_t missing = 0;
-    for (const fs::path &file : files)
+    for (const std::string &file : files)
     {
-      if (!fs::exists(file))
+      if (!std::filesystem::exists(file))
       {
         ++missing;
-        LOG(ERROR) << file << " not found";
+        std::cerr << file << " not found\n";
       }
       InputFileType ftype = detectFileType(file);
       if (ftype != filter)
       {
         ++missing;
-        LOG(ERROR) << "invalid file type: " << file;
+        std::cerr << "invalid file type: " << file << '\n';
       }
     }
     if (missing)
     {
-      LOG(ERROR) << missing << " files not found";
+      std::cerr << missing << " files not found\n";
       throw "errors during parsing";
     }
     else
     {
-      LOG(INFO) << "parsed " << files.size() << " files";
+      std::cout << "parsed " << files.size() << " files\n";
     }
     return files;
   }

@@ -175,6 +175,14 @@ FetchContent_Declare(
     GIT_TAG        v1.2.0 # adjust tag/branch/commit as needed
     )
 
+# ZStr --
+
+FetchContent_Declare(
+    ZStrGitRepo
+    GIT_REPOSITORY    "https://github.com/mateidavid/zstr"
+    GIT_TAG           "master"
+    )
+
 # GTest --
 
 FetchContent_Declare (
@@ -221,6 +229,7 @@ FetchContent_Declare (
 FetchContent_MakeAvailable (
     seqan3_fetch_content
     gtl
+    ZStrGitRepo
     googletest
     onetbb
     stxxl_fetch
@@ -305,6 +314,28 @@ if (TARGET OpenMP::OpenMP_CXX)
     set (MAKI_LIBRARIES ${MAKI_LIBRARIES} OpenMP::OpenMP_CXX)
 else ()
     maki_config_error ("Dependency OpenMP not found.")
+endif ()
+
+# ----------------------------------------------------------------------------
+# Require ZStr - C++ ZLib wrapper
+# ----------------------------------------------------------------------------
+
+find_package(ZLIB 1.2.3 REQUIRED)
+
+if (TARGET ZLIB::ZLIB)
+    maki_config_print ("Required dependency:        zlib-${ZLIB_VERSION_STRING} found.")
+    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} ZLIB::ZLIB)
+else ()
+    maki_config_error ("Dependency zlib not found.")
+endif ()
+
+if (TARGET zstr)
+    # collect desired attributes
+    get_target_property (zstr_VERSION zstr VERSION)
+    maki_config_print ("Required dependency:        zstr-${zstr_VERSION} found.")
+    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} zstr::zstr)
+else ()
+    maki_config_error ("Dependency zstr not found.")
 endif ()
 
 # ----------------------------------------------------------------------------

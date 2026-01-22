@@ -10,6 +10,7 @@ find_path (MAKI_MODULE_PATH "maki-config.cmake" HINTS "${CMAKE_CURRENT_LIST_DIR}
 list (APPEND CMAKE_MODULE_PATH "${MAKI_MODULE_PATH}" "${PROJECT_SOURCE_DIR}/cmake")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set (CMAKE_VERBOSE_MAKEFILE 0)
+set (CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include (maki-config-version)
 
@@ -34,6 +35,9 @@ configure_file (${CMAKE_SOURCE_DIR}/cmake/CTestCustom.cmake ${CMAKE_BINARY_DIR} 
 
 # collect sources
 add_subdirectory ("src")
+
+message (STATUS "`Build` sources: ${MAKI_BUILD_SOURCES}")
+message (STATUS "`Classify` sources: ${MAKI_CLASSIFY_SOURCES}")
 
 # two executables
 # 1) maki-build
