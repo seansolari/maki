@@ -16,24 +16,28 @@
 // -----------------------------------------------------------------------------
 
 #include <filesystem>
+#include <utility>
+#include <vector>
 
-#include "maki/build/io/fasta.hpp"
+#include "maki/build/kmers/buffers/nt_encoding.hpp"
+#include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
-#include "maki/build/graph/archive/archive_writer.hpp"
+#include "maki/build/kmers/construct_terminals.hpp"
+#include "maki/core/seq/seq_concepts.hpp"
 
 namespace fs = std::filesystem;
 
-using CDBGSinks = std::tuple<
-    ByteArraySink<>,            // edges: std::vector<uint8_t> -> FILE
-    SdslIntVectorOnDiskSink<1>, // succ: sdsl::bit_vector -> sdsl::int_vector_handle
-    ArchiveWriter<>             // colours: std::vector<uint8_t> -> Archive
-    >;
+using CDBGSinks =
+    std::tuple<ByteArraySink<>, // edges: std::vector<uint8_t> -> FILE
+               SdslIntVectorOnDiskSink<1>, // succ: sdsl::bit_vector ->
+                                           // sdsl::int_vector_handle
+               ArchiveWriter<> // colours: std::vector<uint8_t> -> Archive
+               >;
 
-struct ColouredKmerBuffers
-{
+struct ColouredKmerBuffers {
   // payload global position
-  suffix s;
+  ShortSuffix s;
   // k-mer data buffers
   KmerBuffer kmers;
   KmerBuffer temp;
@@ -41,44 +45,37 @@ struct ColouredKmerBuffers
   overlap_vector;
 };
 
-struct BufferPaths
-{
+struct BufferPaths {
   fs::path edges;
   fs::path succ;
   fs::path colours;
 };
 
-struct BuildParams
-{
+struct BuildParams {
   size_t k;
   size_t s;
   fs::path out;
 };
 
-BufferPaths constructCDBG(const std::vector<SequenceContainer*> &data, BuildParams params)
-{
-  BufferPaths outp{
-    params.out / "edges.txt",
-    params.out / "succ.sdsl",
-    params.out / "colours.maki"
-  };
+BufferPaths constructCDBG(const std::vector<const SequenceContainer *> &data,
+                          BuildParams params) {
+  BufferPaths outp{params.out / "edges.txt", params.out / "succ.sdsl",
+                   params.out / "colours.maki"};
 
   // extract terminals
-  
+  auto terminals = extractTerminalsSparse(data, params.k);
 
   // create suffix plan
 
   // prepare output buffers
 
-  CDBGSinks Sinks{
-      {outp.edges},    // consume edges
-      {outp.succ},     // consume succ
-      {outp.colours}}; // consume colours
+  CDBGSinks Sinks{{outp.edges},    // consume edges
+                  {outp.succ},     // consume succ
+                  {outp.colours}}; // consume colours
 
   // suffix-wise processing
 
-  for (each suffix)
-  {
+  for (each suffix) {
   }
 
   return outp;

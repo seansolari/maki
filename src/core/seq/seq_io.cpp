@@ -2,8 +2,7 @@
 
 #include <filesystem>
 
-std::string toString(const Dna4Sequence &seq)
-{
+std::string toString(const Dna4Sequence &seq) {
   std::string result;
   result.reserve(seq.size());
 
@@ -13,8 +12,7 @@ std::string toString(const Dna4Sequence &seq)
   return result;
 }
 
-std::string toString(std::vector<Dna4Sequence> const &v, const char *delim)
-{
+std::string toString(std::vector<Dna4Sequence> const &v, const char *delim) {
   size_t resultSize = 0;
   for (auto const &seq : v)
     resultSize += seq.size();
@@ -23,8 +21,7 @@ std::string toString(std::vector<Dna4Sequence> const &v, const char *delim)
   std::string result;
   result.reserve(resultSize);
 
-  for (auto const &seq : v)
-  {
+  for (auto const &seq : v) {
     if (!result.empty())
       result.append(delim);
     for (auto c : seq)
@@ -34,119 +31,94 @@ std::string toString(std::vector<Dna4Sequence> const &v, const char *delim)
   return result;
 }
 
-std::string_view removeCompressedExtensions(std::string_view filePath)
-    {
-        for (auto ext : COMPRESSED_EXTENSIONS)
-        {
-            if (filePath.ends_with(ext))
-            {
-                return filePath.substr(0, filePath.size() - ext.size());
-            }
-        }
-
-        return filePath;
+std::string_view removeCompressedExtensions(std::string_view filePath) {
+  for (auto ext : COMPRESSED_EXTENSIONS) {
+    if (filePath.ends_with(ext)) {
+      return filePath.substr(0, filePath.size() - ext.size());
     }
-
-    InputFileType detectFileType(std::string_view inputFile)
-    {
-        auto inputFileFmt = removeCompressedExtensions(inputFile);
-
-        for (auto fnaExt : FNA_EXTENSIONS)
-        {
-            if (inputFileFmt.ends_with(fnaExt))
-            {
-                return FastaFileType;
-            }
-        }
-
-        for (auto gffExt : GFF_EXTENSIONS)
-        {
-            if (inputFileFmt.ends_with(gffExt))
-            {
-                return Gff3FileType;
-            }
-        }
-
-        for (auto fqExt : FQ_EXTENSIONS)
-        {
-            if (inputFileFmt.ends_with(fqExt))
-            {
-                return FastQFileType;
-            }
-        }
-
-        return UnknownFileType;
-    }
-
-    std::vector<std::string> readFilePaths(const char *manifest_file, InputFileType filter)
-  {
-    std::ifstream manifest(manifest_file);
-    // read lines from file
-    std::vector<std::string> files;
-    std::copy(std::istream_iterator<std::string>(manifest),
-              std::istream_iterator<std::string>(),
-              std::back_inserter(files));
-    // validate all these files exist
-    std::size_t missing = 0;
-    for (const std::string &file : files)
-    {
-      if (!std::filesystem::exists(file))
-      {
-        ++missing;
-        std::cerr << file << " not found\n";
-      }
-      InputFileType ftype = detectFileType(file);
-      if (ftype != filter)
-      {
-        ++missing;
-        std::cerr << "invalid file type: " << file << '\n';
-      }
-    }
-    if (missing)
-    {
-      std::cerr << missing << " files not found\n";
-      throw "errors during parsing";
-    }
-    else
-    {
-      std::cout << "parsed " << files.size() << " files\n";
-    }
-    return files;
   }
 
-    std::string_view extractSequenceName(std::string_view path)
-    {
-        size_t newStart = path.find_last_of('/', (size_t)-1);
-        if (newStart != (size_t)-1)
-        {
-            path = path.substr(newStart + 1);
-        }
-        path = removeCompressedExtensions(path);
+  return filePath;
+}
 
-        for (auto fnaExt : FNA_EXTENSIONS)
-        {
-            if (path.ends_with(fnaExt))
-            {
-                return path.substr(0, path.size() - fnaExt.size());
-            }
-        }
+InputFileType detectFileType(std::string_view inputFile) {
+  auto inputFileFmt = removeCompressedExtensions(inputFile);
 
-        for (auto gffExt : GFF_EXTENSIONS)
-        {
-            if (path.ends_with(gffExt))
-            {
-                return path.substr(0, path.size() - gffExt.size());
-                ;
-            }
-        }
-
-        for (auto fqExt : FQ_EXTENSIONS)
-        {
-            if (path.ends_with(fqExt))
-            {
-                return path.substr(0, path.size() - fqExt.size());
-            }
-        }
-
-        return path;
+  for (auto fnaExt : FNA_EXTENSIONS) {
+    if (inputFileFmt.ends_with(fnaExt)) {
+      return FastaFileType;
     }
+  }
+
+  for (auto gffExt : GFF_EXTENSIONS) {
+    if (inputFileFmt.ends_with(gffExt)) {
+      return Gff3FileType;
+    }
+  }
+
+  for (auto fqExt : FQ_EXTENSIONS) {
+    if (inputFileFmt.ends_with(fqExt)) {
+      return FastQFileType;
+    }
+  }
+
+  return UnknownFileType;
+}
+
+std::vector<std::string> readFilePaths(const char *manifest_file,
+                                       InputFileType filter) {
+  std::ifstream manifest(manifest_file);
+  // read lines from file
+  std::vector<std::string> files;
+  std::copy(std::istream_iterator<std::string>(manifest),
+            std::istream_iterator<std::string>(), std::back_inserter(files));
+  // validate all these files exist
+  std::size_t missing = 0;
+  for (const std::string &file : files) {
+    if (!std::filesystem::exists(file)) {
+      ++missing;
+      std::cerr << file << " not found\n";
+    }
+    InputFileType ftype = detectFileType(file);
+    if (ftype != filter) {
+      ++missing;
+      std::cerr << "invalid file type: " << file << '\n';
+    }
+  }
+  if (missing) {
+    std::cerr << missing << " files not found\n";
+    throw "errors during parsing";
+  } else {
+    std::cout << "parsed " << files.size() << " files\n";
+  }
+  return files;
+}
+
+std::string_view extractSequenceName(std::string_view path) {
+  size_t newStart = path.find_last_of('/', (size_t)-1);
+  if (newStart != (size_t)-1) {
+    path = path.substr(newStart + 1);
+  }
+  path = removeCompressedExtensions(path);
+
+  for (auto fnaExt : FNA_EXTENSIONS) {
+    if (path.ends_with(fnaExt)) {
+      return path.substr(0, path.size() - fnaExt.size());
+    }
+  }
+
+  for (auto gffExt : GFF_EXTENSIONS) {
+    if (path.ends_with(gffExt)) {
+      return path.substr(0, path.size() - gffExt.size());
+      ;
+    }
+  }
+
+  for (auto fqExt : FQ_EXTENSIONS) {
+    if (path.ends_with(fqExt)) {
+      return path.substr(0, path.size() - fqExt.size());
+    }
+  }
+
+  return path;
+}

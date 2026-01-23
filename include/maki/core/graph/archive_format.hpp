@@ -2,14 +2,10 @@
 #pragma once
 #include <cstdint>
 
-enum class Encoding : uint8_t
-{
-  RAW_PACKED = 1
-};
+enum class Encoding : uint8_t { RAW_PACKED = 1 };
 
 #pragma pack(push, 1)
-struct ChunkMeta
-{
+struct ChunkMeta {
   uint64_t start_index; // prefix sum
   uint64_t elem_count;  // number of elements in chunk
   uint64_t file_offset; // start byte in file
@@ -20,8 +16,7 @@ struct ChunkMeta
   uint32_t crc32;       // per-chunk checksum over packed bytes
 };
 
-struct Footer
-{
+struct Footer {
   uint64_t toc_offset;
   uint64_t chunk_count;
   uint32_t version; // = 1

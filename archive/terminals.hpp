@@ -286,50 +286,11 @@ namespace terminals
                         bool endIsTerminal,
                         suffix::SmallRollingNuclSeq key);
 
-        /**
-         * Insert first k terminals (does not insert a complete k-mer)
-         */
-        template <typename Unwind_, class ...Args>
-        void
-        insertTerminals(std::vector<range_t<Unwind_>> const &data,
-                        Unwind_ Apply,
-                        std::vector<size_t> const &blocks,
-                        Args ...args)
-        {
-            assert(data.size() == blocks.size());
-            oneapi::tbb::parallel_for((size_t)0, blocks.size(), [&](size_t i)->void {
-                iterator it = at(i == 0 ? 0 : blocks[i - 1]);
-                Apply.forEachBegin(data[i], [&](Dna4SequenceConstIter data)->void {
-                    it = insert(it, data, data + k, false, args...); });
-            } );
-        }
-
-        /**
-         * Insert all terminals and k-mers, tracking size (max of k) of each item.
-         */
-        template <typename Unwind_, class ...Args>
-        void
-        insertKmers(std::vector<range_t<Unwind_>> const &data,
-                    Unwind_ Apply,
-                    std::vector<size_t> const &blocks,
-                    Args ...args)
-        {
-            assert(data.size() == blocks.size());
-            oneapi::tbb::parallel_for((size_t)0, blocks.size(), [&](size_t i)->void {
-                iterator it = at(i == 0 ? 0 : blocks[i - 1]);
-                Apply.forEach(data[i], [&](Dna4SequenceConstIter begin, Dna4SequenceConstIter end, bool endIsTerminal)->void {
-                    it = insert(it, begin, end, endIsTerminal, args...); });
-            } );
-        }
-
-    public:
+        
         void sort(TerminalBuffer *temp, uint32_t threads_);
         void sort(uint32_t threads_);
         void unique();
-
         TerminalBuffer OOPsort() const;
-
-    public:
         TerminalRange asRange() const;
     };
 

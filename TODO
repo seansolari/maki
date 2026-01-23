@@ -2,7 +2,6 @@
 
 ### High priority
 
- - parse filter and fasta
  - extract terminals
  - count and plan suffixes
  - colour writing thread that writes to a quick and easy format
