@@ -16,12 +16,6 @@ std::vector<std::size_t> planTerminalRanges(const std::vector<const SequenceCont
 TerminalBuffer extractTerminalsSparse(const std::vector<const SequenceContainer*> &data_, std::size_t k_) {
   auto blocks = planTerminalRanges(data_, k_);
   TerminalBuffer buffer(blocks.back(), k_, TerminalBuffer::autofit_tag);
-  oneapi::tbb::parallel_for((std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
-    auto it = buffer.at(i == 0 ? 0 : blocks[i - 1]);
-    for (auto seq : data_[i]->terminals())
-    {
-      it = buffer.insert(it, seq.begin(), seq.begin() + k_, false);
-    }
-  });
+  buffer.fill(data_, blocks);
   return buffer;
 }

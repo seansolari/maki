@@ -7,13 +7,10 @@
 
 #include <oneapi/tbb/parallel_for.h>
 
+#include "maki/core/seq/seq_concepts.hpp"
+#include "maki/build/utils/bits.hpp"
 #include "base_buffer.hpp"
 #include "nt_encoding.hpp"
-
-namespace {
-void ser(size_t src, uint8_t *dst, uint32_t bytes);
-size_t deser(uint8_t const *src, uint32_t bytes);
-} // namespace
 
 template <typename T>
 class TerminalBufferRandomAccessIterator
@@ -48,7 +45,7 @@ public:
   constexpr inline void writeSize(size_t v_) const
     requires(!std::is_const_v<T>)
   {
-    ::ser(v_, this->_data, _lengthBytes);
+    ser(v_, this->_data, _lengthBytes);
   }
   constexpr inline void writeKey(LongSuffix const &tl) const
     requires(!std::is_const_v<T>)
@@ -70,7 +67,7 @@ public:
   }
   inline uint32_t lengthBytes() const noexcept { return _lengthBytes; }
   inline uint32_t keyBytes() const noexcept { return _seqBytes + _lengthBytes; }
-  inline size_t readSize() const { return ::deser(this->_data, _lengthBytes); }
+  inline size_t readSize() const { return deser(this->_data, _lengthBytes); }
   inline T readEdge() const { return *(this->_data + _valueOffset); }
   inline T readValue() const { return readEdge(); }
   inline T *data() { return this->_data; }
@@ -190,14 +187,24 @@ public:
   }
 
 public:
+  /**
+   * Fill with terminal sequences.
+   */
+  void fill(const std::vector<const SequenceContainer *> &data_,
+            const std::vector<size_t> &blocks_);
+  /**
+   * Fill with k-mer sequences that have a specific suffix.
+   */
+  void fill(const std::vector<const SequenceContainer *> &data_,
+            const std::vector<SuffixTable> &blocks_,
+            ShortSuffix sfx_);
   iterator insert(iterator it, Dna4SequenceConstIter begin,
                   Dna4SequenceConstIter end, bool endIsTerminal);
-
   iterator insert(iterator it, Dna4SequenceConstIter begin,
                   Dna4SequenceConstIter end, bool endIsTerminal,
                   ShortSuffix key);
-  void sort(TerminalBuffer *temp, uint32_t threads_);
-  void sort(uint32_t threads_);
+  void sort(TerminalBuffer *temp);
+  void sort();
   void unique();
   TerminalBuffer OOPsort() const;
   TerminalRange asRange() const;

@@ -2,24 +2,10 @@
 
 ### High priority
 
- - extract terminals
- - count and plan suffixes
- - colour writing thread that writes to a quick and easy format
-   - colours graph compression, bzip2 for colour arrays
-   - both accept data from threads
-   - buffer colour output so each buffer has consistent size
- - only suffix-wise graph construction, threads write to set of temp buffers
+ - adjacent difference, allowing non-unique entries
+ - preparing output sinks
+ - integer mapping with suffixes (sized)
+ - interleaving
  - write seed data to disk
  - pwm wavelet matrix construction and tests (see Copilot output)
  - adapt count and classify for colours
-
-#### Suffix-wise analysis
-
-The analysis is suffix-wise. How does this work with suffix sizes smaller than the
-current suffix size?
-
- - Extract terminals with a given suffix, grouping ($$$$A with AAAAA, etc.).
-
-### Low priority
-
- - separate build deps between index and classify

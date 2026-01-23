@@ -1,6 +1,6 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
-
 #include <iterator>
+#include <oneapi/tbb/parallel_for.h>
 
 ShortSuffix::ShortSuffix(std::size_t _size, uint64_t init)
     : _s(_size), _data(init) {
@@ -53,4 +53,60 @@ void Kmer::roll(uint8_t nt) {
 
   // finalise partial byte
   _data[i] = (_data[i] >> 2) | (nt << _edge_bit_offset);
+}
+
+void SuffixTable::count(Dna4SequenceConstIter it, Dna4SequenceConstIter end) {
+  ShortSuffix suffix{s};
+
+  // initialise suffix
+  for (size_t i = 0; i < s; ++i)
+    suffix.roll(parsing::dna4ToLong(*it++));
+  ++(*this)[suffix];
+
+  // count rest of sequence
+  while (it != end) {
+    suffix.roll(parsing::dna4ToLong(*it++));
+    ++(*this)[suffix];
+  }
+}
+
+size_t SuffixTable::maxValue() const {
+  return *std::max_element(_data.cbegin(), _data.cend());
+}
+
+SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs) {
+  assert(dest.suffixSize() == rhs.suffixSize());
+  auto it = lhs.begin();
+  for (uint64_t v : rhs) {
+    *it += v;
+    ++it;
+  }
+  return lhs;
+}
+
+std::vector<SuffixTable>
+createSuffixPlan(const std::vector<const SequenceContainer *> &data,
+                 std::size_t k, std::size_t s) {
+  std::vector<SuffixTable> tables(data.size());
+
+  // count suffixes
+  oneapi::tbb::parallel_for((std::size_t)0, data.size(), (std::size_t)1,
+                            [&](std::size_t i) {
+                              tables[i].resize(s);
+                              for (auto fmt : data[i]->fragments(k)) {
+                                auto it = fmt.begin(), end = fmt.end();
+                                if (!fmt.endIsTerminal())
+                                  --end;
+                                std::size_t size = end - it;
+                                if (size >= k)
+                                  tables[i].count(it + (k - s), end);
+                              }
+                            });
+
+  // accumulate counts
+  for (std::size_t i = 1; i < tables.size(); ++i) {
+    tables[i] += tables[i - 1];
+  }
+
+  return tables;
 }

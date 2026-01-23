@@ -16,14 +16,13 @@
 // -----------------------------------------------------------------------------
 
 #include <filesystem>
-#include <utility>
-#include <vector>
 
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
+#include "maki/build/kmers/suffix.hpp"
 #include "maki/core/seq/seq_concepts.hpp"
 
 namespace fs = std::filesystem;
@@ -62,10 +61,11 @@ BufferPaths constructCDBG(const std::vector<const SequenceContainer *> &data,
   BufferPaths outp{params.out / "edges.txt", params.out / "succ.sdsl",
                    params.out / "colours.maki"};
 
-  // extract terminals
+  // extract terminals and create suffix plan
   auto terminals = extractTerminalsSparse(data, params.k);
-
-  // create suffix plan
+  auto splan = createSuffixPlan(data, params.k, params.s);
+  std::size_t requiredBufferSize = splan.back().maxValue();
+  
 
   // prepare output buffers
 

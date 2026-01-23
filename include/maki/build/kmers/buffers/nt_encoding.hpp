@@ -7,6 +7,7 @@
 
 #include "base_buffer.hpp"
 #include "maki/build/utils/bits.hpp"
+#include "maki/core/seq/seq_concepts.hpp"
 #include "maki/core/seq/seq_io.hpp"
 
 /**
@@ -219,3 +220,54 @@ struct LongSuffix : public Kmer {
 public:
   size_t _size;
 };
+
+class SuffixTable {
+public:
+  using uint64_t = uint64_t;
+  using iterator = std::vector<uint64_t>::iterator;
+  using const_iterator = typename std::vector<uint64_t>::const_iterator;
+  using pointer = uint64_t *;
+  using const_pointer = const uint64_t *;
+
+  inline void resize(size_t s_) {
+    s = s_;
+    _data.resize((size_t)1u << (2 * s), 0);
+  }
+  inline SuffixTable &operator=(const SuffixTable &other) = default;
+  inline SuffixTable &operator=(SuffixTable &&other) = default;
+  inline size_t suffixSize() const noexcept { return s; }
+  const std::vector<uint64_t> &cdata() const { return _data; }
+  inline iterator begin() { return _data.begin(); }
+  inline iterator end() { return _data.end(); }
+  inline const_iterator begin() const { return _data.begin(); }
+  inline const_iterator end() const { return _data.end(); }
+  inline const_iterator cbegin() const { return _data.cbegin(); }
+  inline const_iterator cend() const { return _data.cend(); }
+  void count(Dna4SequenceConstIter it, Dna4SequenceConstIter end);
+  inline uint64_t &operator[](const ShortSuffix &sfx) {
+    return _data.operator[](sfx._data);
+  }
+  inline const uint64_t &operator[](uint64_t sfx) const {
+    return _data.operator[](sfx);
+  }
+  inline const uint64_t &operator[](const ShortSuffix &sfx) const {
+    return _data.operator[](sfx._data);
+  }
+  size_t maxValue() const;
+  inline size_t size() const noexcept { return _data.size(); }
+  friend SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs);
+
+private:
+  size_t s;
+  std::vector<uint64_t> _data;
+};
+
+/**
+ * Count suffixes in each genome, and accumulate. The result is a 2D matrix
+ * where `rows ~ genome` and `columns ~ suffix`, and each cell contains the
+ * cumulative number of k-mers with that suffix including all genomes before it
+ * in the container.
+ */
+std::vector<SuffixTable>
+createSuffixPlan(const std::vector<const SequenceContainer *> &data,
+                 std::size_t k, std::size_t s);
