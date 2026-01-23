@@ -2,7 +2,6 @@
 
 ### High priority
 
- - adjacent difference, allowing non-unique entries
  - preparing output sinks
  - integer mapping with suffixes (sized)
  - interleaving

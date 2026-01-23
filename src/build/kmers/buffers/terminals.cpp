@@ -264,3 +264,36 @@ void TerminalBuffer::unique() {
 
   shrink(++__out - begin());
 }
+
+KmerDiffClass TerminalDiff::operator()(const uint8_t *_lhs,
+                                       const uint8_t *_rhs) const {
+  KmerDiffClass dseq =
+      KmerDiff::operator()(_lhs + _lengthBytes, _rhs + _lengthBytes);
+  if (dseq == IS_0) {
+    size_t minSize = deser(_lhs, _lengthBytes);
+    size_t maxSize = deser(_rhs, _lengthBytes);
+
+    if (minSize > maxSize)
+      std::swap(minSize, maxSize);
+
+    if (minSize == maxSize)
+      return IS_0;
+    else if ((maxSize - minSize == 1u) && (maxSize == _k_eff))
+      return IS_K;
+    else
+      return BW_0_K;
+  } else
+    return dseq;
+}
+
+sdsl::int_vector<2> adjacentDifference(TerminalBuffer &buffer) {
+  return adjacentDifference(
+      buffer.constBegin(), buffer.constEnd(),
+      TerminalDiff(buffer.lengthBytes(), buffer.getEffK()));
+}
+
+sdsl::int_vector<2> adjacentDifference(TerminalRange buffer) {
+  return adjacentDifference(
+      buffer.constBegin(), buffer.constEnd(),
+      TerminalDiff(buffer.lengthBytes(), buffer.getEffK()));
+}

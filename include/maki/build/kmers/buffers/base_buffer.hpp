@@ -1,7 +1,9 @@
 #pragma once
 #include <algorithm>
 #include <cassert>
+#include <concepts>
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
@@ -9,7 +11,12 @@
 #include <type_traits>
 #include <utility>
 
+#include <oneapi/tbb/parallel_for.h>
+#include <sdsl/int_vector.hpp>
+
 #include "maki/build/utils/bits.hpp"
+#include "maki/build/utils/locks.hpp"
+#include "maki/maki.h"
 #include "sort.hpp"
 
 namespace ndim {
@@ -714,3 +721,58 @@ public:
   }
   inline const MyMatrix &memoryview() const { return _data; }
 };
+
+enum KmerDiffClass : uint8_t {
+  IS_0 = 0b00u,  // corresponds to pattern `+  +  + ... +`
+  IS_K = 0b01u,  // corresponds to pattern `-  +  + ... +`
+  BW_0_K = 0b10u // corresponds to pattern `* ... - ... *`
+};
+
+template <typename It>
+concept strides_bytes = requires(It __i, It __j, It &__k, std::size_t di) {
+  typename It::difference_type;
+  { __i + di } -> std::same_as<It>;
+  { ++__i } -> std::same_as<It &>;
+  { __i - __j } -> std::convertible_to<std::size_t>;
+  { std::to_address(__k) } -> std::convertible_to<const uint8_t *>;
+};
+
+template <typename Op>
+concept kmer_comparator =
+    requires(Op op, const uint8_t *lhs, const uint8_t *rhs) {
+      { op(lhs, rhs) } -> std::same_as<KmerDiffClass>;
+    };
+
+template <strides_bytes RandomIter>
+sdsl::int_vector<2> adjacentDifference(RandomIter begin, RandomIter end,
+                                       kmer_comparator auto &&diff) {
+  size_t numElements = end - begin;
+  sdsl::int_vector<2> data(numElements, 0);
+  if (numElements == 0)
+    return data;
+
+  data[0] = BW_0_K;
+  static constexpr size_t blocksize = 8 * 512;
+  LockedRegionManager mgr(numElements, blocksize);
+
+  tbb::parallel_for(
+      tbb::blocked_range<size_t>(1, numElements, KMER_OVERLAP_GRAINSIZE),
+      [&](const tbb::blocked_range<size_t> &r) -> void {
+        LockedRegionManager::Accessor locks(mgr);
+
+        size_t i = r.begin() - 1;
+        RandomIter it = begin + i;
+        const uint8_t *prev = std::to_address(it);
+        const uint8_t *curr;
+
+        while (++i != r.end()) {
+          curr = std::to_address(++it);
+          KmerDiffClass dx = diff(curr, prev);
+          locks.access(i);
+          data[i] = dx;
+          prev = curr;
+        }
+      });
+
+  return data;
+}

@@ -134,3 +134,8 @@ KmerDiffClass MaskedBytesDiff::operator()(const uint8_t *l_,
 
   return IS_0;
 }
+
+sdsl::int_vector<2> adjacentDifference(KmerBuffer &buffer) {
+  return adjacentDifference(buffer.begin(), buffer.end(),
+                            KmerDiff{buffer.keyBytes()});
+}

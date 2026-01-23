@@ -7,5 +7,6 @@ set (MAKI_BUILD_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/kmers/buffers/sort.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/kmers/buffers/terminals.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/kmers/construct_terminals.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/utils/locks.cpp"
   PARENT_SCOPE
 )

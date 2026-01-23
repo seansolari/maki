@@ -10,6 +10,7 @@
 template <typename T, typename Derived>
 class BaseKmerRandomIterator : public ndim::StridedIteratorBase<T, Derived> {
   using BaseIterType = ndim::StridedIteratorBase<T, Derived>;
+public:
   using difference_type = std::ptrdiff_t;
 
 protected:
@@ -124,15 +125,7 @@ public:
   void sort();
 };
 
-enum KmerDiffClass : uint8_t {
-  IS_0 = 0b00u,  // corresponds to pattern `+  +  + ... +`
-  IS_K = 0b01u,  // corresponds to pattern `-  +  + ... +`
-  BW_0_K = 0b10u // corresponds to pattern `* ... - ... *`
-};
-
 struct KmerDiff {
-  static constexpr uint8_t result_width = 2;
-
   KmerDiff(uint32_t key_bytes) : _seqWidth(key_bytes) {}
 
   // `_lhs` and `_rhs` point to the least significant bytes of each k-mer
@@ -158,3 +151,5 @@ public:
    */
   KmerDiffClass operator()(const uint8_t *l_, const uint8_t *r_) const;
 };
+
+sdsl::int_vector<2> adjacentDifference(KmerBuffer&);

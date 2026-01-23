@@ -3,13 +3,15 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <sdsl/int_vector.hpp>
 #include <type_traits>
 
 #include <oneapi/tbb/parallel_for.h>
 
-#include "maki/core/seq/seq_concepts.hpp"
-#include "maki/build/utils/bits.hpp"
 #include "base_buffer.hpp"
+#include "kmers.hpp"
+#include "maki/build/utils/bits.hpp"
+#include "maki/core/seq/seq_concepts.hpp"
 #include "nt_encoding.hpp"
 
 template <typename T>
@@ -18,12 +20,6 @@ class TerminalBufferRandomAccessIterator
                                        TerminalBufferRandomAccessIterator<T>> {
   using BaseIterType =
       ndim::StridedIteratorBase<T, TerminalBufferRandomAccessIterator<T>>;
-  using difference_type = std::ptrdiff_t;
-
-protected:
-  uint32_t _lengthBytes, _seqBytes, _valueOffset;
-  uint8_t _k_eff;
-
 public:
   TerminalBufferRandomAccessIterator(uint32_t lengthBytes, uint32_t seqBytes,
                                      uint32_t valueOffset, uint8_t kEff)
@@ -36,7 +32,8 @@ public:
       : BaseIterType(p, w), _lengthBytes(lengthBytes), _seqBytes(seqBytes),
         _valueOffset(valueOffset), _k_eff(kEff) {}
 
-public:
+  using difference_type = std::ptrdiff_t;
+
   constexpr inline void writeTerminal(const LongSuffix &terminal) const
     requires(!std::is_const_v<T>)
   {
@@ -73,6 +70,10 @@ public:
   inline T *data() { return this->_data; }
   inline const T *cdata() const { return this->_data; }
   inline T keyMSB() const { return *(this->_data + keyBytes() - 1); }
+
+protected:
+  uint32_t _lengthBytes, _seqBytes, _valueOffset;
+  uint8_t _k_eff;
 };
 
 class TerminalRange;
@@ -196,8 +197,7 @@ public:
    * Fill with k-mer sequences that have a specific suffix.
    */
   void fill(const std::vector<const SequenceContainer *> &data_,
-            const std::vector<SuffixTable> &blocks_,
-            ShortSuffix sfx_);
+            const std::vector<SuffixTable> &blocks_, ShortSuffix sfx_);
   iterator insert(iterator it, Dna4SequenceConstIter begin,
                   Dna4SequenceConstIter end, bool endIsTerminal);
   iterator insert(iterator it, Dna4SequenceConstIter begin,
@@ -406,3 +406,18 @@ protected:
   uint8_t _msb_mask;
   long _offset;
 };
+
+struct TerminalDiff : public KmerDiff {
+  TerminalDiff(uint32_t lengthBytes, uint8_t k_eff)
+      : KmerDiff(key_size(k_eff)), _lengthBytes(lengthBytes), _k_eff(k_eff) {}
+
+  // `_lhs` and `_rhs` point to the least significant bytes of each k-mer
+  KmerDiffClass operator()(const uint8_t *_lhs, const uint8_t *_rhs) const;
+
+protected:
+  uint32_t _lengthBytes;
+  size_t _k_eff;
+};
+
+sdsl::int_vector<2> adjacentDifference(TerminalBuffer &);
+sdsl::int_vector<2> adjacentDifference(TerminalRange);
