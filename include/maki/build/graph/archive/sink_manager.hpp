@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cassert>
+#include <concepts>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
@@ -88,6 +89,39 @@ constexpr void tuple_for_each_pair(TupleA &&a, TupleB &&b, F &&f) {
 
 } // namespace detail
 
+/** Un-throttled container generation. If `obtain` is called when
+ * no buffers are available, a new one is created.
+ */
+template <typename Container> struct Factory {
+  Factory() =default;
+
+  void release(std::unique_ptr<Container> &p) {
+    std::lock_guard lock(mtx_);
+    free_.push_back(std::move(p));
+  }
+
+  template <class... Args>
+  std::unique_ptr<Container> obtain(Args&&... args) {
+    {
+      std::lock_guard lock(mtx_);
+      if (!free_.empty()) {
+        auto p = std::move(free_.back());
+        free_.pop_back();
+        return p;
+      }
+    }
+    return std::make_unique<Container>(std::forward<Args>(args)...);
+  }
+
+protected:
+  std::mutex mtx_;
+  std::vector<std::unique_ptr<Container>> free_;
+};
+
+/**
+ * Throttling stack that will block if `pop` is called when no data
+ * is available.
+ */
 template <typename Container> class Stack {
 public:
   // reserve (but don't allocate) space for this many items
@@ -282,8 +316,9 @@ protected:
 };
 
 template <class T, class... Sinks>
-concept BundleProducer = requires(const T fn, uint64_t i) {
+concept BundleProducer = requires(const T fn, T gn, uint64_t i, std::shared_ptr<BundlePool<Sinks...>> &p) {
   { fn(i) } -> std::same_as<std::unique_ptr<ChunkBundleT<Sinks...>>>;
+  { gn.setPool(p) } -> std::same_as<void>;
 };
 
 template <class T, class... Sinks>
@@ -293,6 +328,7 @@ void ProcessChunks(T &&op, std::tuple<Sinks...> sinks, std::size_t pool_size,
   using Bundle = ChunkBundleT<Sinks...>;
   auto pool =
       std::make_shared<BundlePool<Sinks...>>(pool_size, per_sink_reserve);
+  op.setPool(pool);
   auto multi = std::make_shared<MultiSink<Sinks...>>(std::move(sinks));
   oneapi::tbb::parallel_pipeline(
       pool_size,

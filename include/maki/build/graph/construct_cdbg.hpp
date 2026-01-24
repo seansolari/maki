@@ -3,15 +3,21 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <vector>
 
-#include "maki/build/kmers/buffers/kmers.hpp"
-#include "maki/build/kmers/buffers/nt_encoding.hpp"
-#include "maki/build/kmers/construct_terminals.hpp"
+#include <sdsl/int_vector.hpp>
+
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
+#include "maki/build/graph/archive/sink_manager.hpp"
+#include "maki/build/kmers/buffers/kmers.hpp"
+#include "maki/build/kmers/buffers/nt_encoding.hpp"
+#include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/seq/seq_concepts.hpp"
+
+namespace cdbg {
 
 // -----------------------------------------------------------------------------
 // Construct coloured succinct de Bruijn graph
@@ -34,26 +40,58 @@ struct BuildOptions {
   // Output parameters
   std::filesystem::path out;
   // Space parameters
+  std::size_t colour_width;
   std::size_t threads = 16;
   std::size_t pool_size = 16;
   std::size_t reserve_per_chunk = 0;
+  std::size_t num_chunks;
 };
 
-struct ColouredKmerBuffers {
-  KmerBuffer data;
+// -----------------------------------------------------------------------------
+// Intermediate data
+// -----------------------------------------------------------------------------
+
+struct Buffers {
+  Buffers(std::size_t length, std::size_t width, std::size_t k,
+          std::size_t keff)
+      : kmers(length, width, k, keff), temp(length, width, k, keff), b() {}
+
+  /**
+   * Collect k-mers with given suffix `s_` from input sequences.
+   */
+  void collect(const std::vector<const SequenceContainer *> &seqs_,
+               const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
+
+  KmerBuffer kmers;
   KmerBuffer temp;
+  sdsl::int_vector<2> b;
 };
 
-/*
+struct BufferMaker : public Factory<Buffers> {
+  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_, std::size_t keff_)
+    : Factory<Buffers>(), length(length_), width(width_), k(k_), keff(keff_) {}
 
-using CDBGSinks =
-    std::tuple<ByteArraySink<>, // edges: std::vector<uint8_t> -> FILE
-               SdslIntVectorOnDiskSink<1>, // succ: sdsl::bit_vector ->
-                                           // sdsl::int_vector_handle
-               ArchiveWriter<> // colours: std::vector<uint8_t> -> Archive
-               >;
+  std::size_t length;
+  std::size_t width;
+  std::size_t k;
+  std::size_t keff;
 
-*/
+  inline std::unique_ptr<Buffers> obtain() {
+    return Factory<Buffers>::obtain(length, width, k, keff);
+  }
+};
+
+// -----------------------------------------------------------------------------
+// Output data
+// -----------------------------------------------------------------------------
+
+using EdgeSink = ByteArraySink<>;
+using SuccSink = SdslIntVectorOnDiskSink<1>;
+using ColourSink = ArchiveWriter<>;
+
+using Sinks = std::tuple<EdgeSink, SuccSink, ColourSink>;
+using Bundle = ChunkBundleT<EdgeSink, SuccSink, ColourSink>;
+using BundlePool = ::BundlePool<EdgeSink, SuccSink, ColourSink>;
 
 struct BufferPaths {
   std::filesystem::path edges;
@@ -61,15 +99,41 @@ struct BufferPaths {
   std::filesystem::path colours;
 };
 
-BufferPaths constructCDBG(const std::vector<const SequenceContainer *> &data,
-                          BuildOptions params = {}) {
-  BufferPaths outp{params.out / "edges.txt", params.out / "succ.sdsl",
-                   params.out / "colours.maki"};
+Sinks prepareSinks(BufferPaths &pths);
 
-  // extract terminals and create suffix plan
-  auto terminals = extractTerminalsSparse(data, params.kmer_size);
-  auto splan = createSuffixPlan(data, params.kmer_size, params.suffix_size);
-  std::size_t requiredBufferSize = splan.back().maxValue();
+// -----------------------------------------------------------------------------
+// Pipeline
+// -----------------------------------------------------------------------------
 
-  return outp;
-}
+struct SuffixwiseKmers {
+  SuffixwiseKmers(const std::vector<const SequenceContainer *> &seqs,
+                  const TerminalRange &terminals, std::size_t k, std::size_t s,
+                  std::size_t cw);
+
+  void setPool(std::shared_ptr<BundlePool> &p);
+  std::unique_ptr<Bundle> operator()(uint64_t) const;
+
+protected:
+  std::unique_ptr<Buffers> _getbuffer() const;
+  std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
+
+protected:
+  // input data
+  std::size_t s_;
+
+  // input buffers
+  const std::vector<const SequenceContainer *> &seqs_;
+  const TerminalRange &terminals_;
+
+  // shared auxilliary data
+  std::shared_ptr<std::vector<SuffixTable>> blocks_;
+  std::shared_ptr<BufferMaker> buffers_;
+
+  // output buffers
+  std::shared_ptr<BundlePool> pool_;
+};
+
+BufferPaths construct(const std::vector<const SequenceContainer *> &data,
+                      BuildOptions params = {});
+
+} // namespace cdbg

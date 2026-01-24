@@ -2,9 +2,15 @@
 
 ### High priority
 
- - preparing output sinks
+ - validate payload association with sinks
+ - interleaving/flushing
+ - validate payload attributes: reserve, clear, supply
  - integer mapping with suffixes (sized)
- - interleaving
- - write seed data to disk
+ - finalise graph construction
+   - write seed data to disk
+ - unit tests
+
+### Low priority
+
  - pwm wavelet matrix construction and tests (see Copilot output)
  - adapt count and classify for colours
