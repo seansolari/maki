@@ -12,8 +12,8 @@
 // Notes:
 //  - Payload type for both sinks: sdsl::int_vector<> (runtime width).
 //  - On-disk sink: global width is fixed for the whole file; choose at ctor
-//    or derived from the first payload. Later payloads must have width <= global
-//    width (values must fit).
+//    or derived from the first payload. Later payloads must have width <=
+//    global width (values must fit).
 //  - In-memory sink: if a later payload needs more bits, we transparently
 //    widen by repacking into a new vector and swapping.
 //  - Both sinks expose write(const sdsl::int_vector<>&) and finalize().
@@ -22,9 +22,6 @@
 
 #include <cstdint>
 #include <string>
-#include <stdexcept>
-#include <system_error>
-#include <utility>
 
 #include <sdsl/int_vector.hpp>
 #include <sdsl/int_vector_buffer.hpp>
@@ -39,45 +36,37 @@
 // need maximum throughput and you know widths are equal, you can implement
 // a specialized block-copy path later.
 
-namespace detail
-{
+namespace detail {
 
-  template <uint8_t mwidth>
-  inline void append_values_to_buffer(sdsl::int_vector_buffer<mwidth> &buf,
-                                      const sdsl::int_vector<mwidth> &src)
-  {
-    const std::uint64_t n = src.size();
-    for (std::uint64_t i = 0; i < n; ++i)
-    {
-      buf.push_back(src[i]); // width enforced by buffer configuration
-    }
+template <uint8_t mwidth>
+inline void append_values_to_buffer(sdsl::int_vector_buffer<mwidth> &buf,
+                                    const sdsl::int_vector<mwidth> &src) {
+  const std::uint64_t n = src.size();
+  for (std::uint64_t i = 0; i < n; ++i) {
+    buf.push_back(src[i]); // width enforced by buffer configuration
   }
+}
 
-  // assumes `dst` has been extended to be able to append `src`
-  template <uint8_t mwidth>
-  inline void append_values_to_int_vector(sdsl::int_vector<mwidth> &dst,
-                                          std::uint64_t dst_offset,
-                                          const sdsl::int_vector<mwidth> &src)
-  {
-    const std::uint64_t n = src.size();
-    for (std::uint64_t i = 0; i < n; ++i)
-    {
-      dst[dst_offset + i] = src[i];
-    }
+// assumes `dst` has been extended to be able to append `src`
+template <uint8_t mwidth>
+inline void append_values_to_int_vector(sdsl::int_vector<mwidth> &dst,
+                                        std::uint64_t dst_offset,
+                                        const sdsl::int_vector<mwidth> &src) {
+  const std::uint64_t n = src.size();
+  for (std::uint64_t i = 0; i < n; ++i) {
+    dst[dst_offset + i] = src[i];
   }
+}
 
 } // namespace detail
 
 // -----------------------------------------------------------------------------
 // 1) On-disk sink: append many payloads into one int_vector file (width fixed)
 // -----------------------------------------------------------------------------
-template <
-    uint8_t mwidth,
-    class AlignmentPolicy = AlignTo<4096>,
-    class PreallocPolicy = NoPreallocate,
-    class FadvisePolicy = FadviseSequential>
-class SdslIntVectorOnDiskSink
-{
+template <uint8_t mwidth, class AlignmentPolicy = AlignTo<4096>,
+          class PreallocPolicy = NoPreallocate,
+          class FadvisePolicy = FadviseSequential>
+class SdslIntVectorOnDiskSink {
   static_assert(mwidth > 0);
 
 public:
@@ -88,7 +77,9 @@ public:
   explicit SdslIntVectorOnDiskSink(const std::string &path,
                                    std::uint32_t mode = 0644,
                                    std::size_t buffer_bytes = (8ull << 20))
-      : path_(path), mode_(mode), buf_(path, std::ios::out, buffer_bytes) // SDSL manages file stream/header
+      : path_(path), mode_(mode),
+        buf_(path, std::ios::out,
+             buffer_bytes) // SDSL manages file stream/header
   {
     // Apply OS-level policies via direct fd (separate from SDSL fstream).
     int fd = io::open_writable_posix(path_, mode_);
@@ -98,8 +89,7 @@ public:
   }
 
   // Append one payload; returns number of elements appended.
-  std::uint64_t write(const Payload &iv)
-  {
+  std::uint64_t write(const Payload &iv) {
     const std::uint64_t n = iv.size();
     if (n == 0)
       return 0;
@@ -107,8 +97,7 @@ public:
     return n;
   }
 
-  void finalize()
-  {
+  void finalize() {
     buf_.close(); // flush & finalize header
     // Durability hint
     int fd = io::open_writable_posix(path_, mode_);
@@ -128,16 +117,13 @@ private:
 // -----------------------------------------------------------------------------
 // In-memory sink: append payloads into a single sdsl::int_vector<>
 // -----------------------------------------------------------------------------
-template <uint8_t mwidth>
-class SdslIntVectorInMemorySink
-{
+template <uint8_t mwidth> class SdslIntVectorInMemorySink {
   static_assert(mwidth > 0);
 
 public:
   using Payload = sdsl::int_vector<mwidth>;
 
-  std::uint64_t write(const Payload &iv)
-  {
+  std::uint64_t write(const Payload &iv) {
     const std::uint64_t n = iv.size();
     if (n == 0)
       return 0;
@@ -147,8 +133,7 @@ public:
     return size();
   }
 
-  void finalize()
-  {
+  void finalize() {
     // Nothing to do; vector is already ready for use.
   }
 
@@ -156,7 +141,7 @@ public:
   sdsl::int_vector<mwidth> &data() noexcept { return acc_; }
 
   std::uint64_t size() const noexcept { return acc_.size(); }
-  static constexpr std::uint8_t width() const noexcept { return mwidth; }
+  static constexpr std::uint8_t width() noexcept { return mwidth; }
 
 private:
   sdsl::int_vector<mwidth> acc_; // accumulated data
@@ -167,13 +152,10 @@ private:
 // -----------------------------------------------------------------------------
 
 template <uint8_t w, class A, class P, class F>
-struct sink_payload<SdslIntVectorOnDiskSink<w, A, P, F>>
-{
+struct sink_payload<SdslIntVectorOnDiskSink<w, A, P, F>> {
   using type = sdsl::int_vector<w>;
 };
 
-template <uint8_t w>
-struct sink_payload<SdslIntVectorInMemorySink<w>>
-{
+template <uint8_t w> struct sink_payload<SdslIntVectorInMemorySink<w>> {
   using type = sdsl::int_vector<w>;
 };

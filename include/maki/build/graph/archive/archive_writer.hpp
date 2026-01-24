@@ -1,24 +1,21 @@
 
 #pragma once
-#include <cstdint>
 #include <cstddef>
-#include <vector>
-#include <string>
+#include <cstdint>
 #include <stdexcept>
-#include <system_error>
-#include <type_traits>
+#include <string>
+#include <vector>
 
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "archive_format.hpp"
-#include "sink_policies.hpp"
+#include "maki/core/graph/archive_format.hpp"
 #include "sink_manager.hpp"
+#include "sink_policies.hpp"
 
-struct ArchivePayload
-{
+struct ArchivePayload {
   std::vector<uint8_t> bytes;
   std::uint64_t elem_count;
   std::uint8_t bit_width;
@@ -34,19 +31,16 @@ struct ArchivePayload
 //
 // Optimized for large sequential writes (hundreds of MB to multi-GB).
 //
-template <
-    class AlignmentPolicy = AlignTo<4096>,
-    class PreallocPolicy = NoPreallocate,
-    class FadvisePolicy = FadviseSequential,
-    class ChecksumPolicy = CRC32>
-class ArchiveWriter
-{
+template <class AlignmentPolicy = AlignTo<4096>,
+          class PreallocPolicy = NoPreallocate,
+          class FadvisePolicy = FadviseSequential, class ChecksumPolicy = CRC32>
+class ArchiveWriter {
 public:
   explicit ArchiveWriter(const std::string &path, std::uint32_t mode = 0644,
-                         std::uint32_t version = VERSION, std::uint32_t magic = MAGIC_CHAR,
+                         std::uint32_t version = VERSION,
+                         std::uint32_t magic = MAGIC_CHAR,
                          PreallocPolicy prealloc = PreallocPolicy{})
-      : version_(version), magic_(magic), prealloc_(prealloc)
-  {
+      : version_(version), magic_(magic), prealloc_(prealloc) {
     fd_ = io::open_writable_posix(path, mode);
     // File-level policies
     prealloc_.on_open(fd_);
@@ -55,8 +49,7 @@ public:
     toc_.reserve(1024);
   }
 
-  ~ArchiveWriter()
-  {
+  ~ArchiveWriter() {
     if (fd_ >= 0)
       io::close_posix(fd_);
   }
@@ -66,21 +59,19 @@ public:
 
   // Append one RAW_PACKED chunk (packed bytes only).
   // Returns chunk id (0-based).
-  std::size_t append_raw_packed(const std::uint8_t *data,
-                                std::size_t len,
+  std::size_t append_raw_packed(const std::uint8_t *data, std::size_t len,
                                 std::uint64_t elem_count,
-                                std::uint8_t bit_width)
-  {
+                                std::uint8_t bit_width) {
     if (len && !data)
-      throw std::invalid_argument("append_raw_packed: null data with nonzero len");
+      throw std::invalid_argument(
+          "append_raw_packed: null data with nonzero len");
 
     // Align (if requested) before writing the chunk
-    AlignmentPolicy::before_write(fd_, offset_, [&]
-                                  { write_zeros_(pad); });
+    AlignmentPolicy::before_write(
+        fd_, offset_, [&](std::uint64_t pad) { write_zeros_(pad); });
 
     const std::uint64_t chunk_off = offset_;
-    if (len)
-    {
+    if (len) {
       io::write_all(fd_, data, len);
       offset_ += len;
     }
@@ -95,7 +86,8 @@ public:
     meta.byte_len = len;
     meta.bit_width = bit_width;
     meta.encoding = static_cast<std::uint8_t>(Encoding::RAW_PACKED);
-    meta.alignment = static_cast<std::uint16_t>(AlignmentPolicy::value <= 0xFFFF ? AlignmentPolicy::value : 0);
+    meta.alignment = static_cast<std::uint16_t>(
+        AlignmentPolicy::value <= 0xFFFF ? AlignmentPolicy::value : 0);
     meta.crc32 = csum;
 
     toc_.push_back(meta);
@@ -104,20 +96,18 @@ public:
     return toc_.size() - 1;
   }
 
-  inline std::size_t write(const ArchivePayload &pld)
-  {
-    return append_raw_packed(pld.bytes.data(), pld.bytes.size(), pld.elem_count, pld.bit_width);
+  inline std::size_t write(const ArchivePayload &pld) {
+    return append_raw_packed(pld.bytes.data(), pld.bytes.size(), pld.elem_count,
+                             pld.bit_width);
   }
 
   // Finalize: write TOC and footer
-  void finalize()
-  {
+  void finalize() {
     if (finalized_)
       return;
 
     const std::uint64_t toc_off = offset_;
-    if (!toc_.empty())
-    {
+    if (!toc_.empty()) {
       // Write TOC as contiguous array
       io::write_all(fd_, toc_.data(), toc_.size() * sizeof(ChunkMeta));
       offset_ += toc_.size() * sizeof(ChunkMeta);
@@ -138,14 +128,13 @@ public:
   }
 
 private:
-  void write_zeros_(std::uint64_t bytes)
-  {
-    static constexpr std::size_t ZB = 256 * 1024; // large zero buffer for throughput
+  void write_zeros_(std::uint64_t bytes) {
+    static constexpr std::size_t ZB =
+        256 * 1024; // large zero buffer for throughput
     static const std::uint8_t Z[ZB] = {0};
 
     std::uint64_t left = bytes;
-    while (left)
-    {
+    while (left) {
       const std::size_t n = left > ZB ? ZB : static_cast<std::size_t>(left);
       io::write_all(fd_, Z, n);
       offset_ += n;
@@ -166,7 +155,6 @@ private:
 };
 
 template <class A, class P, class F, class C>
-struct sink_payload<ArchiveWriter<A, P, F, C>>
-{
+struct sink_payload<ArchiveWriter<A, P, F, C>> {
   using type = ArchivePayload;
 };

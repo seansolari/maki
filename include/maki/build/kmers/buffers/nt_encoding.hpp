@@ -24,6 +24,7 @@ public:
   ShortSuffix(std::size_t _size);
   ShortSuffix(std::size_t _size, Dna4SequenceConstIter _it);
   ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end);
+  static ShortSuffix fromRank(uint64_t r_);
 
   ShortSuffix(const ShortSuffix &other) = default;
   ShortSuffix(ShortSuffix &&other) = default;
@@ -223,7 +224,6 @@ public:
 
 class SuffixTable {
 public:
-  using uint64_t = uint64_t;
   using iterator = std::vector<uint64_t>::iterator;
   using const_iterator = typename std::vector<uint64_t>::const_iterator;
   using pointer = uint64_t *;

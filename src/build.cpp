@@ -2,8 +2,9 @@
 #include <cstdint>
 #include <string>
 
-#include "maki/build/graph/build_colours.hpp"
 #include "maki/build/io/fasta.hpp"
+#include "maki/build/graph/build_colours.hpp"
+#include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/core/seq/seq_io.hpp"
 
 struct BuildParameters {
@@ -28,6 +29,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[]) {
 
   // suffix-wise construct graph buffers
   auto view = combineViews(genomes, filters);
+  auto bpaths = constructCDBG(view);
 
   return 0;
 }

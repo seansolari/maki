@@ -18,7 +18,6 @@ template <class T> class poly_input_range {
    */
   struct concept_t {
     virtual ~concept_t() = default;
-    virtual std::unique_ptr<concept_t> clone() const = 0;
     virtual std::optional<T> next() = 0; // pull-based cursor
   };
 
@@ -29,14 +28,11 @@ template <class T> class poly_input_range {
   template <std::ranges::input_range R>
     requires std::convertible_to<std::ranges::range_value_t<R>, T>
   struct model final : concept_t {
-    std::ranges::iterator_t<R> it_, end_;
+    std::ranges::iterator_t<R> it_;
+    std::ranges::sentinel_t<R> end_;
 
     explicit model(R r)
         : it_(std::ranges::begin(r)), end_(std::ranges::end(r)) {}
-
-    std::unique_ptr<concept_t> clone() const override {
-      return std::make_unique<model>(*this);
-    }
 
     std::optional<T> next() override {
       if (it_ == end_)
@@ -44,7 +40,8 @@ template <class T> class poly_input_range {
       if constexpr (std::is_reference_v<std::ranges::range_reference_t<R>>) {
         return *it_++;
       } else {
-        T v = *it_++;
+        T v = *it_;
+        ++it_;
         return v;
       }
     }
@@ -54,9 +51,7 @@ template <class T> class poly_input_range {
     T value_;
     bool emitted_ = false;
     explicit model_single_owned(T v) : value_(std::move(v)) {}
-    std::unique_ptr<concept_t> clone() const override {
-      return std::make_unique<model_single_owned>(*this);
-    }
+
     std::optional<T> next() override {
       if (emitted_)
         return std::nullopt;
@@ -67,23 +62,19 @@ template <class T> class poly_input_range {
         return value_;
       }
     }
-    void reset() override { emitted_ = false; }
   };
 
   struct model_single_ref final : concept_t {
     const T *ptr_ = nullptr;
     bool emitted_ = false;
     explicit model_single_ref(const T *p) : ptr_(p) {}
-    std::unique_ptr<concept_t> clone() const override {
-      return std::make_unique<model_single_ref>(*this);
-    }
+
     std::optional<T> next() override {
       if (emitted_ || !ptr_)
         return std::nullopt;
       emitted_ = true;
       return *ptr_; // note: returns by value (input range)
     }
-    void reset() override { emitted_ = false; }
   };
 
   std::unique_ptr<concept_t> self_;
@@ -124,7 +115,7 @@ public:
 
   template <std::ranges::input_range R>
     requires std::convertible_to<std::ranges::range_value_t<R>, T>
-  poly_input_range(R r) : self_(std::make_unique<model<R>>(std::move(r))) {}
+  poly_input_range(R &&r) : self_(std::make_unique<model<R>>(std::move(r))) {}
 
   explicit poly_input_range(T &&v)
       : self_(std::make_unique<model_single_owned>(std::move(v))) {}

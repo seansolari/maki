@@ -1,37 +1,31 @@
 
 #pragma once
-#include <vector>
-#include <cstdint>
 #include <algorithm>
-#include <stdexcept>
+#include <cstdint>
+#include <vector>
 
-class ArrayBuilder
-{
+class ArrayBuilder {
 public:
-  void push(uint64_t v)
-  {
+  void push(uint64_t v) {
     values_.push_back(v);
     max_ = std::max(max_, v);
   }
 
-  void clear()
-  {
+  void clear() {
     values_.clear();
     max_ = 0;
   }
 
   uint64_t size() const { return values_.size(); }
 
-  uint8_t required_bit_width() const
-  {
+  uint8_t required_bit_width() const {
     if (max_ == 0)
       return 1;
     return 64 - __builtin_clzll(max_);
   }
 
   // Produce RAW_PACKED byte vector
-  void finalize_packed(std::vector<uint8_t> &out) const
-  {
+  void finalize_packed(std::vector<uint8_t> &out) const {
     const uint64_t n = values_.size();
     const uint8_t w = required_bit_width();
     const __uint128_t total_bits = (__uint128_t)n * w;
@@ -39,8 +33,7 @@ public:
     out.assign(bytes_needed, 0);
 
     __uint128_t bitpos = 0;
-    for (uint64_t i = 0; i < n; ++i)
-    {
+    for (uint64_t i = 0; i < n; ++i) {
       uint64_t v = values_[i];
       if (w < 64)
         v &= ((uint64_t(1) << w) - 1u);
@@ -48,8 +41,7 @@ public:
       const unsigned bit_in_byte = (unsigned)(bitpos & 7);
 
       __uint128_t lane = (__uint128_t)v << bit_in_byte;
-      for (unsigned b = 0; b < 16; ++b)
-      {
+      for (unsigned b = 0; b < 16; ++b) {
         uint64_t shifted = (uint64_t)((lane >> (8 * b)) & 0xFF);
         if (!shifted)
           continue;

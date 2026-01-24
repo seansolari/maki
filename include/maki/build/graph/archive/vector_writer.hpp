@@ -6,14 +6,11 @@
 // -----------------------------------------------------------------------------
 // In-memory sink: append payloads into a single std::vector<>
 // -----------------------------------------------------------------------------
-template <typename Int>
-class VectorInMemorySink
-{
+template <typename Int> class VectorInMemorySink {
 public:
   using Payload = std::vector<Int>;
 
-  std::uint64_t write(const Payload &vec)
-  {
+  std::uint64_t write(const Payload &vec) {
     const std::uint64_t n = vec.size();
     if (n == 0)
       return 0;
@@ -23,8 +20,7 @@ public:
     return size();
   }
 
-  void finalize()
-  {
+  void finalize() {
     // Nothing to do; vector is already ready for use.
   }
 

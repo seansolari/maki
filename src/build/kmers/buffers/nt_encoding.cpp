@@ -18,6 +18,10 @@ ShortSuffix::ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end)
     _data |= parsing::dna4ToLong(*begin++) << (2 * i);
 }
 
+// TODO: implement me
+ShortSuffix ShortSuffix::fromRank(uint64_t r_) {
+}
+
 std::string Kmer::toString() const {
   std::string sequence;
   sequence.reserve(_num_nts);

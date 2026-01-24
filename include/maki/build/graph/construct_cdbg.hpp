@@ -1,6 +1,18 @@
 
 #pragma once
 
+#include <cstddef>
+#include <filesystem>
+#include <vector>
+
+#include "maki/build/kmers/buffers/kmers.hpp"
+#include "maki/build/kmers/buffers/nt_encoding.hpp"
+#include "maki/build/kmers/construct_terminals.hpp"
+#include "maki/build/graph/archive/archive_writer.hpp"
+#include "maki/build/graph/archive/byte_writer.hpp"
+#include "maki/build/graph/archive/sdsl_writer.hpp"
+#include "maki/core/seq/seq_concepts.hpp"
+
 // -----------------------------------------------------------------------------
 // Construct coloured succinct de Bruijn graph
 // -----------------------------------------------------------------------------
@@ -15,17 +27,24 @@
 //        disk-based traversal and lookup.
 // -----------------------------------------------------------------------------
 
-#include <filesystem>
+struct BuildOptions {
+  // Algorithm parameters
+  std::size_t kmer_size = 31;
+  std::size_t suffix_size = 8;
+  // Output parameters
+  std::filesystem::path out;
+  // Space parameters
+  std::size_t threads = 16;
+  std::size_t pool_size = 16;
+  std::size_t reserve_per_chunk = 0;
+};
 
-#include "maki/build/kmers/buffers/nt_encoding.hpp"
-#include "maki/build/graph/archive/archive_writer.hpp"
-#include "maki/build/graph/archive/byte_writer.hpp"
-#include "maki/build/graph/archive/sdsl_writer.hpp"
-#include "maki/build/kmers/construct_terminals.hpp"
-#include "maki/build/kmers/suffix.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
+struct ColouredKmerBuffers {
+  KmerBuffer data;
+  KmerBuffer temp;
+};
 
-namespace fs = std::filesystem;
+/*
 
 using CDBGSinks =
     std::tuple<ByteArraySink<>, // edges: std::vector<uint8_t> -> FILE
@@ -34,49 +53,23 @@ using CDBGSinks =
                ArchiveWriter<> // colours: std::vector<uint8_t> -> Archive
                >;
 
-struct ColouredKmerBuffers {
-  // payload global position
-  ShortSuffix s;
-  // k-mer data buffers
-  KmerBuffer kmers;
-  KmerBuffer temp;
-  TerminalRange terminals;
-  overlap_vector;
-};
+*/
 
 struct BufferPaths {
-  fs::path edges;
-  fs::path succ;
-  fs::path colours;
-};
-
-struct BuildParams {
-  size_t k;
-  size_t s;
-  fs::path out;
+  std::filesystem::path edges;
+  std::filesystem::path succ;
+  std::filesystem::path colours;
 };
 
 BufferPaths constructCDBG(const std::vector<const SequenceContainer *> &data,
-                          BuildParams params) {
+                          BuildOptions params = {}) {
   BufferPaths outp{params.out / "edges.txt", params.out / "succ.sdsl",
                    params.out / "colours.maki"};
 
   // extract terminals and create suffix plan
-  auto terminals = extractTerminalsSparse(data, params.k);
-  auto splan = createSuffixPlan(data, params.k, params.s);
+  auto terminals = extractTerminalsSparse(data, params.kmer_size);
+  auto splan = createSuffixPlan(data, params.kmer_size, params.suffix_size);
   std::size_t requiredBufferSize = splan.back().maxValue();
-  
-
-  // prepare output buffers
-
-  CDBGSinks Sinks{{outp.edges},    // consume edges
-                  {outp.succ},     // consume succ
-                  {outp.colours}}; // consume colours
-
-  // suffix-wise processing
-
-  for (each suffix) {
-  }
 
   return outp;
 }

@@ -743,14 +743,22 @@ concept kmer_comparator =
       { op(lhs, rhs) } -> std::same_as<KmerDiffClass>;
     };
 
+/**
+ * In-place adjacent difference - note that `data` size is not
+ * shrunk if over-allocated. First element defaults to `BW_0_K`.
+ */
 template <strides_bytes RandomIter>
-sdsl::int_vector<2> adjacentDifference(RandomIter begin, RandomIter end,
-                                       kmer_comparator auto &&diff) {
+void adjacentDifference(RandomIter begin, RandomIter end,
+                        kmer_comparator auto &&diff,
+                        sdsl::int_vector<2> &data) {
+  // resize vector if necessary
   size_t numElements = end - begin;
-  sdsl::int_vector<2> data(numElements, 0);
   if (numElements == 0)
-    return data;
+    return;
+  else if (numElements > data.size())
+    data.resize(numElements);
 
+  // parallel fill
   data[0] = BW_0_K;
   static constexpr size_t blocksize = 8 * 512;
   LockedRegionManager mgr(numElements, blocksize);
@@ -773,6 +781,16 @@ sdsl::int_vector<2> adjacentDifference(RandomIter begin, RandomIter end,
           prev = curr;
         }
       });
+}
 
+/**
+ * Out-of-place adjacent difference. Size of result reflects size of input
+ * range. First element defaults to `BW_0_K`.
+ */
+template <strides_bytes RandomIter>
+sdsl::int_vector<2> adjacentDifference(RandomIter begin, RandomIter end,
+                                       kmer_comparator auto &&diff) {
+  sdsl::int_vector<2> data;
+  adjacentDifference(begin, end, diff, data);
   return data;
 }

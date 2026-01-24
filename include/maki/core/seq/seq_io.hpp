@@ -53,7 +53,7 @@ inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out, uint8_t k)
         O &val = *out++;
         for (size_t j = 0; j < bpPerRecord; ++j)
         {
-            val |= dna4ToRank<O>(*it++) << (2 * j);
+            val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
         }
     }
 
@@ -61,7 +61,7 @@ inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out, uint8_t k)
     O &val = *out;
     for (size_t j = 0; j < k % bpPerRecord; ++j)
     {
-        val |= dna4ToRank<O>(*it++) << (2 * j);
+        val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
     }
     return out;
 }
@@ -75,7 +75,7 @@ inline void reverseWriteMerTo(Dna4SequenceConstIter it, OutputPtr out, uint8_t k
     for (long i = k-1, end = k-1-n;
           i > end;
           --i)
-        *(out + (i / bpPerRecord)) |= dna4ToRank<O>(*it--) << (2 * (i % bpPerRecord));
+        *(out + (i / bpPerRecord)) |= parsing::dna4ToRank<O>(*it--) << (2 * (i % bpPerRecord));
 }
 
 std::string toString(const Dna4Sequence &);
