@@ -24,12 +24,13 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[]) {
   // parse input sequences
   Colours colours;
   auto genomes = parse(genomeFiles, parseGFF, colours, (std::size_t)params.k);
+  uint64_t numFeatures = colours.size(); // mark filter colour codes
   auto filters = parse(filterFiles, parseFilterFNA, colours,
                        (std::size_t)params.threads, (std::size_t)params.k);
 
   // prepare input data
   auto view = combineViews(genomes, filters);
-  MetaColours cmap(std::move(colours.ids));
+  MetaColours cmap(std::move(colours.ids), numFeatures);
 
   // suffix-wise buffer construction
   cdbg::BuildOptions ops{

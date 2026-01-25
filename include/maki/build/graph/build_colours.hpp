@@ -107,20 +107,47 @@ using ColourVector =
  * original colour IDs.
  */
 struct MetaColours {
-  MetaColours(ColourMap &&m_)
-      : ids(std::move(m_)), _nid(ids.size()), r(ceil_log2(ids.size())) {}
+  MetaColours(ColourMap &&m_, uint64_t numFeatures)
+      : ids(std::move(m_)), _mid(numFeatures), _nid(ids.size()),
+        r(ceil_log2(ids.size())), _occs(ids.size(), 0) {}
 
 protected:
-  const ColourMap ids;
-  std::atomic_uint64_t _nid;
-  TupleMap<uint64_t, uint64_t> r;
+  const ColourMap ids;            // stores seed IDs
+  uint64_t _mid;                  // marks colour IDs from features vs filters
+  std::atomic_uint64_t _nid;      // number of nodes currently assigned
+  TupleMap<uint64_t, uint64_t> r; // map tuples of colours to colour IDs
+  std::vector<uint32_t> _occs;    // occurrences of every colour
 
 public:
   inline uint64_t numColours() const { return ids.size(); }
   inline uint64_t maxColourWidth() const { return ceil_log2(numColours()); }
 
+  // Do any colours come from features? Or are they all filters?
+  bool assignable(const ColourVector &v) const {
+    for (const auto &c : v)
+      if (c < _mid)
+        return true;
+    return false;
+  }
+
   // Get colour for seed, assigning a new ID if it doesn't exist.
-  uint64_t getOrAssign(const ColourVector &v) {
+  uint64_t id(const ColourVector &v) {
     return r.lazy_emplace(v.data(), v.size(), [&] { return ++_nid; });
+  }
+
+  // Insert a colour and increment occurrence counts
+  uint64_t insert(const ColourVector &v) {
+    // increment occurrence counts
+    for (const auto &c : v) {
+      assert(c < _occs.size());
+      ++std::atomic_ref{_occs[c]};
+    }
+    
+    // assign ID
+    if (v.size() == 1) {
+      return v.front();
+    } else {
+      return id(v);
+    }
   }
 };

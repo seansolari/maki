@@ -4,9 +4,6 @@
 
 ## High priority
 
- - Fix pushNode loop (use do while with base case?)
- - Change colour map to recognise filter colours
- - Don't push a node if its only filter colours
  - integer mapping with suffixes (sized)
  - finalise graph construction
    - pwm wavelet matrix construction and tests (see Copilot output)

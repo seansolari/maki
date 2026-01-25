@@ -16,6 +16,7 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
               uint8_t msb) {
   if (pkt.data.empty())
     return;
+
   // sort temp data, but don't make it unique
   std::sort(pkt.data.begin(), pkt.data.end(), value_comp{});
   auto it = pkt.data.begin(), end = std::unique(it, pkt.data.end());
@@ -27,17 +28,18 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
       it = valid;
   }
 
-  // insert edges
-  uint64_t previousEdge = 0b110; // impossible value
+  // iterate through each edge
+  bool pushed = false;
   while (it != end) {
+    // collect all colours for edge
     uint64_t edge = it->edge();
-    if (edge != previousEdge) {
-      // push colour buffer for previous edge
-      if (!pkt.colours.empty()) {
-        auto ccode = cmap.getOrAssign(pkt.colours);
-        carch.raw.push(ccode);
-        pkt.colours.clear();
-      }
+    do {
+      pkt.colours.push_back(it->colour());
+      ++it;
+    } while ((it != end) && (it->edge() == edge));
+    // check if it has valid colours
+    if (cmap.assignable(pkt.colours)) {
+      pushed = true;
       // insert new edge
       ++pkt.str.F[msb];
       if (pkt.last[edge] != pkt.block) {
@@ -48,18 +50,18 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
       }
       // attach edge to node
       succ.push_back(0);
+      // push colour
+      auto ccode = cmap.insert(pkt.colours);
+      carch.raw.push(ccode);
     }
-    pkt.colours.push_back(it->colour());  
-    ++it;
+    pkt.colours.clear();
   }
-  // push colour buffer for last edge
-  auto ccode = cmap.getOrAssign(pkt.colours);
-  carch.raw.push(ccode);
-  pkt.colours.clear();
+
   // finalise node
-  succ.back() = 1;
-  ++pkt.str.C[msb];
-  // clear
+  if (pushed) {
+    succ.back() = 1;
+    ++pkt.str.C[msb];
+  }
   pkt.data.clear();
 }
 
