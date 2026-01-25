@@ -4,7 +4,6 @@
 
 ## High priority
 
- - integer mapping with suffixes (sized)
  - finalise graph construction
    - pwm wavelet matrix construction and tests (see Copilot output)
    - write seed data to disk

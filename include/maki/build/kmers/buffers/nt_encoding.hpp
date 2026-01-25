@@ -24,7 +24,9 @@ public:
   ShortSuffix(std::size_t _size);
   ShortSuffix(std::size_t _size, Dna4SequenceConstIter _it);
   ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end);
-  static ShortSuffix fromRank(uint64_t r_);
+  
+  static std::size_t numSuffixes(std::size_t s_); // number of suffixes up to and including size `s_`
+  static ShortSuffix fromRank(std::size_t r_);
 
   ShortSuffix(const ShortSuffix &other) = default;
   ShortSuffix(ShortSuffix &&other) = default;

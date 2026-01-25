@@ -6,7 +6,9 @@
 
 namespace cdbg {
 
-std::size_t BuildOptions::chunks() const {}
+std::size_t BuildOptions::chunks() const {
+  return ShortSuffix::numSuffixes(suffix_size);
+}
 
 // -----------------------------------------------------------------------------
 // Intermediate data
