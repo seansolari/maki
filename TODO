@@ -5,7 +5,6 @@
 ## High priority
 
  - finalise graph construction
-   - succ bit vector and RS-support
    - pwm wavelet matrix construction and tests (see Copilot output)
    - colour representation
      - map ID -> colour set
