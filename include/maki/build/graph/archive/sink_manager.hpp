@@ -233,7 +233,7 @@ public:
   using Bundle = ChunkBundleT<Sinks...>;
   MultiSink(std::tuple<Sinks...> sinks) : sinks_(std::move(sinks)) {}
 
-  void write_bundle(const Bundle &b) {
+  void write_bundle(Bundle &b) {
     detail::tuple_for_each_pair(b.payloads, sinks_,
                                 [](auto &payload, auto &sink) {
                                   // Skip empty payloads if they expose .empty()
@@ -338,5 +338,5 @@ void ProcessChunks(T op, std::tuple<Sinks...> sinks, std::size_t pool_size,
               oneapi::tbb::filter_mode::parallel, std::move(op)) &
           oneapi::tbb::make_filter<std::unique_ptr<Bundle>, void>(
               oneapi::tbb::filter_mode::serial_in_order, FlushBundle{pool, multi}));
-  multi->finalise();
+  multi->finalize();
 }

@@ -1,6 +1,5 @@
 
 set (MAKI_CLASSIFY_SOURCES
-  #"${CMAKE_CURRENT_SOURCE_DIR}/graph/wm/wm.cpp"
   #"${CMAKE_CURRENT_SOURCE_DIR}/io/fastq.cpp"
   PARENT_SCOPE
 )

@@ -1,5 +1,5 @@
 
-#include "maki/classify/graph/wm/wm.hpp"
+#include "maki/core/graph/wm.hpp"
 
 #include <sdsl/bit_vectors.hpp>
 #include <sdsl/util.hpp>

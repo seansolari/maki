@@ -3,6 +3,8 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
+#include <sdsl/int_vector.hpp>
+#include <sdsl/io.hpp>
 
 namespace cdbg {
 
@@ -118,11 +120,48 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t rnk,
 }
 
 // -----------------------------------------------------------------------------
+// Finalisation
+// -----------------------------------------------------------------------------
+
+void initW(const std::string &file, const std::string &out) {}
+
+void initSuccSupport(ColouredGraphFiles &outp) {
+  sdsl::bit_vector succ;
+  sdsl::load_from_file(succ, outp.l);
+  {
+    sdsl::rank_support_v5<1, 1> lRnk;
+    sdsl::util::init_support(lRnk, &succ);
+    sdsl::store_to_file(std::move(lRnk), outp.lR);
+  }
+  {
+    sdsl::select_support_mcl<1, 1> lSel;
+    sdsl::util::init_support(lSel, &succ);
+    sdsl::store_to_file(std::move(lSel), outp.lS);
+  }
+}
+
+ColouredGraphFiles finalise(TempBuffers inp, std::string_view out) {
+  ColouredGraphFiles outp = graphFiles(out);
+
+  // edges wavelet matrix
+  initW(inp.files.edges, outp.W);
+
+  // succ array
+  std::filesystem::rename(inp.files.succ, outp.l);
+  initSuccSupport(outp);
+
+  // colour archive
+  std::filesystem::rename(inp.files.colours, outp.archive);
+
+  return outp;
+}
+
+// -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
 
-TempBuffers construct(const std::vector<const SequenceContainer *> &data,
-                      MetaColours &cmap, BuildOptions params) {
+ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
+                             MetaColours &cmap, BuildOptions params) {
   TempBuffers outp{.files = {.edges = params.out / "edges.txt",
                              .succ = params.out / "succ.sdsl",
                              .colours = params.out / "colours.maki"},
@@ -135,7 +174,7 @@ TempBuffers construct(const std::vector<const SequenceContainer *> &data,
                                 params.suffix_size, &cmap, &outp.str),
                 prepareSinks(outp.files), params.pool_size,
                 params.reserve_per_chunk, params.chunks());
-  return outp;
+  return finalise(outp);
 }
 
 } // namespace cdbg

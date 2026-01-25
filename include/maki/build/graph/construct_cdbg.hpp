@@ -1,13 +1,6 @@
 
 #pragma once
 
-#include <cstddef>
-#include <filesystem>
-#include <memory>
-#include <vector>
-
-#include <sdsl/int_vector.hpp>
-
 #include "interleave_buffers.hpp"
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/byte_writer.hpp"
@@ -17,7 +10,13 @@
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/core/graph/cdbg.hpp"
 #include "maki/core/seq/seq_concepts.hpp"
+#include <cstddef>
+#include <filesystem>
+#include <memory>
+#include <sdsl/int_vector.hpp>
+#include <vector>
 
 namespace cdbg {
 
@@ -129,7 +128,7 @@ struct SuffixwiseKmers {
 
 protected:
   void _count(push_summary &) const;
-  
+
   std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
   std::unique_ptr<Bundle> _extractKmers(uint64_t, ShortSuffix) const;
   std::unique_ptr<Bundle> _extractPartialKmers(uint64_t, ShortSuffix) const;
@@ -153,10 +152,16 @@ protected:
 };
 
 // -----------------------------------------------------------------------------
+// Finalisation
+// -----------------------------------------------------------------------------
+
+ColouredGraphFiles finalise(TempBuffers);
+
+// -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
 
-TempBuffers construct(const std::vector<const SequenceContainer *> &data,
-                      MetaColours &cmap, BuildOptions params = {});
+ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
+                             MetaColours &cmap, BuildOptions params = {});
 
 } // namespace cdbg

@@ -215,13 +215,23 @@ FetchContent_Declare (
 
 set (TBB_STRICT OFF)
 
-# STxxL --
+## STxxL --
+#
+#FetchContent_Declare (
+#    stxxl_fetch
+#    GIT_REPOSITORY https://github.com/stxxl/stxxl
+#    GIT_TAG        1.4.1
+#    FIND_PACKAGE_ARGS NAMES STXXL
+#    )
+
+set(BUILD_GMOCK OFF CACHE BOOL "")
+set(BUILD_GTEST OFF CACHE BOOL "")
 
 FetchContent_Declare (
-    stxxl_fetch
-    GIT_REPOSITORY https://github.com/stxxl/stxxl
-    GIT_TAG        1.4.1
-    FIND_PACKAGE_ARGS NAMES STXXL
+    pwm_fetch
+    GIT_REPOSITORY https://github.com/kurpicz/pwm
+    GIT_TAG        7e0837d0e3da6cf7b63e80b04a75a61b73b91779
+    FIND_PACKAGE_ARGS NAMES pwm
     )
 
 ##
@@ -232,7 +242,8 @@ FetchContent_MakeAvailable (
     ZStrGitRepo
     googletest
     onetbb
-    stxxl_fetch
+    #stxxl_fetch
+    pwm_fetch
     )
 
 # ----------------------------------------------------------------------------
@@ -395,6 +406,15 @@ endif()
 #else ()
 #    maki_config_error ("Dependency STXXL not found.")
 #endif ()
+
+check_include_file_cxx (pwm/external_memory/wx_ppc_ie.hpp _MAKI_HAVE_PWM)
+
+if (_MAKI_HAVE_PWM)
+    # collect desired attributes
+    maki_config_print ("Required dependency:        pwm found.")
+else ()
+    maki_config_error ("Dependency pwm not found.")
+endif ()
 
 # ----------------------------------------------------------------------------
 # Compile time options and build parameters

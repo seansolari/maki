@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "maki/core/graph/archive_format.hpp"
+#include "maki/core/graph/archive/archive_format.hpp"
 #include "sink_manager.hpp"
 #include "sink_policies.hpp"
 #include "array_builder.hpp"

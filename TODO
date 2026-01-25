@@ -5,8 +5,11 @@
 ## High priority
 
  - finalise graph construction
+   - succ bit vector and RS-support
    - pwm wavelet matrix construction and tests (see Copilot output)
-   - write seed data to disk
+   - colour representation
+     - map ID -> colour set
+     - map write colour -> seed
  - unit tests
 
 ## Low priority
