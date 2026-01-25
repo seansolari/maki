@@ -41,8 +41,8 @@ namespace detail {
 template <uint8_t mwidth>
 inline void append_values_to_buffer(sdsl::int_vector_buffer<mwidth> &buf,
                                     const sdsl::int_vector<mwidth> &src) {
-  const std::uint64_t n = src.size();
-  for (std::uint64_t i = 0; i < n; ++i) {
+  const std::size_t n = src.size();
+  for (std::size_t i = 0; i < n; ++i) {
     buf.push_back(src[i]); // width enforced by buffer configuration
   }
 }
@@ -50,10 +50,10 @@ inline void append_values_to_buffer(sdsl::int_vector_buffer<mwidth> &buf,
 // assumes `dst` has been extended to be able to append `src`
 template <uint8_t mwidth>
 inline void append_values_to_int_vector(sdsl::int_vector<mwidth> &dst,
-                                        std::uint64_t dst_offset,
+                                        std::size_t dst_offset,
                                         const sdsl::int_vector<mwidth> &src) {
-  const std::uint64_t n = src.size();
-  for (std::uint64_t i = 0; i < n; ++i) {
+  const std::size_t n = src.size();
+  for (std::size_t i = 0; i < n; ++i) {
     dst[dst_offset + i] = src[i];
   }
 }
@@ -72,8 +72,7 @@ class SdslIntVectorOnDiskSink {
 public:
   using Payload = sdsl::int_vector<mwidth>;
 
-  // If fixed_width > 0, enforce this width for the entire file.
-  // Otherwise, derive width from the first payload on write().
+  // Enforce fixed width for the entire file.
   explicit SdslIntVectorOnDiskSink(const std::string &path,
                                    std::uint32_t mode = 0644,
                                    std::size_t buffer_bytes = (8ull << 20))

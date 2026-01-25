@@ -2,8 +2,6 @@
 
 ### High priority
 
- - validate payload association with sinks
- - interleaving/flushing
  - validate payload attributes: reserve, clear, supply
  - integer mapping with suffixes (sized)
  - finalise graph construction

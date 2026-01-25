@@ -6,10 +6,12 @@
 #include "maki/core/seq/seq_io.hpp"
 #include "nt_encoding.hpp"
 #include <cstdint>
+#include <sdsl/int_vector.hpp>
 
 template <typename T, typename Derived>
 class BaseKmerRandomIterator : public ndim::StridedIteratorBase<T, Derived> {
   using BaseIterType = ndim::StridedIteratorBase<T, Derived>;
+
 public:
   using difference_type = std::ptrdiff_t;
 
@@ -152,4 +154,5 @@ public:
   KmerDiffClass operator()(const uint8_t *l_, const uint8_t *r_) const;
 };
 
-sdsl::int_vector<2> adjacentDifference(KmerBuffer&);
+void adjacentDifference(KmerBuffer &, sdsl::int_vector<2> &);
+sdsl::int_vector<2> adjacentDifference(KmerBuffer &);

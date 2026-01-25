@@ -41,8 +41,8 @@ template <class... Sinks>
 using BundlePayloadsFor = std::tuple<typename sink_payload<Sinks>::type...>;
 
 template <class S, class P>
-concept SinkAccepts = requires(S s, const P &p) {
-  { s.write(p) } -> std::same_as<void>;
+concept SinkAccepts = requires(S s, P &p) {
+  { s.write(p) } -> std::same_as<std::size_t>;
   { s.finalize() } -> std::same_as<void>;
 };
 
@@ -323,7 +323,7 @@ concept BundleProducer = requires(const T fn, T gn, uint64_t i, std::shared_ptr<
 
 template <class T, class... Sinks>
   requires BundleProducer<T, Sinks...>
-void ProcessChunks(T &&op, std::tuple<Sinks...> sinks, std::size_t pool_size,
+void ProcessChunks(T op, std::tuple<Sinks...> sinks, std::size_t pool_size,
                    size_t per_sink_reserve, std::uint64_t expected_chunks) {
   using Bundle = ChunkBundleT<Sinks...>;
   auto pool =

@@ -14,11 +14,11 @@
 #include "maki/core/graph/archive_format.hpp"
 #include "sink_manager.hpp"
 #include "sink_policies.hpp"
+#include "array_builder.hpp"
 
 struct ArchivePayload {
+  ArrayBuilder raw;
   std::vector<uint8_t> bytes;
-  std::uint64_t elem_count;
-  std::uint8_t bit_width;
 };
 
 // ========================= ArchiveWriter ====================================
@@ -96,9 +96,11 @@ public:
     return toc_.size() - 1;
   }
 
-  inline std::size_t write(const ArchivePayload &pld) {
-    return append_raw_packed(pld.bytes.data(), pld.bytes.size(), pld.elem_count,
-                             pld.bit_width);
+  inline std::size_t write(ArchivePayload &pld) {
+    // compress data
+    pld.raw.finalize_packed(pld.bytes);
+    return append_raw_packed(pld.bytes.data(), pld.bytes.size(), pld.raw.size(),
+                             pld.raw.required_bit_width());
   }
 
   // Finalize: write TOC and footer

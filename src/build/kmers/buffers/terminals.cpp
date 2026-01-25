@@ -286,6 +286,16 @@ KmerDiffClass TerminalDiff::operator()(const uint8_t *_lhs,
     return dseq;
 }
 
+void adjacentDifference(TerminalBuffer &buffer, sdsl::int_vector<2> &arr) {
+  adjacentDifference(buffer.constBegin(), buffer.constEnd(),
+                     TerminalDiff(buffer.lengthBytes(), buffer.getEffK()), arr);
+}
+
+void adjacentDifference(TerminalRange buffer, sdsl::int_vector<2> &arr) {
+  adjacentDifference(buffer.constBegin(), buffer.constEnd(),
+                     TerminalDiff(buffer.lengthBytes(), buffer.getEffK()), arr);
+}
+
 sdsl::int_vector<2> adjacentDifference(TerminalBuffer &buffer) {
   return adjacentDifference(
       buffer.constBegin(), buffer.constEnd(),

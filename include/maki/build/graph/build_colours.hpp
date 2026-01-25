@@ -116,6 +116,9 @@ protected:
   TupleMap<uint64_t, uint64_t> r;
 
 public:
+  inline uint64_t numColours() const { return ids.size(); }
+  inline uint64_t maxColourWidth() const { return ceil_log2(numColours()); }
+
   // Get colour for seed, assigning a new ID if it doesn't exist.
   uint64_t getOrAssign(const ColourVector &v) {
     return r.lazy_emplace(v.data(), v.size(), [&] { return ++_nid; });

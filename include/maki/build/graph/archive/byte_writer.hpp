@@ -57,7 +57,7 @@ public:
       io::close_posix(fd_);
   }
 
-  void write(const Payload &bytes) {
+  std::size_t write(const Payload &bytes) {
     // Optional chunk alignment
     AlignmentPolicy::before_write(fd_, offset_, [&](uint64_t pad){ write_zeros_(pad); });
 
@@ -65,6 +65,8 @@ public:
       io::write_all(fd_, bytes.data(), bytes.size());
       offset_ += bytes.size();
     }
+
+    return bytes.size();
   }
 
   void finalize() {

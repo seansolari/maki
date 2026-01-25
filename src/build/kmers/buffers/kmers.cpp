@@ -1,4 +1,5 @@
 #include "maki/build/kmers/buffers/kmers.hpp"
+#include "maki/build/kmers/buffers/base_buffer.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/sort.hpp"
 #include "maki/maki.h"
@@ -133,6 +134,11 @@ KmerDiffClass MaskedBytesDiff::operator()(const uint8_t *l_,
   }
 
   return IS_0;
+}
+
+void adjacentDifference(KmerBuffer &buffer, sdsl::int_vector<2> &arr) {
+  adjacentDifference(buffer.begin(), buffer.end(), KmerDiff{buffer.keyBytes()},
+                     arr);
 }
 
 sdsl::int_vector<2> adjacentDifference(KmerBuffer &buffer) {

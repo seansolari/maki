@@ -12,6 +12,7 @@
 #include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
 #include "maki/build/graph/archive/sink_manager.hpp"
+#include "maki/build/graph/build_colours.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
@@ -40,7 +41,6 @@ struct BuildOptions {
   // Output parameters
   std::filesystem::path out;
   // Space parameters
-  std::size_t colour_width;
   std::size_t threads = 16;
   std::size_t pool_size = 16;
   std::size_t reserve_per_chunk = 0;
@@ -54,22 +54,31 @@ struct BuildOptions {
 struct Buffers {
   Buffers(std::size_t length, std::size_t width, std::size_t k,
           std::size_t keff)
-      : kmers(length, width, k, keff), temp(length, width, k, keff), b() {}
+      : kmers(length, width, k, keff), temp(length, width, k, keff),
+        terminals(), b(), t() {}
 
   /**
    * Collect k-mers with given suffix `s_` from input sequences.
    */
-  void collect(const std::vector<const SequenceContainer *> &seqs_,
-               const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
+  void collectKmers(const std::vector<const SequenceContainer *> &seqs_,
+                    const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
+
+  /**
+   * Load terminals data.
+   */
+  void setTerminals(TerminalRange &&t_);
 
   KmerBuffer kmers;
   KmerBuffer temp;
-  sdsl::int_vector<2> b;
+  TerminalRange terminals;
+  sdsl::int_vector<2> b, t;
 };
 
 struct BufferMaker : public Factory<Buffers> {
-  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_, std::size_t keff_)
-    : Factory<Buffers>(), length(length_), width(width_), k(k_), keff(keff_) {}
+  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_,
+              std::size_t keff_)
+      : Factory<Buffers>(), length(length_), width(width_), k(k_), keff(keff_) {
+  }
 
   std::size_t length;
   std::size_t width;
@@ -108,18 +117,20 @@ Sinks prepareSinks(BufferPaths &pths);
 struct SuffixwiseKmers {
   SuffixwiseKmers(const std::vector<const SequenceContainer *> &seqs,
                   const TerminalRange &terminals, std::size_t k, std::size_t s,
-                  std::size_t cw);
+                  MetaColours *cmap);
 
   void setPool(std::shared_ptr<BundlePool> &p);
   std::unique_ptr<Bundle> operator()(uint64_t) const;
 
 protected:
-  std::unique_ptr<Buffers> _getbuffer() const;
   std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
+  std::unique_ptr<Bundle> _extractKmers(uint64_t, ShortSuffix) const;
+  std::unique_ptr<Bundle> _extractPartialKmers(uint64_t, ShortSuffix) const;
 
 protected:
   // input data
   std::size_t s_;
+  MetaColours *cmap_;
 
   // input buffers
   const std::vector<const SequenceContainer *> &seqs_;
@@ -133,7 +144,11 @@ protected:
   std::shared_ptr<BundlePool> pool_;
 };
 
+// -----------------------------------------------------------------------------
+// API
+// -----------------------------------------------------------------------------
+
 BufferPaths construct(const std::vector<const SequenceContainer *> &data,
-                      BuildOptions params = {});
+                      MetaColours &cmap, BuildOptions params = {});
 
 } // namespace cdbg
