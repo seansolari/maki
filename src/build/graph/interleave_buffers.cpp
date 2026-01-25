@@ -14,6 +14,8 @@
 void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
               sdsl::bit_vector &succ, ArchivePayload &carch, MetaColours &cmap,
               uint8_t msb) {
+  if (pkt.data.empty())
+    return;
   // sort temp data, but don't make it unique
   std::sort(pkt.data.begin(), pkt.data.end(), value_comp{});
   auto it = pkt.data.begin(), end = std::unique(it, pkt.data.end());
@@ -24,11 +26,19 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
     if (valid != end)
       it = valid;
   }
+
   // insert edges
   uint64_t previousEdge = 0b110; // impossible value
   while (it != end) {
     uint64_t edge = it->edge();
     if (edge != previousEdge) {
+      // push colour buffer for previous edge
+      if (!pkt.colours.empty()) {
+        auto ccode = cmap.getOrAssign(pkt.colours);
+        carch.raw.push(ccode);
+        pkt.colours.clear();
+      }
+      // insert new edge
       ++pkt.str.F[msb];
       if (pkt.last[edge] != pkt.block) {
         edges.push_back(edge | 0b1000);
@@ -36,20 +46,21 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
       } else {
         edges.push_back(edge);
       }
+      // attach edge to node
       succ.push_back(0);
-      pkt.colours.push_back(it->colour());
-      ++it;
     }
+    pkt.colours.push_back(it->colour());  
+    ++it;
   }
-  // encode colour data
+  // push colour buffer for last edge
   auto ccode = cmap.getOrAssign(pkt.colours);
   carch.raw.push(ccode);
-  // update graph structure
+  pkt.colours.clear();
+  // finalise node
   succ.back() = 1;
   ++pkt.str.C[msb];
   // clear
   pkt.data.clear();
-  pkt.colours.clear();
 }
 
 /**

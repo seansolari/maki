@@ -27,9 +27,18 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[]) {
   auto filters = parse(filterFiles, parseFilterFNA, colours,
                        (std::size_t)params.threads, (std::size_t)params.k);
 
-  // suffix-wise construct graph buffers
+  // prepare input data
   auto view = combineViews(genomes, filters);
-  auto bpaths = constructCDBG(view);
+  MetaColours cmap(std::move(colours.ids));
+
+  // suffix-wise buffer construction
+  cdbg::BuildOptions ops{
+    .kmer_size = params.k,
+    .suffix_size = params.s,
+    .out = params.outputFolder,
+    .pool_size = 2 * params.threads
+  };
+  auto tmp = cdbg::construct(view, cmap, ops);
 
   return 0;
 }

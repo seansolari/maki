@@ -8,6 +8,7 @@
 
 #include <sdsl/int_vector.hpp>
 
+#include "interleave_buffers.hpp"
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
@@ -41,10 +42,9 @@ struct BuildOptions {
   // Output parameters
   std::filesystem::path out;
   // Space parameters
-  std::size_t threads = 16;
   std::size_t pool_size = 16;
   std::size_t reserve_per_chunk = 0;
-  std::size_t num_chunks;
+  std::size_t chunks() const;
 };
 
 // -----------------------------------------------------------------------------
@@ -108,6 +108,11 @@ struct BufferPaths {
   std::filesystem::path colours;
 };
 
+struct TempBuffers {
+  BufferPaths files;
+  push_summary str;
+};
+
 Sinks prepareSinks(BufferPaths &pths);
 
 // -----------------------------------------------------------------------------
@@ -117,12 +122,14 @@ Sinks prepareSinks(BufferPaths &pths);
 struct SuffixwiseKmers {
   SuffixwiseKmers(const std::vector<const SequenceContainer *> &seqs,
                   const TerminalRange &terminals, std::size_t k, std::size_t s,
-                  MetaColours *cmap);
+                  MetaColours *cmap, push_summary *);
 
   void setPool(std::shared_ptr<BundlePool> &p);
   std::unique_ptr<Bundle> operator()(uint64_t) const;
 
 protected:
+  void _count(push_summary &) const;
+  
   std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
   std::unique_ptr<Bundle> _extractKmers(uint64_t, ShortSuffix) const;
   std::unique_ptr<Bundle> _extractPartialKmers(uint64_t, ShortSuffix) const;
@@ -131,6 +138,7 @@ protected:
   // input data
   std::size_t s_;
   MetaColours *cmap_;
+  push_summary *str_;
 
   // input buffers
   const std::vector<const SequenceContainer *> &seqs_;
@@ -148,7 +156,7 @@ protected:
 // API
 // -----------------------------------------------------------------------------
 
-BufferPaths construct(const std::vector<const SequenceContainer *> &data,
+TempBuffers construct(const std::vector<const SequenceContainer *> &data,
                       MetaColours &cmap, BuildOptions params = {});
 
 } // namespace cdbg
