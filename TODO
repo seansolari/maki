@@ -2,7 +2,6 @@
 
 ### High priority
 
- - validate payload attributes: reserve, clear, supply
  - integer mapping with suffixes (sized)
  - finalise graph construction
    - write seed data to disk

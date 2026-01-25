@@ -6,6 +6,10 @@
 
 class ArrayBuilder {
 public:
+  void reserve(std::size_t size_) {
+    values_.reserve(size_);
+  }
+
   void push(uint64_t v) {
     values_.push_back(v);
     max_ = std::max(max_, v);

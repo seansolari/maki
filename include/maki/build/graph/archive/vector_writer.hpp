@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "sink_manager.hpp"
+
 // -----------------------------------------------------------------------------
 // In-memory sink: append payloads into a single std::vector<>
 // -----------------------------------------------------------------------------
@@ -31,4 +33,9 @@ public:
 
 private:
   std::vector<Int> acc_; // accumulated data
+};
+
+template <typename Int>
+struct sink_payload<VectorInMemorySink<Int>> {
+  using type = std::vector<Int>;
 };

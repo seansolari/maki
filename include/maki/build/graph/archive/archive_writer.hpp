@@ -19,6 +19,10 @@
 struct ArchivePayload {
   ArrayBuilder raw;
   std::vector<uint8_t> bytes;
+
+  inline void reserve(std::size_t size_) { raw.reserve(size_); }
+  inline void clear() { raw.clear(); }
+  inline bool empty() { return bytes.empty(); }
 };
 
 // ========================= ArchiveWriter ====================================
