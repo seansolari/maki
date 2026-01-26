@@ -4,8 +4,37 @@
 
 ## High priority
 
- - unit tests
+  - unit tests
+
+### Unit Testing
+
+  - Colour Archive
+    - Bit-packed array.
+    - Writing to the archive, with various policies.
+    - Reading from an archive.
+    - Multiple threads reading.
+  - Byte writer
+  - SDSL writer
+    - In memory.
+    - On disk.
+  - Vector writer
+  - Sink manager
+    - Factory
+    - Pool
+      - Preallocate
+      - Get
+      - Put
+    - Multi-threaded pipeline
+  - Tuple Map
+  - Colour Mapping
+  - Buffer Value
+  - Meta Colours
+  - FASTA parsing
+  - Suffix tests
+  - k-mer and terminal buffers
+  - flushing tests
+
 
 ## Low priority
 
- - adapt count and classify for colours
+  - adapt count and classify for colours

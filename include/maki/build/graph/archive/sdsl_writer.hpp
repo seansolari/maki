@@ -27,7 +27,6 @@
 #include <sdsl/int_vector_buffer.hpp>
 
 #include "sink_manager.hpp"
-#include "sink_policies.hpp"
 
 // ---------------------- Utility: fast append helpers -------------------------
 //
@@ -63,10 +62,7 @@ inline void append_values_to_int_vector(sdsl::int_vector<mwidth> &dst,
 // -----------------------------------------------------------------------------
 // 1) On-disk sink: append many payloads into one int_vector file (width fixed)
 // -----------------------------------------------------------------------------
-template <uint8_t mwidth, class AlignmentPolicy = AlignTo<4096>,
-          class PreallocPolicy = NoPreallocate,
-          class FadvisePolicy = FadviseSequential>
-class SdslIntVectorOnDiskSink {
+template <uint8_t mwidth> class SdslIntVectorOnDiskSink {
   static_assert(mwidth > 0);
 
 public:
@@ -79,13 +75,7 @@ public:
       : path_(path), mode_(mode),
         buf_(path, std::ios::out,
              buffer_bytes) // SDSL manages file stream/header
-  {
-    // Apply OS-level policies via direct fd (separate from SDSL fstream).
-    int fd = io::open_writable_posix(path_, mode_);
-    PreallocPolicy::on_open(fd);
-    FadvisePolicy::on_open(fd);
-    io::close_posix(fd);
-  }
+  {}
 
   // Append one payload; returns number of elements appended.
   std::uint64_t write(const Payload &iv) {
@@ -98,10 +88,6 @@ public:
 
   void finalize() {
     buf_.close(); // flush & finalize header
-    // Durability hint
-    int fd = io::open_writable_posix(path_, mode_);
-    io::fdatasync_posix(fd);
-    io::close_posix(fd);
   }
 
   std::uint64_t size() const noexcept { return buf_.size(); }
@@ -150,8 +136,7 @@ private:
 // sink_payload<> specializations
 // -----------------------------------------------------------------------------
 
-template <uint8_t w, class A, class P, class F>
-struct sink_payload<SdslIntVectorOnDiskSink<w, A, P, F>> {
+template <uint8_t w> struct sink_payload<SdslIntVectorOnDiskSink<w>> {
   using type = sdsl::int_vector<w>;
 };
 

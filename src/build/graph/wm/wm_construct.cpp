@@ -7,7 +7,7 @@
 #include <sdsl/int_vector_mapper.hpp>
 
 void initW(const std::string &file, const std::string &out, const std::string &tmp_base) {
-  auto tmp_dir = create_temporary_directory(tmp_base);
+  auto tmp_dir = tempio::create_temporary_directory(tmp_base);
   sdsl::int_vector_buffer<4> iv(file, std::ios::in);
   wavelet_matrix wm(iv.begin(), iv.end(), tmp_dir);
   store_to_file(wm, out);

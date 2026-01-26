@@ -5,7 +5,6 @@
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
 #include "maki/build/graph/archive/sink_manager.hpp"
-#include "maki/build/graph/archive/sink_policies.hpp"
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
@@ -93,8 +92,8 @@ struct BufferMaker : public Factory<Buffers> {
 // Output data
 // -----------------------------------------------------------------------------
 
-using EdgeSink = SdslIntVectorOnDiskSink<4, NoAlignment>;
-using SuccSink = SdslIntVectorOnDiskSink<1, NoAlignment>;
+using EdgeSink = SdslIntVectorOnDiskSink<4>;
+using SuccSink = SdslIntVectorOnDiskSink<1>;
 using ColourSink = ArchiveWriter<>;
 
 using Sinks = std::tuple<EdgeSink, SuccSink, ColourSink>;

@@ -26,7 +26,6 @@ find_package (maki 2.0 REQUIRED HINTS ${MAKI_MODULE_PATH})
 maki_config_print ("Using maki-${MAKI_VERSION}.")
 
 # configurable options
-option (INSTALL_MAKI "Enable installation of maki binaries." OFF)
 option (ENABLE_MAKI_TESTING "Enable testing suite" ON)
 
 # configurable header
@@ -52,14 +51,9 @@ list (APPEND MAKI_EXECUTABLES maki-build maki-classify)
 
 # custom test targets
 if (ENABLE_MAKI_TESTING)
-    add_subdirectory ("test/maki")
+    add_subdirectory ("test")
 endif ()
 
 # custom build target to build maki-related targets
 add_custom_target (maki_build_targets)
 add_dependencies (maki_build_targets ${MAKI_EXECUTABLES})
-
-# intall binaries, headers and libs
-if (INSTALL_MAKI)
-    include (maki-install)
-endif ()

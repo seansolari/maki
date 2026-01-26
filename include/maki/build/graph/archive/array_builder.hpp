@@ -10,6 +10,10 @@ public:
     values_.reserve(size_);
   }
 
+  uint64_t get(std::size_t i) {
+    return values_[i];
+  }
+
   void push(uint64_t v) {
     values_.push_back(v);
     max_ = std::max(max_, v);
