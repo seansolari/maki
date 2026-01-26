@@ -3,9 +3,9 @@
 
 #include "interleave_buffers.hpp"
 #include "maki/build/graph/archive/archive_writer.hpp"
-#include "maki/build/graph/archive/byte_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
 #include "maki/build/graph/archive/sink_manager.hpp"
+#include "maki/build/graph/archive/sink_policies.hpp"
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
@@ -93,8 +93,8 @@ struct BufferMaker : public Factory<Buffers> {
 // Output data
 // -----------------------------------------------------------------------------
 
-using EdgeSink = ByteArraySink<>;
-using SuccSink = SdslIntVectorOnDiskSink<1>;
+using EdgeSink = SdslIntVectorOnDiskSink<4, NoAlignment>;
+using SuccSink = SdslIntVectorOnDiskSink<1, NoAlignment>;
 using ColourSink = ArchiveWriter<>;
 
 using Sinks = std::tuple<EdgeSink, SuccSink, ColourSink>;
@@ -155,7 +155,7 @@ protected:
 // Finalisation
 // -----------------------------------------------------------------------------
 
-ColouredGraphFiles finalise(TempBuffers);
+ColouredGraphFiles finalise(TempBuffers, const std::string &);
 
 // -----------------------------------------------------------------------------
 // API

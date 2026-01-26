@@ -4,6 +4,7 @@
 #include <sdsl/int_vector.hpp>
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>
+#include <sdsl/wm_int.hpp>
 #include "maki/core/seq/seq_io.hpp"
 
 namespace fs = std::filesystem;
@@ -23,12 +24,14 @@ ColouredGraphFiles graphFiles(fs::path base) {
   };
 }
 
+using wavelet_matrix = sdsl::wm_int<>;
+
 struct ColouredGraph {
   const uint8_t k;
   const sdsl::bit_vector l;
   const sdsl::rank_support_v5<1, 1> lR;
   const sdsl::select_support_mcl<1, 1> lS;
-  const sdsl::wt_int<> W;
+  const wavelet_matrix W;
   const ColourBufferRegistry archive;
   const std::array<size_t, 5> F, C;
 

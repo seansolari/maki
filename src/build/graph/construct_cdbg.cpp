@@ -1,8 +1,10 @@
 
 #include "maki/build/graph/construct_cdbg.hpp"
+#include "maki/build/graph/wm/wm_construct.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
+#include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
 
@@ -123,8 +125,6 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t rnk,
 // Finalisation
 // -----------------------------------------------------------------------------
 
-void initW(const std::string &file, const std::string &out) {}
-
 void initSuccSupport(ColouredGraphFiles &outp) {
   sdsl::bit_vector succ;
   sdsl::load_from_file(succ, outp.l);
@@ -140,11 +140,12 @@ void initSuccSupport(ColouredGraphFiles &outp) {
   }
 }
 
-ColouredGraphFiles finalise(TempBuffers inp, std::string_view out) {
+ColouredGraphFiles finalise(TempBuffers inp, const std::string &out) {
   ColouredGraphFiles outp = graphFiles(out);
 
   // edges wavelet matrix
-  initW(inp.files.edges, outp.W);
+  initW(inp.files.edges, outp.W, out);
+  std::filesystem::remove(inp.files.edges);
 
   // succ array
   std::filesystem::rename(inp.files.succ, outp.l);
@@ -162,9 +163,9 @@ ColouredGraphFiles finalise(TempBuffers inp, std::string_view out) {
 
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                              MetaColours &cmap, BuildOptions params) {
-  TempBuffers outp{.files = {.edges = params.out / "edges.txt",
-                             .succ = params.out / "succ.sdsl",
-                             .colours = params.out / "colours.maki"},
+  TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
+                             .succ = params.out / "temp-succ.sdsl",
+                             .colours = params.out / "temp-colours.maki"},
                    .str = {}};
 
   // extract terminals and create suffix plan
@@ -174,7 +175,7 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                                 params.suffix_size, &cmap, &outp.str),
                 prepareSinks(outp.files), params.pool_size,
                 params.reserve_per_chunk, params.chunks());
-  return finalise(outp);
+  return finalise(outp, params.out);
 }
 
 } // namespace cdbg

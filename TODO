@@ -5,7 +5,6 @@
 ## High priority
 
  - finalise graph construction
-   - pwm wavelet matrix construction and tests (see Copilot output)
    - colour representation
      - map ID -> colour set
      - map write colour -> seed

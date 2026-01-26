@@ -215,14 +215,6 @@ FetchContent_Declare (
 
 set (TBB_STRICT OFF)
 
-## STxxL --
-
-FetchContent_Declare (
-    stxxl_fetch
-    GIT_REPOSITORY https://github.com/stxxl/stxxl
-    GIT_TAG        1.4.1
-    )
-
 ##
 
 FetchContent_MakeAvailable (
@@ -231,7 +223,6 @@ FetchContent_MakeAvailable (
     ZStrGitRepo
     googletest
     onetbb
-    stxxl_fetch
     )
 
 # ----------------------------------------------------------------------------
@@ -381,28 +372,6 @@ endif ()
 if (UNIX)
     set(TBB_WARNING_SUPPRESS ${TBB_WARNING_SUPPRESS} -Wno-stringop-overflow)
 endif()
-
-# ----------------------------------------------------------------------------
-# Require STxxL
-# ----------------------------------------------------------------------------
-
-if (DEFINED STXXL_INCLUDE_DIRS)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} ${STXXL_LIBRARIES})
-    list (APPEND MAKI_DEPENDENCY_INCLUDE_DIRS ${STXXL_INCLUDE_DIRS})
-    # collect desired attributes
-    maki_config_print ("Required dependency:        STXXL-1.4.1 found.")
-else ()
-    maki_config_error ("Dependency STXXL not found.")
-endif ()
-
-check_include_file_cxx (pwm/version.hpp _MAKI_HAVE_PWM)
-
-if (_MAKI_HAVE_PWM)
-    # collect desired attributes
-    maki_config_print ("Required dependency:        pwm found.")
-else ()
-    maki_config_error ("Dependency pwm not found.")
-endif ()
 
 # ----------------------------------------------------------------------------
 # Compile time options and build parameters

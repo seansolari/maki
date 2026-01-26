@@ -35,13 +35,12 @@ struct packet {
  */
 push_summary interleave(KmerBuffer &, sdsl::int_vector<2>::iterator,
                         TerminalRange &, sdsl::int_vector<2>::iterator,
-                        std::vector<std::uint8_t> &edges,
-                        sdsl::bit_vector &succ, ArchivePayload &carch,
-                        MetaColours &cmap, uint8_t msb);
+                        sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb);
 
 /**
  * Push terminals to output.
  */
 push_summary pushRange(TerminalRange &, sdsl::int_vector<2>::iterator,
-                       std::vector<std::uint8_t> &edges, sdsl::bit_vector &succ,
+                       sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb);

@@ -11,9 +11,8 @@
  * Push a node into the graph buffers, comprising graph
  * structure (edges, succ) as well as colour data.
  */
-void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
-              sdsl::bit_vector &succ, ArchivePayload &carch, MetaColours &cmap,
-              uint8_t msb) {
+void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+              ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
   if (pkt.data.empty())
     return;
 
@@ -70,7 +69,7 @@ void pushNode(packet &pkt, std::vector<std::uint8_t> &edges,
  */
 template <typename It>
 void pushNodes(packet &pkt, It it, It end, sdsl::int_vector<2>::iterator b,
-               std::vector<std::uint8_t> &edges, sdsl::bit_vector &succ,
+               sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
                ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
   while (it != end) {
     if (*b == BW_0_K)
@@ -97,9 +96,8 @@ void pushNodes(packet &pkt, It it, It end, sdsl::int_vector<2>::iterator b,
 push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
                         TerminalRange &terminals,
                         sdsl::int_vector<2>::iterator to,
-                        std::vector<std::uint8_t> &edges,
-                        sdsl::bit_vector &succ, ArchivePayload &carch,
-                        MetaColours &cmap, uint8_t msb) {
+                        sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
   std::size_t k = kmers.getK(), km1 = k - 1, keff = kmers.getEffK();
   std::size_t prevTerminalSize = 0;
   assert(km1 > prevTerminalSize);
@@ -162,7 +160,7 @@ push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
 
 push_summary pushRange(TerminalRange &terminals,
                        sdsl::int_vector<2>::iterator to,
-                       std::vector<std::uint8_t> &edges, sdsl::bit_vector &succ,
+                       sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
   packet pkt;
   pushNodes(pkt, terminals.begin(), terminals.end(), to, edges, succ, carch,

@@ -40,6 +40,5 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[]) {
     .pool_size = 2 * params.threads
   };
   auto tmp = cdbg::construct(view, cmap, ops);
-
   return 0;
 }
