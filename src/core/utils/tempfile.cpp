@@ -1,5 +1,5 @@
 
-#include "core/utils/tempfile.hpp"
+#include "maki/core/utils/tempfile.hpp"
 #include <cstdint>
 #include <ios>
 #include <random>
@@ -29,7 +29,7 @@ fs::path create_temporary_directory(fs::path tmp_dir,
   return path;
 }
 
-fs::path create_temporary_directory(unsigned long long max_tries = 1000) {
+fs::path create_temporary_directory(unsigned long long max_tries) {
   return create_temporary_directory(fs::temp_directory_path(), max_tries);
 }
 

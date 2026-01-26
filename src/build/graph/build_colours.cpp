@@ -1,8 +1,8 @@
 
 #include "maki/build/graph/build_colours.hpp"
 
-uint64_t Colours::getOrAssign(std::string &&seed) {
-  uint64_t id;
+colour_t Colours::getOrAssign(std::string &&seed) {
+  colour_t id;
   ids.lazy_emplace_l(
       seed, [&](ColourMap::value_type &kv) { id = kv.second; },
       [&](const ColourMap::constructor &ctor) {
@@ -58,7 +58,7 @@ uint64_t MetaColours::id(const ColourVector &v) {
 
 ColourRegistry toRegistry(MetaColours &&in_) {
   ColourRegistry reg;
-  uint32_t numSeeds = in_.numColours();
+  std::size_t numSeeds = in_.numColours();
 
   // move seed names
   reg.seeds.resize(numSeeds);
@@ -71,7 +71,7 @@ ColourRegistry toRegistry(MetaColours &&in_) {
 
   // move meta colour mapping
   reg.metas.resize(in_.r.size());
-  in_.r.pforEach([&](std::vector<uint32_t> &&key, uint32_t value) {
+  in_.r.pforEach([&](std::vector<colour_t> &&key, uint64_t value) {
     reg.metas[value - numSeeds] = std::move(key);
   });
 
