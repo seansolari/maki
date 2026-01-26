@@ -65,11 +65,11 @@ protected:
     return out;
   }
 
-  std::vector<Val> _decompress(const Key &bytes) const {
+  std::vector<Int> _decompress(const Key &bytes) const {
     const uint8_t *src = bytes.data();
     const size_t n = bytes.size() / _bypk;
-    std::vector<Val> out(n, 0);
-    Val *o = out.data();
+    std::vector<Int> out(n, 0);
+    Int *o = out.data();
     for (std::size_t b = 0; b < n; ++b) {
       o[b / _bypk] |= src[b] << (8 * (b % _bypk));
     }
@@ -78,6 +78,8 @@ protected:
 
 public:
   TupleMap(size_t bitWidth_) : _bypk((bitWidth_ + 7) / 8), _data() {}
+
+  inline std::size_t size() const noexcept { return _data.size(); }
 
   // increment count for a key, initialising to 1
   void increment(const Int *ptr_, std::size_t len_) {
@@ -134,22 +136,22 @@ public:
           std::osyncstream os(bos);
           _data.with_submap(
               submapIndex, [&](const Map::EmbeddedSet &set) -> void {
-                for (const auto &[key, count] : set) {
+                for (const auto &[key, value] : set) {
                   auto bigKey = _decompress(key);
                   auto it_ = bigKey.cbegin(), end_ = bigKey.cend();
                   os << *it_++;
                   while (it_ != end_)
                     os << ',' << *it_++;
-                  os << '\t' << count << '\n';
+                  os << '\t' << value << '\n';
                 }
               });
         });
   }
 
   template <typename Fn> void forEach(Fn f_) const {
-    for (const auto &[key, count] : _data) {
+    for (const auto &[key, value] : _data) {
       auto bigKey = _decompress(key);
-      f_(bigKey.cbegin(), bigKey.cend(), count);
+      f_(std::move(bigKey), value);
     }
   }
 
@@ -158,10 +160,9 @@ public:
         (size_t)0, _data.subcnt(), (size_t)1, [&](size_t submapIndex) -> void {
           _data.with_submap(
               submapIndex, [&](const Map::EmbeddedSet &set) -> void {
-                for (const auto &[key, count] : set) {
+                for (const auto &[key, value] : set) {
                   auto bigKey = _decompress(key);
-                  auto it_ = bigKey.cbegin(), end_ = bigKey.cend();
-                  f_(bigKey.cbegin(), bigKey.cend(), count);
+                  f_(std::move(bigKey), value);
                 }
               });
         });

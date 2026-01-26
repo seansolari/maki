@@ -4,10 +4,6 @@
 
 ## High priority
 
- - finalise graph construction
-   - colour representation
-     - map ID -> colour set
-     - map write colour -> seed
  - unit tests
 
 ## Low priority

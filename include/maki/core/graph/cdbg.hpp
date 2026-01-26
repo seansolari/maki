@@ -1,11 +1,12 @@
 
 #pragma once
+#include "colours.hpp"
+#include "maki/core/seq/seq_io.hpp"
 #include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>
 #include <sdsl/wm_int.hpp>
-#include "maki/core/seq/seq_io.hpp"
 
 namespace fs = std::filesystem;
 
@@ -13,16 +14,7 @@ struct ColouredGraphFiles {
   fs::path l, lR, lS, W, archive, meta;
 };
 
-ColouredGraphFiles graphFiles(fs::path base) {
-  return ColouredGraphFiles{
-    .l = base / "succ.dat",
-    .lR = base / "succ-rank.dat",
-    .lS = base / "succ-select.dat",
-    .W = base / "edges.dat",
-    .archive = base / "archive.dat",
-    .meta = base / "graph.dat"
-  };
-}
+ColouredGraphFiles graphFiles(fs::path base);
 
 using wavelet_matrix = sdsl::wm_int<>;
 
@@ -32,7 +24,7 @@ struct ColouredGraph {
   const sdsl::rank_support_v5<1, 1> lR;
   const sdsl::select_support_mcl<1, 1> lS;
   const wavelet_matrix W;
-  const ColourBufferRegistry archive;
+  const ColourRegistry colours;
   const std::array<size_t, 5> F, C;
 
   // number of nodes in graph

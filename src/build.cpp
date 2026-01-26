@@ -39,6 +39,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char const *argv[]) {
     .out = params.outputFolder,
     .pool_size = 2 * params.threads
   };
-  auto tmp = cdbg::construct(view, cmap, ops);
+  auto g = cdbg::construct(view, cmap, ops);
+
   return 0;
 }
