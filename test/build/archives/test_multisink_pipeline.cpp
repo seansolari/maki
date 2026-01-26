@@ -19,6 +19,7 @@ using ByteSinkT = ByteArraySink<>;
 using Sinks = std::tuple<ArchiveSinkT, ByteSinkT>;
 using Bundle = ChunkBundleT<ArchiveSinkT, ByteSinkT>;
 using Pool = BundlePool<ArchiveSinkT, ByteSinkT>;
+using Multi = MultiSink<ArchiveSinkT, ByteSinkT>;
 
 struct FakeJob {
   void setPool(std::shared_ptr<Pool> &p_) { p = p_; }
@@ -38,7 +39,7 @@ struct FakeJob {
     pb.assign(1024 + (i % 5) * 100, (uint8_t)(i & 0xFF));
 
     // Random jitter to force out-of-order arrivals
-    std::this_thread::sleep_for(std::chrono::milliseconds(rng() % 5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(rng() % 100));
 
     return bnd;
   }
@@ -57,16 +58,24 @@ protected:
   std::string archive_path, bytes_path;
 };
 
+TEST_F(MultiSinkPipeline, ValidSinks) {
+  Multi sinks{ArchiveSinkT{archive_path}, ByteSinkT{bytes_path}};
+  sinks.finalize();
+}
+
 TEST_F(MultiSinkPipeline, OutOfOrderSubmissionsAreOrderedAndFannedOut) {
   std::size_t N = 24;
-  ProcessChunks(FakeJob(),
-                Sinks{ArchiveSinkT{archive_path}, ByteSinkT{bytes_path}}, 4,
-                1 << 20, N);
+  // create archive
+  {
+    Multi sinks{ArchiveSinkT{archive_path}, ByteSinkT{bytes_path}};
+    ProcessChunks(FakeJob(), sinks, 4, 1 << 20, N);
+    sinks.finalize();
+  }
 
   // Validate archive
   {
     ArchiveReader r(archive_path);
-    ASSERT_EQ((int)r.chunk_count(), N);
+    ASSERT_EQ(r.chunk_count(), N);
     auto chk = r.validate_all_parallel();
     EXPECT_TRUE(chk.mismatches.empty());
     // Ensure TOC is in increasing order by file_offset and start_index

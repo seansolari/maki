@@ -22,7 +22,7 @@ struct ArchivePayload {
 
   inline void reserve(std::size_t size_) { raw.reserve(size_); }
   inline void clear() { raw.clear(); }
-  inline bool empty() { return bytes.empty(); }
+  inline bool empty() const noexcept { return raw.empty(); }
 };
 
 // ========================= ArchiveWriter ====================================
@@ -52,6 +52,21 @@ public:
     // Reserve small TOC by default; user can call reserve_chunks()
     toc_.reserve(1024);
   }
+
+  ArchiveWriter(ArchiveWriter &&rhs) {
+    fd_ = rhs.fd_;
+    rhs.fd_ = -1;
+    offset_ = rhs.offset_;
+    elems_prefix_ = rhs.elems_prefix_;
+    version_ = rhs.version_;
+    magic_ = rhs.magic_;
+    prealloc_ = rhs.prealloc_;
+    toc_ = std::move(rhs.toc_);
+  }
+
+  ArchiveWriter& operator=(ArchiveWriter &&rhs) =delete;
+  ArchiveWriter(const ArchiveWriter&) =delete;
+  ArchiveWriter& operator=(const ArchiveWriter&) =delete;
 
   ~ArchiveWriter() {
     if (fd_ >= 0)
@@ -109,9 +124,6 @@ public:
 
   // Finalize: write TOC and footer
   void finalize() {
-    if (finalized_)
-      return;
-
     const std::uint64_t toc_off = offset_;
     if (!toc_.empty()) {
       // Write TOC as contiguous array
@@ -130,7 +142,6 @@ public:
 
     // Flush metadata for durability
     ::fdatasync(fd_);
-    finalized_ = true;
   }
 
 private:
@@ -151,7 +162,6 @@ private:
   int fd_ = -1;
   std::uint64_t offset_ = 0;
   std::uint64_t elems_prefix_ = 0;
-  bool finalized_ = false;
 
   std::uint32_t version_;
   std::uint32_t magic_;

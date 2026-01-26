@@ -52,6 +52,18 @@ public:
     FadvisePolicy::on_open(fd_);
   }
 
+  ByteArraySink(ByteArraySink &&rhs) {
+    path_ = std::move(rhs.path_);
+    mode_ = rhs.mode_;
+    fd_ = rhs.fd_;
+    rhs.fd_ = -1;
+    offset_ = rhs.offset_;
+  }
+
+  ByteArraySink& operator=(ByteArraySink &&rhs) =delete;
+  ByteArraySink(const ByteArraySink&) =delete;
+  ByteArraySink& operator=(const ByteArraySink&) =delete;
+
   ~ByteArraySink() {
     if (fd_ >= 0)
       io::close_posix(fd_);

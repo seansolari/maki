@@ -99,6 +99,7 @@ using ColourSink = ArchiveWriter<>;
 using Sinks = std::tuple<EdgeSink, SuccSink, ColourSink>;
 using Bundle = ChunkBundleT<EdgeSink, SuccSink, ColourSink>;
 using BundlePool = ::BundlePool<EdgeSink, SuccSink, ColourSink>;
+using Multi = MultiSink<EdgeSink, SuccSink, ColourSink>;
 
 struct BufferPaths {
   std::filesystem::path edges;
@@ -110,8 +111,6 @@ struct TempBuffers {
   BufferPaths files;
   push_summary str;
 };
-
-Sinks prepareSinks(BufferPaths &pths);
 
 // -----------------------------------------------------------------------------
 // Pipeline

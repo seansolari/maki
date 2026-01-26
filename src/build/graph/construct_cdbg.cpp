@@ -37,15 +37,6 @@ void Buffers::setTerminals(TerminalRange &&data_) {
 }
 
 // -----------------------------------------------------------------------------
-// Output data
-// -----------------------------------------------------------------------------
-
-Sinks prepareSinks(BufferPaths &pths) {
-  return std::make_tuple(EdgeSink(pths.edges), SuccSink(pths.succ),
-                         ColourSink(pths.colours));
-}
-
-// -----------------------------------------------------------------------------
 // Pipeline
 // -----------------------------------------------------------------------------
 
@@ -167,14 +158,16 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                              .succ = params.out / "temp-succ.sdsl",
                              .colours = params.out / "temp-colours.maki"},
                    .str = {}};
-
   // extract terminals and create suffix plan
   auto terminals = extractTerminalsSparse(data, params.kmer_size);
   // suffix-wise processing and sink chunks to disk
+  Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
+              ColourSink(outp.files.colours)};
   ProcessChunks(SuffixwiseKmers(data, terminals.asRange(), params.kmer_size,
                                 params.suffix_size, &cmap, &outp.str),
-                prepareSinks(outp.files), params.pool_size,
-                params.reserve_per_chunk, params.chunks());
+                sinks, params.pool_size, params.reserve_per_chunk,
+                params.chunks());
+  sinks.finalize();
   return finalise(outp, params.out);
 }
 

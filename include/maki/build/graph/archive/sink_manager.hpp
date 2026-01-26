@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <tuple>
@@ -231,7 +232,10 @@ private:
 template <class... Sinks> class MultiSink {
 public:
   using Bundle = ChunkBundleT<Sinks...>;
-  MultiSink(std::tuple<Sinks...> sinks) : sinks_(std::move(sinks)) {}
+  MultiSink(Sinks&& ...sinks) : sinks_(std::forward<Sinks>(sinks)...) {}
+
+  MultiSink(const MultiSink&) =delete;
+  MultiSink& operator=(const MultiSink&) =delete;
 
   void write_bundle(Bundle &b) {
     detail::tuple_for_each_pair(b.payloads, sinks_,
@@ -285,7 +289,7 @@ template <class... Sinks> struct FlushBundle {
   using Cache = std::unordered_map<uint64_t, std::unique_ptr<Bundle>>;
 
   FlushBundle(const std::shared_ptr<BundlePool<Sinks...>> &pool,
-              const std::shared_ptr<MultiSink<Sinks...>> &multi)
+              MultiSink<Sinks...> *multi)
       : next_(std::make_shared<uint64_t>(0)), pool_(pool), multi_(multi),
         pending_(std::make_shared<Cache>()) {}
 
@@ -300,7 +304,7 @@ protected:
       auto it = pending_->find(*next_);
       if (it == pending_->end())
         break;
-
+      
       multi_->write_bundle(*it->second);
       pool_->release(std::move(it->second));
       pending_->erase(it);
@@ -311,7 +315,7 @@ protected:
 
   std::shared_ptr<uint64_t> next_;
   std::shared_ptr<BundlePool<Sinks...>> pool_;
-  std::shared_ptr<MultiSink<Sinks...>> multi_;
+  MultiSink<Sinks...> *multi_;
   std::shared_ptr<Cache> pending_;
 };
 
@@ -323,13 +327,12 @@ concept BundleProducer = requires(const T fn, T gn, uint64_t i, std::shared_ptr<
 
 template <class T, class... Sinks>
   requires BundleProducer<T, Sinks...>
-void ProcessChunks(T op, std::tuple<Sinks...> sinks, std::size_t pool_size,
+void ProcessChunks(T op, MultiSink<Sinks...> &sinks, std::size_t pool_size,
                    size_t per_sink_reserve, std::uint64_t expected_chunks) {
   using Bundle = ChunkBundleT<Sinks...>;
   auto pool =
       std::make_shared<BundlePool<Sinks...>>(pool_size, per_sink_reserve);
   op.setPool(pool);
-  auto multi = std::make_shared<MultiSink<Sinks...>>(std::move(sinks));
   oneapi::tbb::parallel_pipeline(
       pool_size,
       oneapi::tbb::make_filter<void, uint64_t>(
@@ -337,6 +340,5 @@ void ProcessChunks(T op, std::tuple<Sinks...> sinks, std::size_t pool_size,
           oneapi::tbb::make_filter<uint64_t, std::unique_ptr<Bundle>>(
               oneapi::tbb::filter_mode::parallel, std::move(op)) &
           oneapi::tbb::make_filter<std::unique_ptr<Bundle>, void>(
-              oneapi::tbb::filter_mode::serial_in_order, FlushBundle{pool, multi}));
-  multi->finalize();
+              oneapi::tbb::filter_mode::serial_in_order, FlushBundle{pool, &sinks}));
 }

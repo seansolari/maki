@@ -10,6 +10,10 @@ public:
     values_.reserve(size_);
   }
 
+  bool empty() const noexcept {
+    return values_.empty();
+  }
+
   uint64_t get(std::size_t i) {
     return values_[i];
   }
