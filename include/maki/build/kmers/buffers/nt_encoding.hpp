@@ -39,7 +39,7 @@ public:
 
   inline uint64_t data() const { return _data; }
   inline std::size_t size() const { return _s; }
-  inline std::string toString() const;
+  std::string toString() const;
   inline uint8_t msb() const noexcept { return _data >> (2 * (_s - 1)); }
 
   /**
@@ -272,4 +272,4 @@ private:
  */
 std::vector<SuffixTable>
 createSuffixPlan(const std::vector<const SequenceContainer *> &data,
-                 std::size_t k, std::size_t s);
+                 std::size_t k, std::size_t s, bool accumulate = true);

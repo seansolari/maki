@@ -22,12 +22,16 @@ endmacro ()
 
 ADD_TEST ("build/fasta/test_detect_file_types.cpp")
 ADD_TEST ("build/fasta/test_gff_parser.cpp")
+ADD_TEST ("build/fasta/test_gff_iter.cpp")
 ADD_TEST ("build/fasta/test_chunked_fasta.cpp")
 
 ADD_TEST ("build/colours/test_buffer_value.cpp")
 ADD_TEST ("build/colours/test_colours.cpp")
 ADD_TEST ("build/colours/test_metacolours.cpp")
 ADD_TEST ("build/colours/test_construct_registry.cpp")
+
+ADD_TEST ("build/suffixes/test_suffix_encoding.cpp")
+ADD_TEST ("build/suffixes/test_suffix_counting.cpp")
 
 ADD_TEST ("build/archives/test_packed_array.cpp")
 ADD_TEST ("build/archives/test_archive_basic.cpp")

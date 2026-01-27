@@ -1,6 +1,6 @@
 # To do:
 
-*Last updated*: Sun 25 Jan. 2026
+*Last updated*: Tue 27 Jan. 2026
 
 ## High priority
 
@@ -8,32 +8,33 @@
 
 ### Unit Testing
 
-  - Colour Archive
-    - Bit-packed array.
-    - Writing to the archive, with various policies.
-    - Reading from an archive.
-    - Multiple threads reading.
-  - Byte writer
-  - SDSL writer
-    - In memory.
-    - On disk.
-  - Vector writer
-  - Sink manager
-    - Factory
-    - Pool
-      - Preallocate
-      - Get
-      - Put
-    - Multi-threaded pipeline
-  - Tuple Map
-  - Colour Mapping
-  - Buffer Value
-  - Meta Colours
-  - FASTA parsing
-  - Suffix tests
+  - [DONE] Colour Archive
+    - [DONE] Bit-packed array.
+    - [DONE] Writing to the archive, with various policies.
+    - [DONE] Reading from an archive.
+    - [DONE] Multiple threads reading.
+  - [DONE] Byte writer
+  - [DONE] SDSL writer
+    - [DONE] In memory.
+    - [DONE] On disk.
+  - [DONE] Vector writer
+  - [DONE] Sink manager
+    - [DONE] Factory
+    - [DONE] Pool
+      - [DONE] Preallocate
+      - [DONE] Get
+      - [DONE] Put
+    - [DONE] Multi-threaded pipeline
+  - [DONE] Tuple Map
+  - [DONE] Colour Mapping
+  - [DONE] Buffer Value
+  - [DONE] Meta Colours
+  - [DONE] FASTA parsing
+  - [DONE] Suffix tests
   - k-mer and terminal buffers
+    - migrate test_terminals and test_kmers from archive
   - flushing tests
-
+  - graph IO tests
 
 ## Low priority
 
