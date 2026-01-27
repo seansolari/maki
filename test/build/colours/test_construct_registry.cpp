@@ -14,10 +14,10 @@ void MakeColours(Colours &c, std::size_t n_) {
   }
 }
 
-MetaColours MakeMetaColours(std::size_t n_, std::size_t c_) {
+MetaColours MakeMetaColours(std::size_t n_) {
   Colours c;
   MakeColours(c, n_);
-  return MetaColours(std::move(c.ids), c_);
+  return MetaColours(std::move(c.ids));
 }
 
 std::vector<ColourVector> MakeMetaIds(colour_t n_) {
@@ -52,7 +52,7 @@ void InsertMetaIds(MetaColours &cmap, std::size_t R) {
 TEST(ColourRegistry, SimpleMetaIds) {
   // construct meta colours
   std::size_t N = 100, R = 3;
-  auto cmap = MakeMetaColours(N, N / 2);
+  auto cmap = MakeMetaColours(N);
 
   ASSERT_EQ(cmap.numMetaColours(), N+1);
   InsertMetaIds(cmap, R);

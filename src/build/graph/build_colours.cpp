@@ -27,16 +27,9 @@ void BufferValue::flush(uint8_t *dest_, size_t n_) const {
   }
 }
 
-MetaColours::MetaColours(ColourMap &&m_, colour_t numFeatures)
-    : ids(std::move(m_)), _mid(numFeatures), _nid(ids.size() + 1),
+MetaColours::MetaColours(ColourMap &&m_)
+    : ids(std::move(m_)), _nid(ids.size() + 1),
       r(required_bits(ids.size())), _occs(ids.size() + 1, 0) {}
-
-bool MetaColours::assignable(const ColourVector &v) const {
-  for (const colour_t &c : v)
-    if (c < _mid)
-      return true;
-  return false;
-}
 
 uint64_t MetaColours::insert(const ColourVector &v) {
   for (const colour_t &c : v) {

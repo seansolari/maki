@@ -1,6 +1,7 @@
 
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/core/graph/colours.hpp"
+#include <cereal/external/rapidjson/reader.h>
 #include <gtest/gtest.h>
 
 void MakeColours(Colours &c, std::size_t n_) {
@@ -9,44 +10,14 @@ void MakeColours(Colours &c, std::size_t n_) {
   }
 }
 
-MetaColours MakeMetaColours(std::size_t n_, std::size_t c_) {
+MetaColours MakeMetaColours(std::size_t n_) {
   Colours c;
   MakeColours(c, n_);
-  return MetaColours(std::move(c.ids), c_);
-}
-
-TEST(MetaColours, SingleAssignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_TRUE(cmap.assignable({1}));
-}
-
-TEST(MetaColours, SingleEndAssignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_TRUE(cmap.assignable({49}));
-}
-
-TEST(MetaColours, MultiAssignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_TRUE(cmap.assignable({1, 12, 30}));
-}
-
-TEST(MetaColours, SingleUnassignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_FALSE(cmap.assignable({50}));
-}
-
-TEST(MetaColours, MultiUnassignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_FALSE(cmap.assignable({50, 51, 52, 53}));
-}
-
-TEST(MetaColours, MixedAssignable) {
-  auto cmap = MakeMetaColours(100, 50);
-  ASSERT_TRUE(cmap.assignable({17, 50, 51, 52, 53}));
+  return MetaColours(std::move(c.ids));
 }
 
 TEST(MetaColoursInsert, RecognisesPreviousColour) {
-  auto cmap = MakeMetaColours(100, 50);
+  auto cmap = MakeMetaColours(100);
 
   ASSERT_EQ(cmap.numMetaColours(), 101);
   auto id1 = cmap.id({1, 2, 3});
@@ -68,7 +39,7 @@ std::vector<ColourVector> MakeMetaIds(std::size_t n_) {
 
 TEST(MetaColoursInsert, TrackMultiInsertSingleValues) {
   std::size_t N = 100, R = 3;
-  auto cmap = MakeMetaColours(N, N/2);
+  auto cmap = MakeMetaColours(N);
 
   // multithreaded insert seed set
   Colours c;
@@ -98,7 +69,7 @@ TEST(MetaColoursInsert, TrackMultiInsertSingleValues) {
 
 TEST(MetaColoursInsert, TrackMultiInsertVectors) {
   std::size_t N = 100, M = N-1, R = 3;
-  auto cmap = MakeMetaColours(N, N/2);
+  auto cmap = MakeMetaColours(N);
   auto cmb = MakeMetaIds(N);
 
   // multithreaded insert seed set

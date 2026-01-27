@@ -28,7 +28,6 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
   }
 
   // iterate through each edge
-  bool pushed = false;
   while (it != end) {
     // collect all colours for edge
     uint64_t edge = it->edge();
@@ -36,31 +35,25 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
       pkt.colours.push_back(it->colour());
       ++it;
     } while ((it != end) && (it->edge() == edge));
-    // check if it has valid colours
-    if (cmap.assignable(pkt.colours)) {
-      pushed = true;
-      // insert new edge
-      ++pkt.str.F[msb];
-      if (pkt.last[edge] != pkt.block) {
-        edges.push_back(edge | 0b1000);
-        pkt.last[edge] = pkt.block;
-      } else {
-        edges.push_back(edge);
-      }
-      // attach edge to node
-      succ.push_back(0);
-      // push colour
-      auto ccode = cmap.insert(pkt.colours);
-      carch.raw.push(ccode);
+    // insert new edge
+    ++pkt.str.F[msb];
+    if (pkt.last[edge] != pkt.block) {
+      edges.push_back(edge | 0b1000);
+      pkt.last[edge] = pkt.block;
+    } else {
+      edges.push_back(edge);
     }
+    // attach edge to node
+    succ.push_back(0);
+    // push colour
+    auto ccode = cmap.insert(pkt.colours);
+    carch.raw.push(ccode);
     pkt.colours.clear();
   }
 
   // finalise node
-  if (pushed) {
-    succ.back() = 1;
-    ++pkt.str.C[msb];
-  }
+  succ.back() = 1;
+  ++pkt.str.C[msb];
   pkt.data.clear();
 }
 

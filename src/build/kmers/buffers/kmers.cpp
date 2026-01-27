@@ -76,8 +76,8 @@ void KmerBuffer::fill(const std::vector<const SequenceContainer *> &data_,
   oneapi::tbb::parallel_for(
       (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
         auto it = at(i == 0 ? 0 : blocks_[i - 1][sfx_]);
-        for (auto seq : data_[i]->terminals()) {
-          it = insert(it, seq.begin(), seq.begin() + k, seq.id(),
+        for (auto seq : data_[i]->fragments(k)) {
+          it = insert(it, seq.begin(), seq.end(), seq.id(),
                       seq.endIsTerminal(), sfx_);
         }
       });

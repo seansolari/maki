@@ -6,6 +6,7 @@
 #include <cassert>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string_view>
@@ -102,8 +103,8 @@ std::optional<std::string_view> findAttrValue(std::string_view attrs,
           v = trim(v);
           if (!v.empty())
             return v;
-          // If empty value, still considered present but empty
-          return std::string_view{};
+          else
+            return std::nullopt;
         }
       }
     }
@@ -633,6 +634,22 @@ std::size_t Dna4Genome::medianContigSize() const {
   return contigSizes[medianIndex];
 }
 
+std::size_t RestrictedSequenceFragment::numTerminals(std::size_t k) const {
+  if (_begin == 0)
+    return k;
+  else
+    return 0;
+}
+
+poly_input_range<SequenceFragment>
+RestrictedSequenceFragment::terminals() const {
+  if (_begin == 0)
+    return poly_input_range<SequenceFragment>(
+        SequenceFragment(_it + _begin, _it + _end, _id, _terminal));
+  else
+    return {};
+}
+
 std::size_t RestrictedSequenceFragment::numKmers(std::size_t k) const {
   return size() - k + 1;
 }
@@ -821,6 +838,7 @@ Dna4Genome parseGFF(const std::string &gff3File, Colours &colours,
     Dna4Contig &outContig =
         genome.contigs.emplace_back(rec.id().substr(0, rec.id().find(' ')), k);
     AnnotRange contigAnnots = annots.findContig(outContig.accn);
+    outContig.numAnnotations = contigAnnots.size();
     outContig.insert(rec.sequence(), /*unannotated regions*/ 0ull, contigAnnots,
                      k + 1);
   }
@@ -846,13 +864,19 @@ ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
 }
 
 std::vector<const SequenceContainer *>
-combineViews(const std::vector<Dna4Genome> &gff,
-             const std::vector<ChunkedDna4Genome> &fna) {
+toView(const std::vector<Dna4Genome> &gff) {
   std::vector<const SequenceContainer *> views;
-  views.reserve(gff.size() + chunks(fna));
+  views.reserve(gff.size());
   for (const auto &seq : gff) {
     views.push_back(&seq);
   }
+  return views;
+}
+
+std::vector<const SequenceContainer *>
+toView(const std::vector<ChunkedDna4Genome> &fna) {
+  std::vector<const SequenceContainer *> views;
+  views.reserve(chunks(fna));
   for (const auto &seq : fna) {
     for (const auto &chunk : seq.chunks) {
       views.push_back(&chunk);

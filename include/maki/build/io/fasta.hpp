@@ -181,31 +181,6 @@ public:
   std::string currentAnnotsToString() const;
 };
 
-// class FeatureSegment final : public SequenceContainer {
-// public:
-//   FeatureSegment(Dna4SequenceConstIter seq_, size_t begin_, size_t end_,
-//                  uint64_t id_, bool terminal = false);
-//   Dna4SequenceConstIter begin() const { return _it + _begin; }
-//   Dna4SequenceConstIter end() const { return _it + _end; }
-//   std::size_t size() const noexcept { return _end - _begin; }
-//   std::size_t numInternalKmers(std::size_t k) const noexcept {
-//     assert(size() >= k);
-//     return size() - k;
-//   }
-//   std::size_t numKmers(std::size_t k) const noexcept;
-//   std::size_t numTerminals(std::size_t k) const noexcept;
-//   std::size_t numEdges(std::size_t k) const noexcept;
-//   bool endIsTerminal() const noexcept { return _endIsTerminal; }
-//   void setEndToTerminal() { _endIsTerminal = true; }
-//
-// protected:
-//   Dna4SequenceConstIter _it;
-//   std::size_t _begin;
-//   std::size_t _end;
-//   uint64_t _id;
-//   bool _endIsTerminal;
-// };
-
 class AnnotatedSequenceSegmentIterator {
 public:
   AnnotatedSequenceSegmentIterator() = default;
@@ -387,19 +362,10 @@ struct RestrictedSequenceFragment final : public SequenceContainer {
 
   inline std::size_t size() const noexcept { return _end - _begin; }
   inline void setEndToTerminal() { _terminal = true; }
+  inline bool endIsTerminal() const noexcept { return _terminal; }
 
-  /**
-   * Filter sequences do not contribute new k-mers, so therefore contribute no
-   * terminals.
-   */
-  virtual constexpr std::size_t
-  numTerminals([[maybe_unused]] std::size_t k) const override final {
-    return 0u;
-  }
-  virtual constexpr poly_input_range<SequenceFragment>
-  terminals() const override final {
-    return {};
-  }
+  virtual std::size_t numTerminals(std::size_t k) const override final;
+  virtual poly_input_range<SequenceFragment> terminals() const override final;
   virtual std::size_t numKmers(std::size_t k) const override final;
   virtual poly_input_range<SequenceFragment>
   fragments(std::size_t k) const override final;
@@ -436,9 +402,10 @@ Dna4Genome parseGFF(const std::string &gffFile, Colours &colours,
                     std::size_t k);
 ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
                                  std::size_t granularity, std::size_t k);
+
+std::vector<const SequenceContainer *> toView(const std::vector<Dna4Genome> &);
 std::vector<const SequenceContainer *>
-combineViews(const std::vector<Dna4Genome> &,
-             const std::vector<ChunkedDna4Genome> &);
+toView(const std::vector<ChunkedDna4Genome> &);
 
 template <typename ReturnType, typename... Args>
 std::vector<ReturnType> parse(const std::vector<std::string> &files,

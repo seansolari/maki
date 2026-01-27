@@ -89,11 +89,10 @@ using ColourVector =
  * original colour IDs.
  */
 struct MetaColours {
-  MetaColours(ColourMap &&m_, colour_t numFeatures);
+  MetaColours(ColourMap &&m_);
 
 protected:
   ColourMap ids;                  // stores seed IDs
-  colour_t _mid;                  // marks colour IDs from features vs filters
   std::atomic_uint64_t _nid;      // number of nodes currently assigned
   TupleMap<colour_t, uint64_t> r; // map tuples of colours to meta colour IDs
   std::vector<uint64_t> _occs;    // occurrences of every colour
@@ -104,9 +103,6 @@ public:
   }
   inline uint64_t numMetaColours() const noexcept { return _nid.load(); }
   inline std::size_t colourWidth() const { return required_bits(ids.size()/*=largest colour ID*/); }
-
-  // Do any colours come from features? Or are they all filters?
-  bool assignable(const ColourVector &v) const;
 
   // Get colour for seed, assigning a new ID if it doesn't exist.
   uint64_t id(const ColourVector &v);

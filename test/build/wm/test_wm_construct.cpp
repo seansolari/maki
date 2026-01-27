@@ -26,7 +26,10 @@ inline std::vector<Int> GenVector(size_t n, Int mask) {
 class WaveletMatrix : public testing::Test {
 protected:
   WaveletMatrix() : file(MakeTempPath(".char")), arr(MakeTempPath(".b4")) {}
-  ~WaveletMatrix() { std::filesystem::remove(file); std::filesystem::remove(arr); }
+  ~WaveletMatrix() {
+    std::filesystem::remove(file);
+    std::filesystem::remove(arr);
+  }
   std::string file, arr;
 
   void MakeWaveletMatrix(wavelet_matrix &wm, std::vector<uint8_t> &vals) const {
@@ -47,8 +50,9 @@ protected:
 };
 
 TEST_F(WaveletMatrix, SmallArray) {
-  std::vector<uint8_t> vals = { 0b0001, 0b1001, 0b0001, 0b1001, 0b0001, 0b1001, 0b0001, 0b1001 };
-  
+  std::vector<uint8_t> vals = {0b0001, 0b1001, 0b0001, 0b1001,
+                               0b0001, 0b1001, 0b0001, 0b1001};
+
   wavelet_matrix wm;
   MakeWaveletMatrix(wm, vals);
 
@@ -68,8 +72,8 @@ TEST_F(WaveletMatrix, SmallArray) {
 
 TEST_F(WaveletMatrix, RandomValues) {
   std::size_t N = 1000;
-  std::vector<uint8_t> vals = GenVector<uint8_t>(N, (1ull<<4)-1);
-  
+  std::vector<uint8_t> vals = GenVector<uint8_t>(N, (1ull << 4) - 1);
+
   wavelet_matrix wm;
   MakeWaveletMatrix(wm, vals);
 

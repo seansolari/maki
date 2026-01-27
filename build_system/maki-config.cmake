@@ -165,6 +165,7 @@ FetchContent_Declare (
     seqan3_fetch_content
     GIT_REPOSITORY https://github.com/seqan/seqan3.git
     GIT_TAG        c8e7fdbe2aa259b96d0007ece0218d0150fca045 # v3.4.0-rc.3
+    UPDATE_COMMAND ""
     )
 
 # gtl --
@@ -173,6 +174,7 @@ FetchContent_Declare(
     gtl
     GIT_REPOSITORY https://github.com/greg7mdp/gtl.git
     GIT_TAG        v1.2.0 # adjust tag/branch/commit as needed
+    UPDATE_COMMAND ""
     )
 
 # ZStr --
@@ -181,6 +183,7 @@ FetchContent_Declare(
     ZStrGitRepo
     GIT_REPOSITORY    "https://github.com/mateidavid/zstr"
     GIT_TAG           "master"
+    UPDATE_COMMAND ""
     )
 
 # GTest --
@@ -190,6 +193,7 @@ FetchContent_Declare (
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG        f8d7d77c06936315286eb55f8de22cd23c188571 # release-1.14.0
     FIND_PACKAGE_ARGS NAMES GTest
+    UPDATE_COMMAND ""
     )
 
 # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -202,6 +206,7 @@ FetchContent_Declare (
     GIT_REPOSITORY https://github.com/google/glog.git
     GIT_TAG        34b8da6496aec6a98277808701cfa834fae9801f # release-0.7.0
     FIND_PACKAGE_ARGS NAMES glog
+    UPDATE_COMMAND ""
     )
 
 # TBB --
@@ -211,6 +216,7 @@ FetchContent_Declare (
     GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
     GIT_TAG        45587e94dfb6dfe00220c5f520020a5bc745e92f # release-2022.1.0
     FIND_PACKAGE_ARGS NAMES TBB
+    UPDATE_COMMAND ""
     )
 
 set (TBB_STRICT OFF)
