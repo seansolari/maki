@@ -48,7 +48,7 @@ SuffixwiseKmers::SuffixwiseKmers(
       blocks_(std::make_shared<std::vector<SuffixTable>>(
           createSuffixPlan(seqs, k, s))),
       buffers_(std::make_shared<BufferMaker>(blocks_->back().maxValue(),
-                                             value_size(cmap->maxColourWidth()),
+                                             value_size(cmap->colourWidth()),
                                              k, k - s)),
       pool_() {}
 

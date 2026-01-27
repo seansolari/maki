@@ -1,5 +1,6 @@
 
 #include "maki/build/graph/build_colours.hpp"
+#include "maki/build/utils/bits.hpp"
 
 colour_t Colours::getOrAssign(std::string &&seed) {
   colour_t id;
@@ -26,34 +27,31 @@ void BufferValue::flush(uint8_t *dest_, size_t n_) const {
   }
 }
 
-MetaColours::MetaColours(ColourMap &&m_, uint64_t numFeatures)
-    : ids(std::move(m_)), _mid(numFeatures), _nid(ids.size()),
-      r(ceil_log2(ids.size())), _occs(ids.size(), 0) {}
+MetaColours::MetaColours(ColourMap &&m_, colour_t numFeatures)
+    : ids(std::move(m_)), _mid(numFeatures), _nid(ids.size() + 1),
+      r(required_bits(ids.size())), _occs(ids.size() + 1, 0) {}
 
 bool MetaColours::assignable(const ColourVector &v) const {
-  for (const auto &c : v)
+  for (const colour_t &c : v)
     if (c < _mid)
       return true;
   return false;
 }
 
 uint64_t MetaColours::insert(const ColourVector &v) {
-  // increment occurrence counts
-  for (const auto &c : v) {
+  for (const colour_t &c : v) {
     assert(c < _occs.size());
     ++std::atomic_ref{_occs[c]};
   }
-
-  // assign ID
-  if (v.size() == 1) {
-    return v.front();
-  } else {
-    return id(v);
-  }
+  return id(v);
 }
 
 uint64_t MetaColours::id(const ColourVector &v) {
-  return r.lazy_emplace(v.data(), v.size(), [&] { return ++_nid; });
+  if (v.size() == 1) {
+    return v.front();
+  } else {
+    return r.lazy_emplace(v.data(), v.size(), [&] { return _nid++; });
+  }
 }
 
 ColourRegistry toRegistry(MetaColours &&in_) {
@@ -68,6 +66,7 @@ ColourRegistry toRegistry(MetaColours &&in_) {
 
   // move seed occurrences
   reg.occs = std::move(in_._occs);
+  assert(reg.occs.size() == reg.seeds.size());
 
   // move meta colour mapping
   reg.metas.resize(in_.r.size());

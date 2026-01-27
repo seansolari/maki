@@ -18,7 +18,12 @@ macro (ADD_TEST test_file)
     list (APPEND MAKI_EXECUTABLES ${test_name})
 endmacro ()
 
-# archives
+# test suite
+
+ADD_TEST ("build/colours/test_buffer_value.cpp")
+ADD_TEST ("build/colours/test_colours.cpp")
+ADD_TEST ("build/colours/test_metacolours.cpp")
+ADD_TEST ("build/colours/test_construct_registry.cpp")
 
 ADD_TEST ("build/archives/test_packed_array.cpp")
 ADD_TEST ("build/archives/test_archive_basic.cpp")
@@ -26,6 +31,8 @@ ADD_TEST ("build/archives/test_archive_validation.cpp")
 ADD_TEST ("build/archives/test_sdsl_sinks.cpp")
 ADD_TEST ("build/archives/test_bytearray_sink.cpp")
 ADD_TEST ("build/archives/test_multisink_pipeline.cpp")
+
+ADD_TEST ("build/wm/test_wm_construct.cpp")
 
 # parsing
 

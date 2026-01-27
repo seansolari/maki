@@ -1,5 +1,4 @@
 
-#include "maki/build/graph/archive/array_builder.hpp"
 #include "test_common.hpp"
 #include <filesystem>
 #include <gtest/gtest.h>
@@ -114,5 +113,5 @@ TEST_F(ArchiveBasic, ReadChunk) {
   ASSERT_EQ(view.size(), Cview.size());
   for (std::size_t i = 0; i < view.size(); ++i) {
     ASSERT_EQ(view.get(i), Cview.get(i));
-  }  
+  }
 }
