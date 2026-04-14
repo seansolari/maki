@@ -340,6 +340,12 @@ protected:
 struct Dna4Genome final : public SequenceContainer {
   std::vector<Dna4Contig> contigs;
 
+  Dna4Genome() = default;
+  Dna4Genome(Dna4Genome &&) = default;
+  Dna4Genome &operator=(Dna4Genome &&) = default;
+  Dna4Genome(const Dna4Genome &) = delete;
+  Dna4Genome &operator=(const Dna4Genome &) = delete;
+
   virtual std::size_t numTerminals(std::size_t k) const override final;
   virtual poly_input_range<SequenceFragment> terminals() const override final;
   virtual std::size_t numKmers(std::size_t k) const override final;
@@ -381,6 +387,12 @@ protected:
 struct ChunkedDna4Genome {
   Dna4Genome genome;
   std::vector<RestrictedSequenceFragment> chunks;
+
+  ChunkedDna4Genome() = default;
+  ChunkedDna4Genome(ChunkedDna4Genome &&) = default;
+  ChunkedDna4Genome &operator=(ChunkedDna4Genome &&) = default;
+  ChunkedDna4Genome(const ChunkedDna4Genome &) = delete;
+  ChunkedDna4Genome &operator=(const ChunkedDna4Genome &) = delete;
 
   void chunk(std::size_t granularity, std::size_t overlap);
 };

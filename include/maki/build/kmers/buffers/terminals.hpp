@@ -22,7 +22,7 @@ class TerminalBufferRandomAccessIterator
       ndim::StridedIteratorBase<T, TerminalBufferRandomAccessIterator<T>>;
 
 public:
-  TerminalBufferRandomAccessIterator() =default;
+  TerminalBufferRandomAccessIterator() = default;
   TerminalBufferRandomAccessIterator(uint32_t lengthBytes, uint32_t seqBytes,
                                      uint32_t valueOffset, uint8_t kEff)
       : BaseIterType(), _lengthBytes(lengthBytes), _seqBytes(seqBytes),
@@ -34,11 +34,13 @@ public:
       : BaseIterType(p, w), _lengthBytes(lengthBytes), _seqBytes(seqBytes),
         _valueOffset(valueOffset), _k_eff(kEff) {}
 
-  TerminalBufferRandomAccessIterator(const TerminalBufferRandomAccessIterator&) =default;
-  TerminalBufferRandomAccessIterator& operator=(const TerminalBufferRandomAccessIterator&) =default;
-  
+  TerminalBufferRandomAccessIterator(
+      const TerminalBufferRandomAccessIterator &) = default;
+  TerminalBufferRandomAccessIterator &
+  operator=(const TerminalBufferRandomAccessIterator &) = default;
+
   using difference_type = std::ptrdiff_t;
-        
+
   constexpr inline void writeTerminal(const LongSuffix &terminal) const
     requires(!std::is_const_v<T>)
   {
@@ -223,7 +225,7 @@ public:
   using const_iterator = typename TerminalBuffer::const_iterator;
 
 public:
-  TerminalRange() =default;
+  TerminalRange() = default;
   TerminalRange(uint8_t k_eff_, long lengthBytes_, TerminalConstIter begin_,
                 TerminalConstIter end_)
       : _k_eff(k_eff_), _lengthBytes(lengthBytes_), _begin(begin_), _end(end_) {

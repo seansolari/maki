@@ -114,7 +114,7 @@ size_t SuffixTable::maxValue() const {
 }
 
 SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs) {
-  assert(dest.suffixSize() == rhs.suffixSize());
+  assert(lhs.suffixSize() == rhs.suffixSize());
   auto it = lhs.begin();
   for (uint64_t v : rhs) {
     *it += v;
@@ -134,7 +134,7 @@ createSuffixPlan(const std::vector<const SequenceContainer *> &data,
                               tables[i].resize(s);
                               for (auto fmt : data[i]->fragments(k)) {
                                 auto it = fmt.begin(), end = fmt.end();
-                                if (!fmt.endIsTerminal())
+                                if (it != end && !fmt.endIsTerminal())
                                   --end;
                                 std::size_t size = end - it;
                                 if (size >= k)

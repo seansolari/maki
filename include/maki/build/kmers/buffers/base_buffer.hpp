@@ -602,12 +602,12 @@ public:
     return const_iterator(_data + _size, _cols, std::forward<Args>(args)...);
   }
   template <class... Args> iterator at(size_type idx, Args &&...args) {
-    assert(idx < _rows);
+    assert(idx <= _rows);
     return iterator(_data + (idx * _cols), _cols, std::forward<Args>(args)...);
   }
   template <class... Args>
   const_iterator at(size_type idx, Args &&...args) const {
-    assert(idx < _rows);
+    assert(idx <= _rows);
     return const_iterator(_data + (idx * _cols), _cols,
                           std::forward<Args>(args)...);
   }

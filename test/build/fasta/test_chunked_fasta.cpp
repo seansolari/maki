@@ -1,10 +1,12 @@
 
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/io/fasta.hpp"
+#include "maki/core/seq/seq_concepts.hpp"
 #include "maki/core/utils/tempfile.hpp"
 #include "maki/maki.h"
-#include <gtest/gtest.h>
+#include "test_common.hpp"
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 using ::testing::ContainerEq;
 
@@ -97,68 +99,32 @@ inline std::string MakeTempPath(const char *ext) {
 
 class ParseChunks : public testing::Test {
 protected:
-  ParseChunks() : fna(MakeTempPath(".fna")) {}
-  ~ParseChunks() { std::filesystem::remove(fna); }
-  std::string fna;
-
-  int writeToFna(const std::string &data) {
-    std::ofstream output_file(fna);
-
-    // Check if the file was successfully opened
-    if (output_file.is_open()) {
-      // Write the string data to the file using the insertion operator (<<)
-      output_file << data;
-
-      // Close the file
-      output_file.close();
-    } else {
-      std::cerr << "Error: Unable to open the file." << std::endl;
-      return 1; // Return an error code
-    }
-
-    return 0;
+  ParseChunks() : fna(MakeTempPath(".fna")), c(), xgenome() {
+    std::string data =
+        ">seq1\nACGTACGTACGTACGTACGTACGTACGATCAGTCAGTCAGTCGTA\n>"
+        "seq2\nAGTACGTCGTACGATCGTC\n>seq3\nATCGTCGATGCTAGCTAGCTAGCTAGCTACGT\n>"
+        "seq4\nGTACGTGCTAGCTAGCTGACTCGATGCATTAA\n>seq5\nTAGTATATATAGTAGTAGT\n";
+    writeToFna(data, fna);
+    xgenome = parseFilterFNA(fna, c, threads, kmer_size);
   }
-};
+  ~ParseChunks() { std::filesystem::remove(fna); }
 
-/*
+  inline std::vector<const SequenceContainer *> getView() const {
+    std::vector<const SequenceContainer *> ptrs;
+    for (const auto &chunk : xgenome.chunks) {
+      ptrs.push_back(&chunk);
+    }
+    return ptrs;
+  }
 
-ACGTACGTACGTACGT ACGTACGTACGATCAG TCAGTCAGTCGTA
-
-TACGACTGACTGACTG ATCGTACGTACGTACG TACGTACGTACGT
-
-AGTACGTCGTACGATC GTC
-
-GACGATCGTACGACGT ACT
-
-ATCGTCGATGCTAGCT AGCTAGCTAGCTACGT
-
-ACGTAGCTAGCTAGCT AGCTAGCATCGACGAT
-
-GTACGTGCTAGCTAGC TGACTCGATGCATTAA
-
-TTAATGCATCGAGTCA GCTAGCTAGCACGTAC
-
-TAGTATATATAGTAGT AGT
-
-ACTACTACTATATATA CTA
-
-*/
-TEST_F(ParseChunks, ParseChunkedGenome) {
-  // dummy params
+  std::string fna;
   uint8_t kmer_size = 3;
   size_t threads = 2;
-
-  // create data
-  std::string data =
-      ">seq1\nACGTACGTACGTACGTACGTACGTACGATCAGTCAGTCAGTCGTA\n>"
-      "seq2\nAGTACGTCGTACGATCGTC\n>seq3\nATCGTCGATGCTAGCTAGCTAGCTAGCTACGT\n>"
-      "seq4\nGTACGTGCTAGCTAGCTGACTCGATGCATTAA\n>seq5\nTAGTATATATAGTAGTAGT\n";
-  writeToFna(data);
-
-  // parse data
   Colours c;
-  auto xgenome = parseFilterFNA(fna, c, threads, kmer_size);
+  ChunkedDna4Genome xgenome;
+};
 
+TEST_F(ParseChunks, CheckStructure) {
   // check IDs
   ASSERT_EQ(c.getOrAssign("seq1"), 1);
   ASSERT_EQ(c.getOrAssign("seq2"), 2);
@@ -216,13 +182,47 @@ TEST_F(ParseChunks, ParseChunkedGenome) {
   ASSERT_EQ(xgenome.chunks[16].numTerminals(kmer_size), kmer_size);
   ASSERT_TRUE(xgenome.chunks[17].endIsTerminal());
   ASSERT_EQ(xgenome.chunks[17].numTerminals(kmer_size), kmer_size);
+}
+
+TEST_F(ParseChunks, NumKmers) {
+  auto view = getView();
+
+  // predicted sequence lengths
+  std::vector<std::size_t> actual;
+  for (auto rng : view) {
+    actual.push_back(rng->numKmers(kmer_size));
+  }
+
+  // check
+  std::vector<std::size_t> expected = {17, 17, 11, 17, 17, 11, 17, 17, 17,
+                                       14, 17, 14, 17, 14, 17, 14, 17, 17};
+  ASSERT_THAT(actual, ContainerEq(expected));
+}
+
+TEST_F(ParseChunks, NumTerminals) {
+  auto view = getView();
+
+  // predicted sequence lengths
+  std::vector<std::size_t> actual;
+  for (auto rng : view) {
+    actual.push_back(rng->numTerminals(kmer_size));
+  }
+
+  // check
+  std::vector<std::size_t> expected = {
+      kmer_size, 0,         0,         kmer_size, 0,         0,
+      kmer_size, kmer_size, kmer_size, 0,         kmer_size, 0,
+      kmer_size, 0,         kmer_size, 0,         kmer_size, kmer_size};
+  ASSERT_THAT(actual, ContainerEq(expected));
+}
+
+TEST_F(ParseChunks, FragmentView) {
+  auto view = getView();
 
   // output sequences
-
   std::vector<Dna4Sequence> sequenceChunks;
-
-  for (auto rng : xgenome.chunks) {
-    for (auto seq : rng.fragments(kmer_size)) {
+  for (auto rng : view) {
+    for (auto seq : rng->fragments(kmer_size)) {
       sequenceChunks.emplace_back(seq.begin(), seq.end());
     }
   }
@@ -246,6 +246,35 @@ TEST_F(ParseChunks, ParseChunkedGenome) {
       Dna4Sequence("TGACTCGATGCATTAA"_dna4),
       Dna4Sequence("TTAATGCATCGAGTCAGCT"_dna4),
       Dna4Sequence("GCTAGCTAGCACGTAC"_dna4),
+      Dna4Sequence("TAGTATATATAGTAGTAGT"_dna4),
+      Dna4Sequence("ACTACTACTATATATACTA"_dna4)};
+
+  ASSERT_THAT(sequenceChunks, ContainerEq(expectedChunks))
+      << "actual: " << toString(sequenceChunks, ", ")
+      << "\nexpected: " << toString(expectedChunks, ", ");
+}
+
+TEST_F(ParseChunks, TerminalView) {
+  auto view = getView();
+
+  // output sequences
+  std::vector<Dna4Sequence> sequenceChunks;
+  for (auto rng : view) {
+    for (auto seq : rng->terminals()) {
+      sequenceChunks.emplace_back(seq.begin(), seq.end());
+    }
+  }
+
+  // check
+  std::vector<Dna4Sequence> expectedChunks = {
+      Dna4Sequence("ACGTACGTACGTACGTACG"_dna4),
+      Dna4Sequence("TACGACTGACTGACTGATC"_dna4),
+      Dna4Sequence("AGTACGTCGTACGATCGTC"_dna4),
+      Dna4Sequence("GACGATCGTACGACGTACT"_dna4),
+      Dna4Sequence("ATCGTCGATGCTAGCTAGC"_dna4),
+      Dna4Sequence("ACGTAGCTAGCTAGCTAGC"_dna4),
+      Dna4Sequence("GTACGTGCTAGCTAGCTGA"_dna4),
+      Dna4Sequence("TTAATGCATCGAGTCAGCT"_dna4),
       Dna4Sequence("TAGTATATATAGTAGTAGT"_dna4),
       Dna4Sequence("ACTACTACTATATATACTA"_dna4)};
 

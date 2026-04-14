@@ -39,3 +39,4 @@
 ## Low priority
 
   - adapt count and classify for colours
+  - in DB: use counts rrna genes to estimate genome size. in cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
