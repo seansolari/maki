@@ -41,7 +41,7 @@ static void
 ExpectSuccessWithId(const std::pair<gffRecord, std::optional<std::string>> &res,
                     std::string_view exp_seqid, int64_t exp_begin,
                     int64_t exp_end, char exp_strand, std::string_view exp_id) {
-  ASSERT_TRUE(res.second.has_value())
+  ASSERT_TRUE(res[1].has_value())
       << "Expected optional to be engaged (ID present).";
   const auto &[rec, id] = res;
   EXPECT_EQ(rec.accn, exp_seqid);
@@ -53,7 +53,7 @@ ExpectSuccessWithId(const std::pair<gffRecord, std::optional<std::string>> &res,
 
 static void
 ExpectNoValue(const std::pair<gffRecord, std::optional<std::string>> &res) {
-  EXPECT_FALSE(res.second.has_value())
+  EXPECT_FALSE(res[1].has_value())
       << "Expected optional to be disengaged (no usable ID / ignorable).";
 }
 
@@ -247,9 +247,9 @@ TEST(ParseGff_Robustness, LargeAccessionsAndAttributes) {
   auto res = parseGffLine(MakeGffLine(acc, "1", "2", "+", "ID=" + idv));
   // ID is "<accession>-<ID>"
   std::string expected = acc + "-" + idv;
-  ASSERT_TRUE(res.second.has_value());
-  EXPECT_EQ(res.first.accn, acc);
-  EXPECT_EQ(*res.second, expected);
+  ASSERT_TRUE(res[1].has_value());
+  EXPECT_EQ(res[0].accn, acc);
+  EXPECT_EQ(*res[1], expected);
 }
 
 TEST(ParseGff_Robustness, TrailingWhitespaceInAttributes) {
@@ -351,43 +351,43 @@ TEST_F(ParseGffFastaTests, ParseGff) {
   EXPECT_EQ(contig1.numFragments(), 6);
 
   // Contig 1, Forward
-  EXPECT_EQ(contig1.sequences.first.size(), 3);
+  EXPECT_EQ(contig1.sequences[0].size(), 3);
   // Contig 1, Forward, Fragment 1
-  EXPECT_EQ(contig1.sequences.first[0].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.first[0].sequence, Dna4Sequence("ACGAG"_dna4));
+  EXPECT_EQ(contig1.sequences[0][0].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[0][0].sequence, Dna4Sequence("ACGAG"_dna4));
   std::vector contig1Frag1Annots = {gffToken{1, 0, 5}};
-  ASSERT_THAT(contig1.sequences.first[0].annotations,
+  ASSERT_THAT(contig1.sequences[0][0].annotations,
               ElementsAreArray(contig1Frag1Annots));
   // Contig 1, Forward, Fragment 2
-  EXPECT_EQ(contig1.sequences.first[1].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.first[1].sequence,
+  EXPECT_EQ(contig1.sequences[0][1].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[0][1].sequence,
             Dna4Sequence("CGGTGGCAA"_dna4));
-  EXPECT_EQ(contig1.sequences.first[1].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[0][1].annotations.size(), 0);
   // Contig 1, Forward, Fragment 3
-  EXPECT_EQ(contig1.sequences.first[2].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.first[2].sequence, Dna4Sequence("GAAGTT"_dna4));
+  EXPECT_EQ(contig1.sequences[0][2].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[0][2].sequence, Dna4Sequence("GAAGTT"_dna4));
   std::vector contig1Frag3Annots = {gffToken{2, 0, 6}};
-  ASSERT_THAT(contig1.sequences.first[2].annotations,
+  ASSERT_THAT(contig1.sequences[0][2].annotations,
               ElementsAreArray(contig1Frag3Annots));
 
   // Contig 1, Reverse
-  EXPECT_EQ(contig1.sequences.second.size(), 3);
+  EXPECT_EQ(contig1.sequences[1].size(), 3);
   // Contig 1, Reverse, Fragment 1
-  EXPECT_EQ(contig1.sequences.second[0].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.second[0].sequence, Dna4Sequence("AACTTC"_dna4));
-  EXPECT_EQ(contig1.sequences.second[0].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[1][0].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[1][0].sequence, Dna4Sequence("AACTTC"_dna4));
+  EXPECT_EQ(contig1.sequences[1][0].annotations.size(), 0);
   // Contig 1, Reverse, Fragment 2
-  EXPECT_EQ(contig1.sequences.second[1].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.second[1].sequence,
+  EXPECT_EQ(contig1.sequences[1][1].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[1][1].sequence,
             Dna4Sequence("TTGCCACCG"_dna4));
   std::vector contig1Frag2Annots = {gffToken{3, 0, 5}};
-  ASSERT_THAT(contig1.sequences.second[1].annotations,
+  ASSERT_THAT(contig1.sequences[1][1].annotations,
               ElementsAreArray(contig1Frag2Annots));
 
   // Contig 1, Reverse, Fragment 3
-  EXPECT_EQ(contig1.sequences.second[2].nullFeatureId, 0);
-  EXPECT_EQ(contig1.sequences.second[2].sequence, Dna4Sequence("CTCGT"_dna4));
-  EXPECT_EQ(contig1.sequences.second[2].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[1][2].nullFeatureId, 0);
+  EXPECT_EQ(contig1.sequences[1][2].sequence, Dna4Sequence("CTCGT"_dna4));
+  EXPECT_EQ(contig1.sequences[1][2].annotations.size(), 0);
 
   const auto &contig2 = genome.contigs[1];
   EXPECT_EQ(contig2.accn, "genome2");
@@ -397,32 +397,32 @@ TEST_F(ParseGffFastaTests, ParseGff) {
   EXPECT_EQ(contig2.numFragments(), 4);
 
   // Contig 2, Forward
-  EXPECT_EQ(contig2.sequences.first.size(), 2);
+  EXPECT_EQ(contig2.sequences[0].size(), 2);
   // Contig 2, Forward, Fragment 1
-  EXPECT_EQ(contig2.sequences.first[0].nullFeatureId, 0);
-  EXPECT_EQ(contig2.sequences.first[0].sequence,
+  EXPECT_EQ(contig2.sequences[0][0].nullFeatureId, 0);
+  EXPECT_EQ(contig2.sequences[0][0].sequence,
             Dna4Sequence("GTGTCGGAGG"_dna4));
   std::vector contig2Frag1Annots = {gffToken{4, 0, 6}, gffToken{5, 1, 10}};
-  ASSERT_THAT(contig2.sequences.first[0].annotations,
+  ASSERT_THAT(contig2.sequences[0][0].annotations,
               ElementsAreArray(contig2Frag1Annots));
   // Contig 2, Forward, Fragment 2
-  EXPECT_EQ(contig2.sequences.first[1].nullFeatureId, 0);
-  EXPECT_EQ(contig2.sequences.first[1].sequence,
+  EXPECT_EQ(contig2.sequences[0][1].nullFeatureId, 0);
+  EXPECT_EQ(contig2.sequences[0][1].sequence,
             Dna4Sequence("CTCCATCGAC"_dna4));
-  EXPECT_EQ(contig2.sequences.first[1].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[0][1].annotations.size(), 0);
 
   // Contig 2, Reverse
-  EXPECT_EQ(contig2.sequences.second.size(), 2);
+  EXPECT_EQ(contig2.sequences[1].size(), 2);
   // Contig 2, Reverse, Fragment 1
-  EXPECT_EQ(contig2.sequences.second[0].nullFeatureId, 0);
-  EXPECT_EQ(contig2.sequences.second[0].sequence,
+  EXPECT_EQ(contig2.sequences[1][0].nullFeatureId, 0);
+  EXPECT_EQ(contig2.sequences[1][0].sequence,
             Dna4Sequence("GTCGATGGAG"_dna4));
-  EXPECT_EQ(contig2.sequences.second[0].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[1][0].annotations.size(), 0);
   // Contig 2, Reverse, Fragment 2
-  EXPECT_EQ(contig2.sequences.second[1].nullFeatureId, 0);
-  EXPECT_EQ(contig2.sequences.second[1].sequence,
+  EXPECT_EQ(contig2.sequences[1][1].nullFeatureId, 0);
+  EXPECT_EQ(contig2.sequences[1][1].sequence,
             Dna4Sequence("CCTCCGACAC"_dna4));
   std::vector contig2Frag2RevAnnots = {gffToken{6, 0, 10}};
-  ASSERT_THAT(contig2.sequences.second[1].annotations,
+  ASSERT_THAT(contig2.sequences[1][1].annotations,
               ElementsAreArray(contig2Frag2RevAnnots));
 }

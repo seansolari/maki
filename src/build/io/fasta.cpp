@@ -8,7 +8,6 @@
 #include <numeric>
 #include <optional>
 #include <ranges>
-#include <span>
 #include <string_view>
 
 #include <indicators/progress_bar.hpp>
@@ -518,7 +517,7 @@ void Dna4Contig::insert(const seqan3::dna5_vector &sequence,
 
   // insert forward
   AnnotRange fwdAnnots = annots.getStrand('+');
-  _insertOrientation(sequences.first, sequence, seqFeatureId, nPositions,
+  _insertOrientation(sequences[0], sequence, seqFeatureId, nPositions,
                      fwdAnnots, minAnnotSize);
 
   // get reverse complement view on sequence
@@ -536,7 +535,7 @@ void Dna4Contig::insert(const seqan3::dna5_vector &sequence,
   }
 
   // insert reverse
-  _insertOrientation(sequences.second,
+  _insertOrientation(sequences[1],
                      sequence | std::views::reverse | seqan3::views::complement,
                      seqFeatureId, nPositions, revAnnots, minAnnotSize);
 
@@ -550,20 +549,14 @@ void Dna4Contig::insert(const seqan3::dna5_vector &sequence,
   }
 }
 
-auto Dna4Contig::view() const {
-  return std::array{std::span<const AnnotatedSequence>(sequences.first),
-                    std::span<const AnnotatedSequence>(sequences.second)} |
-         std::views::join;
-}
-
 std::size_t Dna4Contig::numKmers(std::size_t k) const {
   auto accumulateKmers = [k](std::size_t total, const AnnotatedSequence &seq) {
     return total + seq.numKmers(k);
   };
   std::size_t total =
-      std::accumulate(sequences.first.cbegin(), sequences.first.cend(),
+      std::accumulate(sequences[0].cbegin(), sequences[0].cend(),
                       (std::size_t)0, accumulateKmers);
-  return std::accumulate(sequences.second.cbegin(), sequences.second.cend(),
+  return std::accumulate(sequences[1].cbegin(), sequences[1].cend(),
                          total, accumulateKmers);
 }
 
@@ -577,7 +570,7 @@ poly_input_range<SequenceFragment> Dna4Genome::terminals() const {
       std::views::transform([](const Dna4Contig &ctg) { return ctg.view(); }) |
       std::views::join |
       std::views::transform(
-          [&](const AnnotatedSequence &seq) { return seq.view(); }));
+          [](const AnnotatedSequence &seq) { return seq.view(); }));
 }
 
 std::size_t Dna4Genome::numKmers(std::size_t k) const {
@@ -594,7 +587,7 @@ poly_input_range<SequenceFragment> Dna4Genome::fragments(std::size_t k) const {
       std::views::transform([](const Dna4Contig &ctg) { return ctg.view(); }) |
       std::views::join |
       std::views::transform(
-          [&](const AnnotatedSequence &seq) { return seq.fragments(k); }) |
+          [k](const AnnotatedSequence &seq) { return seq.fragments(k); }) |
       std::views::join);
 }
 
@@ -620,7 +613,7 @@ std::size_t Dna4Genome::medianContigSize() const {
 
   for (Dna4Contig const &ctg : contigs) {
     for (SequenceVector const *drn :
-         {&ctg.sequences.first, &ctg.sequences.second}) {
+         {&ctg.sequences[0], &ctg.sequences[1]}) {
       for (AnnotatedSequence const &rec : *drn) {
         contigSizes.push_back(rec.sequence.size());
       }
@@ -669,7 +662,7 @@ void ChunkedDna4Genome::chunk(std::size_t granularity, std::size_t overlap) {
 
   for (const Dna4Contig &ctg : genome.contigs) {
     for (const SequenceVector *drn :
-         {&ctg.sequences.first, &ctg.sequences.second}) {
+         {&ctg.sequences[0], &ctg.sequences[1]}) {
       for (const AnnotatedSequence &rec : *drn) {
         assert(rec.annotations.size() == 0 &&
                "chunking scheme can only be applied to unannotated sequences");
@@ -739,8 +732,8 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
 
     // insert forward and reverse sequences
 
-    SequenceVector &fwdSeqs = out.sequences.first,
-                   &revSeqs = out.sequences.second;
+    SequenceVector &fwdSeqs = out.sequences[0],
+                   &revSeqs = out.sequences[1];
 
     for (auto &&subSeq :
          rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {
@@ -789,8 +782,8 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
 
     // insert forward and reverse sequences
 
-    SequenceVector &fwdSeqs = out.sequences.first,
-                   &revSeqs = out.sequences.second;
+    SequenceVector &fwdSeqs = out.sequences[0],
+                   &revSeqs = out.sequences[1];
 
     for (auto &&subSeq :
          rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {

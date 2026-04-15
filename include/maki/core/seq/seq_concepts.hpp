@@ -92,25 +92,26 @@ template <class T> class poly_input_range {
     using iterator_category = std::input_iterator_tag;
 
     iter() = default;
-    explicit iter(concept_t *p, bool at_end) : p_(p) {
-      if (p_ && !at_end)
+    explicit iter(concept_t *p) : p_(p) {
+      if (p_)
         cur_ = p_->next();
     }
+
     T operator*() const { return *cur_; }
     iter &operator++() {
       cur_ = p_->next();
       return *this;
     }
     void operator++(int) { ++(*this); }
-    friend bool operator==(const iter &a, const iter &b) {
-      // end == end or both cur_ empty means end
-      if (a.p_ != b.p_)
-        return false; // different ranges
-      return (!a.cur_.has_value()) == (!b.cur_.has_value());
+    friend bool operator==(const iter &a, const std::default_sentinel_t &) {
+      return !a.cur_.has_value();
     }
   };
 
 public:
+  using iterator = iter;
+  using sentinel = std::default_sentinel_t;
+
   poly_input_range() = default;
 
   template <std::ranges::input_range R>
@@ -125,12 +126,12 @@ public:
 
   // range interface
   iter begin() {
-    if (!self_)
-      return iter{};
+    if (self_)
+      return iter(self_.get());
     else
-      return iter(self_.get(), false);
+      return iter{};
   }
-  iter end() { return iter(self_.get(), true); }
+  sentinel end() { return {}; }
 };
 
 class SequenceFragment {

@@ -20,10 +20,10 @@ endmacro ()
 
 # test suite
 
-ADD_TEST ("build/fasta/test_detect_file_types.cpp")
-ADD_TEST ("build/fasta/test_gff_parser.cpp")
-ADD_TEST ("build/fasta/test_gff_iter.cpp")
-ADD_TEST ("build/fasta/test_chunked_fasta.cpp")
+ADD_TEST ("build/seqio/test_detect_file_types.cpp")
+ADD_TEST ("build/seqio/test_gff_parser.cpp")
+ADD_TEST ("build/seqio/test_gff_iter.cpp")
+ADD_TEST ("build/seqio/test_chunked_fasta.cpp")
 
 ADD_TEST ("build/colours/test_buffer_value.cpp")
 ADD_TEST ("build/colours/test_colours.cpp")

@@ -300,7 +300,7 @@ struct AnnotatedSequence {
 using SequenceVector = std::vector<AnnotatedSequence>;
 
 struct Dna4Contig {
-  std::pair</*forward*/ SequenceVector, /*reverse*/ SequenceVector> sequences;
+  std::array<SequenceVector, 2> sequences;
   std::string accn;
   std::size_t minFragmentSize = 0;
   std::size_t totalLength = 0;
@@ -315,10 +315,10 @@ struct Dna4Contig {
   void insert(const seqan3::dna5_vector &, uint64_t seqFeatureId,
               AnnotRange annots, std::size_t minAnnotSize);
   inline std::size_t numFragments() const noexcept {
-    return sequences.first.size() + sequences.second.size();
+    return sequences[0].size() + sequences[1].size();
   }
 
-  auto view() const;
+  auto view() const { return sequences | std::views::join; }
   std::size_t numKmers(std::size_t) const;
 
 protected:

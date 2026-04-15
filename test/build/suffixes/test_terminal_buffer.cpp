@@ -44,26 +44,26 @@ TEST_F(RollingTerminalTests, Initial) {
 }
 
 TEST_F(RollingTerminalTests, RollBackNotFull) {
-  _sfx.roll(0b11);
-  _sfx.roll(0b10);
-  _sfx.roll(0b01);
-  _sfx.roll(0b00);
-  _sfx.roll(0b11);
-  _sfx.roll(0b10);
+  _sfx.push(0b11);
+  _sfx.push(0b10);
+  _sfx.push(0b01);
+  _sfx.push(0b00);
+  _sfx.push(0b11);
+  _sfx.push(0b10);
   EXPECT_EQ(_sfx.terminalLength(), 6);
   ASSERT_THAT(_sfx.view(), ElementsAreArray({0b01101100, 0b00101100}));
 }
 
 TEST_F(RollingTerminalTests, RollBackFull) {
   for (std::size_t i = 0; i < 7; ++i)
-    _sfx.roll(0b10);
+    _sfx.push(0b10);
   EXPECT_EQ(_sfx.terminalLength(), 7);
   ASSERT_THAT(_sfx.view(), ElementsAreArray({0b10101010, 0b00101010}));
 }
 
 TEST_F(RollingTerminalTests, RollBackExceed) {
   for (std::size_t i = 0; i < 14; ++i)
-    _sfx.roll(0b10);
+    _sfx.push(0b10);
   EXPECT_EQ(_sfx.terminalLength(), 7);
   ASSERT_THAT(_sfx.view(), ElementsAreArray({0b10101010, 0b00101010}));
 }
@@ -141,12 +141,12 @@ TEST_F(TerminalBufferSerialiseTests, WritePartialKey) {
   // create key
 
   LongSuffix _sfx(keff);
-  _sfx.roll(0b11);
-  _sfx.roll(0b10);
-  _sfx.roll(0b01);
-  _sfx.roll(0b00);
-  _sfx.roll(0b11);
-  _sfx.roll(0b10);
+  _sfx.push(0b11);
+  _sfx.push(0b10);
+  _sfx.push(0b01);
+  _sfx.push(0b00);
+  _sfx.push(0b11);
+  _sfx.push(0b10);
 
   // write key
 
@@ -167,7 +167,7 @@ TEST_F(TerminalBufferSerialiseTests, WriteFullKey) {
 
   LongSuffix _sfx(keff);
   for (std::size_t i = 0; i < 7; ++i)
-    _sfx.roll(0b10);
+    _sfx.push(0b10);
 
   // write key
 
@@ -188,7 +188,7 @@ TEST_F(TerminalBufferSerialiseTests, WriteOverflowKey) {
 
   LongSuffix _sfx(keff);
   for (std::size_t i = 0; i < 14; ++i)
-    _sfx.roll(0b10);
+    _sfx.push(0b10);
 
   // write key
 
@@ -708,14 +708,10 @@ TEST_F(CountChunkedGenomeTests, Count100) {
 class TerminalBufferCreationTests : public testing::Test {
 public:
   TerminalBufferCreationTests()
-      : k(9), c(), genomes(2), num_terminals(/* num. fragments */ 8 * k),
+      : k(9), c(), genomes(2), num_terminals(/* num. fragments */8 * k),
         buffer(num_terminals, k, TerminalBuffer::autofit_tag) {
     ParseFastaToGenome(genomes[0], STRING(SMALL_SEQ), c, k);
     ParseFastaToGenome(genomes[1], STRING(SMALL_SEQ), c, k);
-  }
-
-  std::vector<const SequenceContainer *> getView() const {
-    return toView(genomes);
   }
 
 protected:
@@ -748,7 +744,7 @@ Encoding: (kmer)    (edge)  (index)
 
  */
 TEST_F(TerminalBufferCreationTests, Insert) {
-  auto view = getView();
+  auto view = toView(genomes);
 
   for (auto seq : view) {
     for (auto fmt : seq->terminals()) {

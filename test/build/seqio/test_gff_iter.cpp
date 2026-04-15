@@ -69,9 +69,11 @@ std::vector<_SegmentToken> unwindSegments(const AnnotatedSequence &frag,
 
 class SegmentIteratorTests : public testing::Test {
 protected:
-  SegmentIteratorTests()
-      : c(), genomes({parseGFF(STRING(SEQA_GFF), c, minContigSize),
-                      parseGFF(STRING(SEQB_GFF), c, minContigSize)}) {}
+  SegmentIteratorTests() : c(), genomes() {
+    genomes.reserve(2);
+    genomes.push_back(parseGFF(STRING(SEQA_GFF), c, minContigSize));
+    genomes.push_back(parseGFF(STRING(SEQB_GFF), c, minContigSize));
+  }
 
   Colours c;
   std::vector<Dna4Genome> genomes;
@@ -119,39 +121,33 @@ TEST_F(SegmentIteratorTests, SeqAContig1SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
+      unwindColours(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(1),
-                                SV(1)}));
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(1), SV(1)}));
 
-  observedColours = unwindColours(contig.sequences.first[1], minContigSize);
+  observedColours = unwindColours(contig.sequences[0][1], minContigSize);
   ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(0),
-                                SV(0), SV(0), SV(0), SV(0),
-                                SV(0)}));
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(0), SV(0), SV(0), SV(0),
+                                SV(0), SV(0)}));
 
-  observedColours = unwindColours(contig.sequences.first[2], minContigSize);
+  observedColours = unwindColours(contig.sequences[0][2], minContigSize);
   ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(2),
-                                SV(2), SV(2)}));
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(2), SV(2), SV(2)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(0),
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(0), SV(0), SV(0)}));
+
+  observedColours = unwindColours(contig.sequences[1][1], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(3), SV(3), SV(0), SV(0),
                                 SV(0), SV(0)}));
 
-  observedColours = unwindColours(contig.sequences.second[1], minContigSize);
+  observedColours = unwindColours(contig.sequences[1][2], minContigSize);
   ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(3),
-                                SV(3), SV(0), SV(0), SV(0),
-                                SV(0)}));
-
-  observedColours = unwindColours(contig.sequences.second[2], minContigSize);
-  ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0), SV(0),
-                                SV(0)}));
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(0), SV(0)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqAContig1Segments) {
@@ -160,34 +156,28 @@ TEST_F(SegmentIteratorTests, SeqAContig1Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 5, 1, false},
-                                _SegmentToken{2, 5, 0, true}}));
+      unwindSegments(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 5, 1, false},
+                                                _SegmentToken{2, 5, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.first[1], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 9, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[0][1], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 9, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.first[2], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 6, 2, false},
-                                _SegmentToken{3, 6, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[0][2], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 6, 2, false},
+                                                _SegmentToken{3, 6, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 6, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 6, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.second[1], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 5, 3, false},
-                                _SegmentToken{2, 9, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[1][1], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 5, 3, false},
+                                                _SegmentToken{2, 9, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.second[2], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 5, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[1][2], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 5, 0, true}}));
 }
 
 /*
@@ -231,35 +221,27 @@ TEST_F(SegmentIteratorTests, SeqAContig2SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(
-      observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(4),
-                        SV(4, 5), SV(4, 5), SV(5),
-                        SV(5), SV(5), SV(5)}));
+      unwindColours(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(4), SV(4, 5), SV(4, 5),
+                                SV(5), SV(5), SV(5), SV(5)}));
 
-  observedColours = unwindColours(contig.sequences.first[1], minContigSize);
-  ASSERT_THAT(
-      observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(0),
-                        SV(0), SV(0), SV(0), SV(0),
-                        SV(0), SV(0)}));
+  observedColours = unwindColours(contig.sequences[0][1], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(0), SV(0), SV(0), SV(0),
+                                SV(0), SV(0), SV(0)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
-  ASSERT_THAT(
-      observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(0),
-                        SV(0), SV(0), SV(0), SV(0),
-                        SV(0), SV(0)}));
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(0), SV(0), SV(0), SV(0),
+                                SV(0), SV(0), SV(0)}));
 
-  observedColours = unwindColours(contig.sequences.second[1], minContigSize);
-  ASSERT_THAT(
-      observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(6),
-                        SV(6), SV(6), SV(6), SV(6),
-                        SV(6), SV(6)}));
+  observedColours = unwindColours(contig.sequences[1][1], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(6), SV(6), SV(6), SV(6),
+                                SV(6), SV(6), SV(6)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqAContig2Segments) {
@@ -268,23 +250,23 @@ TEST_F(SegmentIteratorTests, SeqAContig2Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
+      unwindSegments(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 6, 4, false},
                                 _SegmentToken{1, 10, 5, false},
                                 _SegmentToken{7, 10, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.first[1], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[0][1], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 10, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 10, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.second[1], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[1][1], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 10, 6, false},
                                 _SegmentToken{7, 10, 0, true}}));
@@ -328,21 +310,18 @@ TEST_F(SegmentIteratorTests, SeqBContig1SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(
-      observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(9),
-                        SV(9), SV(9), SV(9), SV(9),
-                        SV(9), SV(9), SV(9), SV(9)}));
+      unwindColours(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(observedColours,
+              ElementsAreArray({SV(0), SV(0), SV(0), SV(9), SV(9), SV(9), SV(9),
+                                SV(9), SV(9), SV(9), SV(9), SV(9)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(
       observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(10),
-                        SV(10), SV(10), SV(10), SV(10),
-                        SV(10), SV(10), SV(10), SV(10)}));
+      ElementsAreArray({SV(0), SV(0), SV(0), SV(10), SV(10), SV(10), SV(10),
+                        SV(10), SV(10), SV(10), SV(10), SV(10)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqBContig1Segments) {
@@ -351,14 +330,14 @@ TEST_F(SegmentIteratorTests, SeqBContig1Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
+      unwindSegments(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 9, false},
                                 _SegmentToken{9, 12, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 10, false},
                                 _SegmentToken{9, 12, 0, true}}));
@@ -400,21 +379,19 @@ TEST_F(SegmentIteratorTests, SeqBContig2SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0),
-                                SV(13), SV(13), SV(13),
-                                SV(13), SV(13), SV(13),
-                                SV(13), SV(13), SV(13)}));
+      unwindColours(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(
+      observedColours,
+      ElementsAreArray({SV(0), SV(0), SV(0), SV(13), SV(13), SV(13), SV(13),
+                        SV(13), SV(13), SV(13), SV(13), SV(13)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
-  ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0),
-                                SV(14), SV(14), SV(14),
-                                SV(14), SV(14), SV(14),
-                                SV(14), SV(14), SV(14)}));
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
+  ASSERT_THAT(
+      observedColours,
+      ElementsAreArray({SV(0), SV(0), SV(0), SV(14), SV(14), SV(14), SV(14),
+                        SV(14), SV(14), SV(14), SV(14), SV(14)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqBContig2Segments) {
@@ -423,14 +400,14 @@ TEST_F(SegmentIteratorTests, SeqBContig2Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
+      unwindSegments(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 13, false},
                                 _SegmentToken{9, 12, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 14, false},
                                 _SegmentToken{9, 12, 0, true}}));
@@ -472,21 +449,19 @@ TEST_F(SegmentIteratorTests, SeqBContig3SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
+      unwindColours(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(
       observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(11),
-                        SV(11), SV(11), SV(11), SV(11),
-                        SV(11), SV(11), SV(11), SV(11)}));
+      ElementsAreArray({SV(0), SV(0), SV(0), SV(11), SV(11), SV(11), SV(11),
+                        SV(11), SV(11), SV(11), SV(11), SV(11)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(
       observedColours,
-      ElementsAreArray({SV(0), SV(0), SV(0), SV(12),
-                        SV(12), SV(12), SV(12), SV(12),
-                        SV(12), SV(12), SV(12), SV(12)}));
+      ElementsAreArray({SV(0), SV(0), SV(0), SV(12), SV(12), SV(12), SV(12),
+                        SV(12), SV(12), SV(12), SV(12), SV(12)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqBContig3Segments) {
@@ -495,14 +470,14 @@ TEST_F(SegmentIteratorTests, SeqBContig3Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
+      unwindSegments(contig.sequences[0][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 11, false},
                                 _SegmentToken{9, 12, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
   ASSERT_THAT(observedTokens,
               ElementsAreArray({_SegmentToken{0, 12, 12, false},
                                 _SegmentToken{9, 12, 0, true}}));
@@ -548,23 +523,19 @@ TEST_F(SegmentIteratorTests, SeqBContig4SegmentEdges) {
   // forward sequences
 
   std::vector<std::vector<size_t>> observedColours =
-      unwindColours(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0)}));
+      unwindColours(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0), SV(0)}));
 
-  observedColours = unwindColours(contig.sequences.first[1], minContigSize);
-  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0),
-                                                 SV(0), SV(7)}));
+  observedColours = unwindColours(contig.sequences[0][1], minContigSize);
+  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0), SV(0), SV(7)}));
 
   // reverse sequences
 
-  observedColours = unwindColours(contig.sequences.second[0], minContigSize);
-  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0),
-                                                 SV(0), SV(8)}));
+  observedColours = unwindColours(contig.sequences[1][0], minContigSize);
+  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0), SV(0), SV(8)}));
 
-  observedColours = unwindColours(contig.sequences.second[1], minContigSize);
-  ASSERT_THAT(observedColours,
-              ElementsAreArray({SV(0), SV(0), SV(0)}));
+  observedColours = unwindColours(contig.sequences[1][1], minContigSize);
+  ASSERT_THAT(observedColours, ElementsAreArray({SV(0), SV(0), SV(0)}));
 }
 
 TEST_F(SegmentIteratorTests, SeqBContig4Segments) {
@@ -573,23 +544,19 @@ TEST_F(SegmentIteratorTests, SeqBContig4Segments) {
   // forward sequences
 
   std::vector<_SegmentToken> observedTokens =
-      unwindSegments(contig.sequences.first[0], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 3, 0, true}}));
+      unwindSegments(contig.sequences[0][0], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 3, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.first[1], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 4, 7, false},
-                                _SegmentToken{1, 4, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[0][1], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 4, 7, false},
+                                                _SegmentToken{1, 4, 0, true}}));
 
   // reverse sequences
 
-  observedTokens = unwindSegments(contig.sequences.second[0], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 4, 8, false},
-                                _SegmentToken{1, 4, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[1][0], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 4, 8, false},
+                                                _SegmentToken{1, 4, 0, true}}));
 
-  observedTokens = unwindSegments(contig.sequences.second[1], minContigSize);
-  ASSERT_THAT(observedTokens,
-              ElementsAreArray({_SegmentToken{0, 3, 0, true}}));
+  observedTokens = unwindSegments(contig.sequences[1][1], minContigSize);
+  ASSERT_THAT(observedTokens, ElementsAreArray({_SegmentToken{0, 3, 0, true}}));
 }

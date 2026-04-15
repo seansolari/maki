@@ -40,29 +40,29 @@ TEST(ParseFasta, ParseBitpackedFasta) {
   EXPECT_EQ(contig1.numAnnotations, 0);
   EXPECT_EQ(contig1.numFragments(), 6);
 
-  EXPECT_EQ(contig1.sequences.first.size(), 3);
-  EXPECT_EQ(contig1.sequences.first[0].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.first[0].sequence, Dna4Sequence("ACGAG"_dna4));
-  EXPECT_EQ(contig1.sequences.first[0].annotations.size(), 0);
-  EXPECT_EQ(contig1.sequences.first[1].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.first[1].sequence,
+  EXPECT_EQ(contig1.sequences[0].size(), 3);
+  EXPECT_EQ(contig1.sequences[0][0].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[0][0].sequence, Dna4Sequence("ACGAG"_dna4));
+  EXPECT_EQ(contig1.sequences[0][0].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[0][1].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[0][1].sequence,
             Dna4Sequence("CGGTGGCAA"_dna4));
-  EXPECT_EQ(contig1.sequences.first[1].annotations.size(), 0);
-  EXPECT_EQ(contig1.sequences.first[2].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.first[2].sequence, Dna4Sequence("GAAGTT"_dna4));
-  EXPECT_EQ(contig1.sequences.first[2].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[0][1].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[0][2].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[0][2].sequence, Dna4Sequence("GAAGTT"_dna4));
+  EXPECT_EQ(contig1.sequences[0][2].annotations.size(), 0);
 
-  EXPECT_EQ(contig1.sequences.second.size(), 3);
-  EXPECT_EQ(contig1.sequences.second[0].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.second[0].sequence, Dna4Sequence("CTCGT"_dna4));
-  EXPECT_EQ(contig1.sequences.second[0].annotations.size(), 0);
-  EXPECT_EQ(contig1.sequences.second[1].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.second[1].sequence,
+  EXPECT_EQ(contig1.sequences[1].size(), 3);
+  EXPECT_EQ(contig1.sequences[1][0].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[1][0].sequence, Dna4Sequence("CTCGT"_dna4));
+  EXPECT_EQ(contig1.sequences[1][0].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[1][1].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[1][1].sequence,
             Dna4Sequence("TTGCCACCG"_dna4));
-  EXPECT_EQ(contig1.sequences.second[1].annotations.size(), 0);
-  EXPECT_EQ(contig1.sequences.second[2].nullFeatureId, 1);
-  EXPECT_EQ(contig1.sequences.second[2].sequence, Dna4Sequence("AACTTC"_dna4));
-  EXPECT_EQ(contig1.sequences.second[2].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[1][1].annotations.size(), 0);
+  EXPECT_EQ(contig1.sequences[1][2].nullFeatureId, 1);
+  EXPECT_EQ(contig1.sequences[1][2].sequence, Dna4Sequence("AACTTC"_dna4));
+  EXPECT_EQ(contig1.sequences[1][2].annotations.size(), 0);
 
   const auto &contig2 = genome.contigs[1];
   EXPECT_EQ(contig2.accn, "genome2");
@@ -71,25 +71,25 @@ TEST(ParseFasta, ParseBitpackedFasta) {
   EXPECT_EQ(contig2.numAnnotations, 0);
   EXPECT_EQ(contig2.numFragments(), 4);
 
-  EXPECT_EQ(contig2.sequences.first.size(), 2);
-  EXPECT_EQ(contig2.sequences.first[0].nullFeatureId, 2);
-  EXPECT_EQ(contig2.sequences.first[0].sequence,
+  EXPECT_EQ(contig2.sequences[0].size(), 2);
+  EXPECT_EQ(contig2.sequences[0][0].nullFeatureId, 2);
+  EXPECT_EQ(contig2.sequences[0][0].sequence,
             Dna4Sequence("GTGTCGGAGG"_dna4));
-  EXPECT_EQ(contig2.sequences.first[0].annotations.size(), 0);
-  EXPECT_EQ(contig2.sequences.first[1].nullFeatureId, 2);
-  EXPECT_EQ(contig2.sequences.first[1].sequence,
+  EXPECT_EQ(contig2.sequences[0][0].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[0][1].nullFeatureId, 2);
+  EXPECT_EQ(contig2.sequences[0][1].sequence,
             Dna4Sequence("CTCCATCGAC"_dna4));
-  EXPECT_EQ(contig2.sequences.first[1].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[0][1].annotations.size(), 0);
 
-  EXPECT_EQ(contig2.sequences.second.size(), 2);
-  EXPECT_EQ(contig2.sequences.second[0].nullFeatureId, 2);
-  EXPECT_EQ(contig2.sequences.second[0].sequence,
+  EXPECT_EQ(contig2.sequences[1].size(), 2);
+  EXPECT_EQ(contig2.sequences[1][0].nullFeatureId, 2);
+  EXPECT_EQ(contig2.sequences[1][0].sequence,
             Dna4Sequence("CCTCCGACAC"_dna4));
-  EXPECT_EQ(contig2.sequences.second[0].annotations.size(), 0);
-  EXPECT_EQ(contig2.sequences.second[1].nullFeatureId, 2);
-  EXPECT_EQ(contig2.sequences.second[1].sequence,
+  EXPECT_EQ(contig2.sequences[1][0].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[1][1].nullFeatureId, 2);
+  EXPECT_EQ(contig2.sequences[1][1].sequence,
             Dna4Sequence("GTCGATGGAG"_dna4));
-  EXPECT_EQ(contig2.sequences.second[1].annotations.size(), 0);
+  EXPECT_EQ(contig2.sequences[1][1].annotations.size(), 0);
 }
 
 inline std::string MakeTempPath(const char *ext) {
@@ -132,16 +132,16 @@ TEST_F(ParseChunks, CheckStructure) {
   ASSERT_EQ(c.getOrAssign("seq4"), 4);
   ASSERT_EQ(c.getOrAssign("seq5"), 5);
 
-  ASSERT_EQ(xgenome.genome.contigs[0].sequences.first[0].nullFeatureId, 1);
-  ASSERT_EQ(xgenome.genome.contigs[0].sequences.second[0].nullFeatureId, 1);
-  ASSERT_EQ(xgenome.genome.contigs[1].sequences.first[0].nullFeatureId, 2);
-  ASSERT_EQ(xgenome.genome.contigs[1].sequences.second[0].nullFeatureId, 2);
-  ASSERT_EQ(xgenome.genome.contigs[2].sequences.first[0].nullFeatureId, 3);
-  ASSERT_EQ(xgenome.genome.contigs[2].sequences.second[0].nullFeatureId, 3);
-  ASSERT_EQ(xgenome.genome.contigs[3].sequences.first[0].nullFeatureId, 4);
-  ASSERT_EQ(xgenome.genome.contigs[3].sequences.second[0].nullFeatureId, 4);
-  ASSERT_EQ(xgenome.genome.contigs[4].sequences.first[0].nullFeatureId, 5);
-  ASSERT_EQ(xgenome.genome.contigs[4].sequences.second[0].nullFeatureId, 5);
+  ASSERT_EQ(xgenome.genome.contigs[0].sequences[0][0].nullFeatureId, 1);
+  ASSERT_EQ(xgenome.genome.contigs[0].sequences[1][0].nullFeatureId, 1);
+  ASSERT_EQ(xgenome.genome.contigs[1].sequences[0][0].nullFeatureId, 2);
+  ASSERT_EQ(xgenome.genome.contigs[1].sequences[1][0].nullFeatureId, 2);
+  ASSERT_EQ(xgenome.genome.contigs[2].sequences[0][0].nullFeatureId, 3);
+  ASSERT_EQ(xgenome.genome.contigs[2].sequences[1][0].nullFeatureId, 3);
+  ASSERT_EQ(xgenome.genome.contigs[3].sequences[0][0].nullFeatureId, 4);
+  ASSERT_EQ(xgenome.genome.contigs[3].sequences[1][0].nullFeatureId, 4);
+  ASSERT_EQ(xgenome.genome.contigs[4].sequences[0][0].nullFeatureId, 5);
+  ASSERT_EQ(xgenome.genome.contigs[4].sequences[1][0].nullFeatureId, 5);
 
   // check sequence metadata
   ASSERT_EQ(xgenome.chunks.size(), 18);

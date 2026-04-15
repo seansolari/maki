@@ -31,8 +31,8 @@
   - [DONE] Meta Colours
   - [DONE] FASTA parsing
   - [DONE] Suffix tests
-  - k-mer and terminal buffers
-    - migrate test_terminals and test_kmers from archive
+  - [DONE] k-mer and terminal buffers
+    - [DONE] migrate test_terminals and test_kmers from archive
   - flushing tests
   - graph IO tests
 

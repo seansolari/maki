@@ -49,7 +49,7 @@ TEST_F(CountGffSuffixTests, Contig1F1S1Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.first[0];
+  auto &fragment = genome.contigs[0].sequences[0][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(1, 0, 2, 0));
@@ -60,7 +60,7 @@ TEST_F(CountGffSuffixTests, Contig1F2S1Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.first[1];
+  auto &fragment = genome.contigs[0].sequences[0][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(2, 1, 3, 1));
@@ -71,7 +71,7 @@ TEST_F(CountGffSuffixTests, Contig1F3S1Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.first[2];
+  auto &fragment = genome.contigs[0].sequences[0][2];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(1, 0, 1, 2));
@@ -82,7 +82,7 @@ TEST_F(CountGffSuffixTests, Contig1F1S1Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.second[0];
+  auto &fragment = genome.contigs[0].sequences[1][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(0, 2, 0, 2));
@@ -93,7 +93,7 @@ TEST_F(CountGffSuffixTests, Contig1F2S1Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.second[1];
+  auto &fragment = genome.contigs[0].sequences[1][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(1, 4, 2, 0));
@@ -104,7 +104,7 @@ TEST_F(CountGffSuffixTests, Contig1F3S1Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[0].sequences.second[2];
+  auto &fragment = genome.contigs[0].sequences[1][2];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(0, 1, 1, 1));
@@ -115,7 +115,7 @@ TEST_F(CountGffSuffixTests, Contig2F1S1Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.first[0];
+  auto &fragment = genome.contigs[1].sequences[0][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(1, 1, 5, 1));
@@ -126,7 +126,7 @@ TEST_F(CountGffSuffixTests, Contig2F1S2Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.first[0];
+  auto &fragment = genome.contigs[1].sequences[0][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(),
@@ -138,7 +138,7 @@ TEST_F(CountGffSuffixTests, Contig2F2S1Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.first[1];
+  auto &fragment = genome.contigs[1].sequences[0][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(2, 4, 1, 1));
@@ -149,7 +149,7 @@ TEST_F(CountGffSuffixTests, Contig2F2S2Forward) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.first[1];
+  auto &fragment = genome.contigs[1].sequences[0][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(),
@@ -161,7 +161,7 @@ TEST_F(CountGffSuffixTests, Contig2F1S1Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.second[0];
+  auto &fragment = genome.contigs[1].sequences[1][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(2, 1, 4, 1));
@@ -172,7 +172,7 @@ TEST_F(CountGffSuffixTests, Contig2F1S2Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.second[0];
+  auto &fragment = genome.contigs[1].sequences[1][0];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(),
@@ -184,7 +184,7 @@ TEST_F(CountGffSuffixTests, Contig2F2S1Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.second[1];
+  auto &fragment = genome.contigs[1].sequences[1][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(), ElementsAre(2, 4, 1, 1));
@@ -195,7 +195,7 @@ TEST_F(CountGffSuffixTests, Contig2F2S2Reverse) {
   SuffixTable table;
   table.resize(s);
 
-  auto &fragment = genome.contigs[1].sequences.second[1];
+  auto &fragment = genome.contigs[1].sequences[1][1];
   table.count(fragment.sequence.cbegin() + k - s, fragment.sequence.cend());
 
   ASSERT_THAT(table.cdata(),
