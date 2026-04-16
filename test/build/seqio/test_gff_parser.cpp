@@ -41,7 +41,7 @@ static void
 ExpectSuccessWithId(const std::pair<gffRecord, std::optional<std::string>> &res,
                     std::string_view exp_seqid, int64_t exp_begin,
                     int64_t exp_end, char exp_strand, std::string_view exp_id) {
-  ASSERT_TRUE(res[1].has_value())
+  ASSERT_TRUE(res.second.has_value())
       << "Expected optional to be engaged (ID present).";
   const auto &[rec, id] = res;
   EXPECT_EQ(rec.accn, exp_seqid);
@@ -53,7 +53,7 @@ ExpectSuccessWithId(const std::pair<gffRecord, std::optional<std::string>> &res,
 
 static void
 ExpectNoValue(const std::pair<gffRecord, std::optional<std::string>> &res) {
-  EXPECT_FALSE(res[1].has_value())
+  EXPECT_FALSE(res.second.has_value())
       << "Expected optional to be disengaged (no usable ID / ignorable).";
 }
 
@@ -247,9 +247,9 @@ TEST(ParseGff_Robustness, LargeAccessionsAndAttributes) {
   auto res = parseGffLine(MakeGffLine(acc, "1", "2", "+", "ID=" + idv));
   // ID is "<accession>-<ID>"
   std::string expected = acc + "-" + idv;
-  ASSERT_TRUE(res[1].has_value());
-  EXPECT_EQ(res[0].accn, acc);
-  EXPECT_EQ(*res[1], expected);
+  ASSERT_TRUE(res.second.has_value());
+  EXPECT_EQ(res.first.accn, acc);
+  EXPECT_EQ(*res.second, expected);
 }
 
 TEST(ParseGff_Robustness, TrailingWhitespaceInAttributes) {

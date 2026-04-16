@@ -1,137 +1,147 @@
 
 #pragma once
 #include <cstdint>
+#include <iterator>
 #include <memory>
-#include <optional>
 #include <ranges>
-#include <type_traits>
 #include <utility>
 
 #include "seq_io.hpp"
 
-/**
- * Models any input range over type `T`.
- */
-template <class T> class poly_input_range {
-  /**
-   * Interface required for a type-erased input range.
-   */
-  struct concept_t {
-    virtual ~concept_t() = default;
-    virtual std::optional<T> next() = 0; // pull-based cursor
-  };
+template <typename T> class poly_input_range {
+public:
+  using value_type = T;
 
-  /**
-   * Implements `concept_t` for any `std::ranges::input_range` whose
-   * range type can be converted to `T`.
-   */
+  poly_input_range() = delete;
+
+  // Construct from any range/view
   template <std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_value_t<R>, T>
-  struct model final : concept_t {
-    std::ranges::iterator_t<R> it_;
-    std::ranges::sentinel_t<R> end_;
+    requires std::same_as<std::ranges::range_value_t<R>, T>
+  poly_input_range(R &&r)
+      : self_(std::make_unique<range_model<R>>(std::forward<R>(r))) {}
 
-    explicit model(R r)
-        : it_(std::ranges::begin(r)), end_(std::ranges::end(r)) {}
+  // Construct from a single value (owned)
+  poly_input_range(T value)
+      : self_(std::make_unique<single_value_model>(std::move(value))) {}
 
-    std::optional<T> next() override {
-      if (it_ == end_)
-        return std::nullopt;
-      if constexpr (std::is_reference_v<std::ranges::range_reference_t<R>>) {
-        return *it_++;
-      } else {
-        T v = *it_;
-        ++it_;
-        return v;
-      }
-    }
-  };
+  // Construct from a single reference (non-owning)
+  poly_input_range(std::reference_wrapper<T> ref)
+      : self_(std::make_unique<single_ref_model>(ref.get())) {}
 
-  struct model_single_owned final : concept_t {
-    T value_;
-    bool emitted_ = false;
-    explicit model_single_owned(T v) : value_(std::move(v)) {}
+  // empty factory
+  static poly_input_range empty_range() {
+    return poly_input_range(std::ranges::empty_view<T>{});
+  }
 
-    std::optional<T> next() override {
-      if (emitted_)
-        return std::nullopt;
-      emitted_ = true;
-      if constexpr (std::is_move_constructible_v<T>) {
-        return std::move(value_);
-      } else {
-        return value_;
-      }
-    }
-  };
-
-  struct model_single_ref final : concept_t {
-    const T *ptr_ = nullptr;
-    bool emitted_ = false;
-    explicit model_single_ref(const T *p) : ptr_(p) {}
-
-    std::optional<T> next() override {
-      if (emitted_ || !ptr_)
-        return std::nullopt;
-      emitted_ = true;
-      return *ptr_; // note: returns by value (input range)
-    }
-  };
-
-  std::unique_ptr<concept_t> self_;
-
-  /**
-   * Iterator over input range that pulls items via next().
-   */
-  class iter {
-    concept_t *p_ = nullptr;
-    std::optional<T> cur_;
-
-  public:
+  struct iterator {
+    using iterator_category = std::input_iterator_tag;
     using value_type = T;
     using difference_type = std::ptrdiff_t;
-    using iterator_category = std::input_iterator_tag;
 
-    iter() = default;
-    explicit iter(concept_t *p) : p_(p) {
-      if (p_)
-        cur_ = p_->next();
-    }
+    struct iter_concept {
+      virtual ~iter_concept() = default;
+      virtual T deref() const = 0;
+      virtual void inc() = 0;
+      virtual bool is_end() const = 0;
+    };
 
-    T operator*() const { return *cur_; }
-    iter &operator++() {
-      cur_ = p_->next();
+  private:
+    std::unique_ptr<iter_concept> iter_;
+
+  public:
+    iterator() = default;
+    explicit iterator(std::unique_ptr<iter_concept> p) : iter_(std::move(p)) {}
+
+    T operator*() const { return iter_->deref(); }
+    iterator &operator++() {
+      iter_->inc();
       return *this;
     }
-    void operator++(int) { ++(*this); }
-    friend bool operator==(const iter &a, const std::default_sentinel_t &) {
-      return !a.cur_.has_value();
-    }
+
+    bool operator==(std::default_sentinel_t) const { return iter_->is_end(); }
   };
 
 public:
-  using iterator = iter;
-  using sentinel = std::default_sentinel_t;
+  iterator begin() { return iterator(self_->begin()); }
 
-  poly_input_range() = default;
+  std::default_sentinel_t end() { return {}; }
 
-  template <std::ranges::input_range R>
-    requires std::convertible_to<std::ranges::range_value_t<R>, T>
-  poly_input_range(R &&r) : self_(std::make_unique<model<R>>(std::move(r))) {}
+private:
+  struct range_concept {
+    virtual ~range_concept() = default;
+    virtual std::unique_ptr<typename iterator::iter_concept> begin() = 0;
+  };
 
-  explicit poly_input_range(T &&v)
-      : self_(std::make_unique<model_single_owned>(std::move(v))) {}
+  template <typename R> struct range_model : range_concept {
+    R range;
 
-  explicit poly_input_range(const T &v)
-      : self_(std::make_unique<model_single_ref>(&v)) {}
+    explicit range_model(R &&r) : range(std::move(r)) {}
 
-  // range interface
-  iter begin() {
-    if (self_)
-      return iter(self_.get());
-    else
-      return iter{};
-  }
-  sentinel end() { return {}; }
+    struct iter_model : iterator::iter_concept {
+      std::ranges::iterator_t<R> it;
+      std::ranges::sentinel_t<R> end;
+
+      iter_model(R &r) : it(std::ranges::begin(r)), end(std::ranges::end(r)) {}
+
+      T deref() const override { return *it; }
+
+      void inc() override { ++it; }
+
+      bool is_end() const override { return it == end; }
+    };
+
+    std::unique_ptr<typename iterator::iter_concept> begin() override {
+      return std::make_unique<iter_model>(range);
+    }
+  };
+
+  struct single_value_model : range_concept {
+    T value;
+
+    explicit single_value_model(T v) : value(std::move(v)) {}
+
+    struct iter_model : iterator::iter_concept {
+      const T *ptr;
+      bool done = false;
+
+      explicit iter_model(const T &v) : ptr(&v) {}
+
+      T deref() const override { return *ptr; }
+
+      void inc() override { done = true; }
+
+      bool is_end() const override { return done; }
+    };
+
+    std::unique_ptr<typename iterator::iter_concept> begin() override {
+      return std::make_unique<iter_model>(value);
+    }
+  };
+
+  struct single_ref_model : range_concept {
+    T *ptr;
+
+    explicit single_ref_model(T *p) : ptr(p) {}
+
+    struct iter_model : iterator::iter_concept {
+      T *ptr;
+      bool done = false;
+
+      explicit iter_model(T *p) : ptr(p) {}
+
+      T deref() const override { return *ptr; }
+
+      void inc() override { done = true; }
+
+      bool is_end() const override { return done; }
+    };
+
+    std::unique_ptr<typename iterator::iter_concept> begin() override {
+      return std::make_unique<iter_model>(ptr);
+    }
+  };
+
+  std::unique_ptr<range_concept> self_;
 };
 
 class SequenceFragment {

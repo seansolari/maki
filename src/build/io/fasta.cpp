@@ -640,7 +640,7 @@ RestrictedSequenceFragment::terminals() const {
     return poly_input_range<SequenceFragment>(
         SequenceFragment(_it + _begin, _it + _end, _id, _terminal));
   else
-    return {};
+    return poly_input_range<SequenceFragment>::empty_range();
 }
 
 std::size_t RestrictedSequenceFragment::numKmers(std::size_t k) const {

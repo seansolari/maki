@@ -708,7 +708,7 @@ TEST_F(CountChunkedGenomeTests, Count100) {
 class TerminalBufferCreationTests : public testing::Test {
 public:
   TerminalBufferCreationTests()
-      : k(9), c(), genomes(2), num_terminals(/* num. fragments */8 * k),
+      : k(9), c(), genomes(2), num_terminals(/* num. fragments */ 8 * k),
         buffer(num_terminals, k, TerminalBuffer::autofit_tag) {
     ParseFastaToGenome(genomes[0], STRING(SMALL_SEQ), c, k);
     ParseFastaToGenome(genomes[1], STRING(SMALL_SEQ), c, k);
@@ -745,13 +745,6 @@ Encoding: (kmer)    (edge)  (index)
  */
 TEST_F(TerminalBufferCreationTests, Insert) {
   auto view = toView(genomes);
-
-  for (auto seq : view) {
-    for (auto fmt : seq->terminals()) {
-      std::cout << fmt.size() << ' ';
-    }
-  }
-  std::cout << std::endl;
 
   auto blocks = planTerminalRanges(view, k);
   buffer.fill(view, blocks);
