@@ -31,6 +31,34 @@ struct packet {
 };
 
 /**
+ * Push a node into the graph buffers, comprising graph
+ * structure (edges, succ) as well as colour data.
+ */
+void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+              ArchivePayload &carch, MetaColours &cmap, uint8_t msb);
+
+/**
+ * Iterate over k-mers and push structure into graph buffers.
+ */
+template <typename It>
+void pushNodes(packet &pkt, It it, It end, sdsl::int_vector<2>::iterator b,
+               sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+               ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
+  while (it != end) {
+    if (*b == BW_0_K)
+      ++pkt.block;
+
+    do {
+      pkt.data.emplace_back(it.readValue());
+      ++it;
+      ++b;
+    } while ((it != end) && (*b == IS_0));
+
+    pushNode(pkt, edges, succ, carch, cmap, msb);
+  }
+}
+
+/**
  * Interleave k-mers with terminals, writing edges, succ and colours.
  */
 push_summary interleave(KmerBuffer &, sdsl::int_vector<2>::iterator,

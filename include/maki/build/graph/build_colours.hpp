@@ -91,6 +91,11 @@ using ColourVector =
 struct MetaColours {
   MetaColours(ColourMap &&m_);
 
+  // testing constructor
+  MetaColours(std::size_t maxId_)
+      : ids(), _nid(maxId_ + 1u), r(required_bits(maxId_)),
+        _occs(maxId_ + 1u, 0) {}
+
 protected:
   ColourMap ids;                  // stores seed IDs
   std::atomic_uint64_t _nid;      // number of nodes currently assigned
@@ -102,7 +107,9 @@ public:
     return ids.size() + 1 /*include 0, unclassified*/;
   }
   inline uint64_t numMetaColours() const noexcept { return _nid.load(); }
-  inline std::size_t colourWidth() const { return required_bits(ids.size()/*=largest colour ID*/); }
+  inline std::size_t colourWidth() const {
+    return required_bits(ids.size() /*=largest colour ID*/);
+  }
 
   // Get colour for seed, assigning a new ID if it doesn't exist.
   uint64_t id(const ColourVector &v);

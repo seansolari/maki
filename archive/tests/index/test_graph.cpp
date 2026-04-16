@@ -348,7 +348,7 @@ TEST_F(ColourBufferRegistryTests, RecoverBuffers) {
     graph::ColourBuffer expected(3, 37);
     expected.colours.assign(   { 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4 });
     expected.boundaries.assign({ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0 });
-
+ 
     ASSERT_THAT(result.colours, ContainerEq(expected.colours));
     ASSERT_THAT(result.boundaries, ContainerEq(expected.boundaries));
 }

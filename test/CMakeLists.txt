@@ -34,6 +34,7 @@ ADD_TEST ("build/suffixes/test_suffix_encoding.cpp")
 ADD_TEST ("build/suffixes/test_suffix_counting.cpp")
 ADD_TEST ("build/suffixes/test_kmer_buffer.cpp")
 ADD_TEST ("build/suffixes/test_terminal_buffer.cpp")
+ADD_TEST ("build/suffixes/test_sorting.cpp")
 
 ADD_TEST ("build/archives/test_packed_array.cpp")
 ADD_TEST ("build/archives/test_archive_basic.cpp")
@@ -41,6 +42,8 @@ ADD_TEST ("build/archives/test_archive_validation.cpp")
 ADD_TEST ("build/archives/test_sdsl_sinks.cpp")
 ADD_TEST ("build/archives/test_bytearray_sink.cpp")
 ADD_TEST ("build/archives/test_multisink_pipeline.cpp")
+
+ADD_TEST ("build/graph/test_push.cpp")
 
 ADD_TEST ("build/wm/test_wm_construct.cpp")
 

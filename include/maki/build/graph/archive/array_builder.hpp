@@ -2,6 +2,7 @@
 #pragma once
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 class ArrayBuilder {
@@ -64,6 +65,8 @@ public:
       bitpos += w;
     }
   }
+
+  std::span<const uint64_t> view() const { return std::span<const uint64_t>(values_.begin(), values_.end()); }
 
 private:
   std::vector<uint64_t> values_;

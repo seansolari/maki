@@ -56,9 +56,9 @@ void SuffixwiseKmers::setPool(std::shared_ptr<BundlePool> &p) { pool_ = p; }
 
 void SuffixwiseKmers::_count(push_summary &tkn) const {
   for (std::size_t i = 0; i < 5; ++i)
-    std::atomic_ref{str_->F[i]} += tkn.F[i];
+    std::atomic_ref(str_->F[i]) += tkn.F[i];
   for (std::size_t i = 0; i < 5; ++i)
-    std::atomic_ref{str_->C[i]} += tkn.C[i];
+    std::atomic_ref(str_->C[i]) += tkn.C[i];
 }
 
 std::unique_ptr<Bundle> SuffixwiseKmers::_getbundle(uint64_t id) const {

@@ -126,7 +126,6 @@ struct SuffixwiseKmers {
 
 protected:
   void _count(push_summary &) const;
-
   std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
   std::unique_ptr<Bundle> _extractKmers(uint64_t, ShortSuffix) const;
   std::unique_ptr<Bundle> _extractPartialKmers(uint64_t, ShortSuffix) const;
