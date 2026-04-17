@@ -20,19 +20,24 @@ ShortSuffix::ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end)
 
 std::size_t ShortSuffix::numSuffixes(std::size_t s_) {
   /*
-    4(1 + 4 + 4^2 + ... + 4^(s-1)) = 4 * (4^s - 1) / 3 (geometric series)
+    1 + 4 + 4^2 + ... + 4^s = 4 * (4^(s + 1) - 1) / 3 (geometric series)
   */
-  return (std::size_t)4 * (((std::size_t)1 << (2 * s_)) - 1u) / 3u;
+  return (((std::size_t)1 << (2 * (s_ + 1))) - 1u) / 3u;
 }
 
 ShortSuffix ShortSuffix::fromRank(std::size_t r_) {
-  std::size_t l = 1;
-  while (numSuffixes(l) <= r_)
+  std::size_t l = 0u;
+  while (numSuffixes(l) < r_)
     ++l;
-  return ShortSuffix(l, r_ - numSuffixes(l - 1));
+  if (l == 0u)
+    return ShortSuffix(0u);
+  else
+    return ShortSuffix(l, r_ - numSuffixes(l - 1u) - 1u);
 }
 
 std::string ShortSuffix::toString() const {
+  if (_s == 0)
+    return "NULL";
   std::string nucleotideSequence;
   nucleotideSequence.reserve(_s);
   for (size_t i = 0; i < _s; ++i) {

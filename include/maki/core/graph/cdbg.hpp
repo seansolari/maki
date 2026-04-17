@@ -3,6 +3,7 @@
 #include "colours.hpp"
 #include "maki/core/seq/seq_io.hpp"
 #include <filesystem>
+#include <cereal/types/array.hpp>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>
@@ -19,14 +20,23 @@ ColouredGraphFiles graphFiles(fs::path base);
 using wavelet_matrix = sdsl::wm_int<>;
 
 struct ColouredGraph {
-  const uint8_t k;
-  const sdsl::bit_vector l;
-  const sdsl::rank_support_v5<1, 1> lR;
-  const sdsl::select_support_mcl<1, 1> lS;
-  const wavelet_matrix W;
-  const ColourRegistry colours;
-  const std::array<size_t, 5> F, C;
+  uint8_t k;
+  sdsl::bit_vector l;
+  sdsl::rank_support_v5<1, 1> lR;
+  sdsl::select_support_mcl<1, 1> lS;
+  wavelet_matrix W;
+  ColourRegistry colours;
+  std::array<size_t, 5> F, C;
 
+  // load from disk
+  static void FromDisk(ColouredGraph &g, const std::string &path);
+
+private:
+  // serialise to disk
+  friend class cereal::access;
+  template <class Archive> void serialize(Archive &ar) { ar(k, colours, F, C); }
+
+public:
   // number of nodes in graph
   inline size_t nodes() const { return lR(l.size()); }
 

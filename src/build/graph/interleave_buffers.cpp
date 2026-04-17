@@ -8,11 +8,11 @@
 #include <memory>
 
 void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-              ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
+              ArchivePayload &carch, MetaColours &cmap, uint8_t msb_dna5) {
   if (pkt.data.empty())
     return;
 
-  // sort temp data, but don't make it unique
+  // sort temp data and make it unique
   std::sort(pkt.data.begin(), pkt.data.end(), value_comp{});
   auto it = pkt.data.begin(), end = std::unique(it, pkt.data.end());
   // if there are valid edges other than `$`, then `$` is not required
@@ -32,7 +32,7 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
       ++it;
     } while ((it != end) && (it->edge() == edge));
     // insert new edge
-    ++pkt.str.F[msb];
+    ++pkt.str.F[msb_dna5];
     if (pkt.last[edge] != pkt.block) {
       edges.push_back(edge | 0b1000);
       pkt.last[edge] = pkt.block;
@@ -49,12 +49,12 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
 
   // finalise node
   succ.back() = 1;
-  ++pkt.str.C[msb];
+  ++pkt.str.C[msb_dna5];
   pkt.data.clear();
 }
 
 /**
- * Interleave k-mers and terminals (sized k-mers), pushing colex ordered
+ * Interleave k-mers and terminals (sized k-mers), pushing co-lex ordered
  * nodes into the graph buffers, encoding colour information with basic
  * bit-packing and encoding colour tuples.
  *
@@ -65,7 +65,7 @@ push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
                         TerminalRange &terminals,
                         sdsl::int_vector<2>::iterator to,
                         sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
+                        ArchivePayload &carch, MetaColours &cmap, uint8_t msb_dna4) {
   std::size_t k = kmers.getK(), km1 = k - 1, keff = kmers.getEffK();
   std::size_t prevTerminalSize = 0;
   assert(km1 > prevTerminalSize);
@@ -85,7 +85,7 @@ push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
                         : std::upper_bound(tm_it, tm_end, *km_it, LessThan);
 
     if (tm_it != tm_pivot) {
-      pushNodes(pkt, tm_it, tm_pivot, to, edges, succ, carch, cmap, msb);
+      pushNodes(pkt, tm_it, tm_pivot, to, edges, succ, carch, cmap, msb_dna4);
       size_t insertedTerminals = tm_pivot - tm_it;
       assert(insertedTerminals > 0);
       to += insertedTerminals;
@@ -115,7 +115,7 @@ push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
       }
 
       // insert nodes
-      pushNodes(pkt, km_it, km_pivot, ko, edges, succ, carch, cmap, msb);
+      pushNodes(pkt, km_it, km_pivot, ko, edges, succ, carch, cmap, msb_dna4);
       size_t insertedKmers = km_pivot - km_it;
       assert(insertedKmers > 0);
       ko += insertedKmers;
@@ -129,9 +129,9 @@ push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
 push_summary pushRange(TerminalRange &terminals,
                        sdsl::int_vector<2>::iterator to,
                        sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-                       ArchivePayload &carch, MetaColours &cmap, uint8_t msb) {
+                       ArchivePayload &carch, MetaColours &cmap, uint8_t msb_dna4) {
   packet pkt;
   pushNodes(pkt, terminals.begin(), terminals.end(), to, edges, succ, carch,
-            cmap, msb);
+            cmap, msb_dna4);
   return pkt.str;
 }

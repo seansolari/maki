@@ -1,9 +1,13 @@
 
 #include "maki/build/graph/construct_cdbg.hpp"
+#include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/wm/wm_construct.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
+#include "maki/core/graph/cdbg.hpp"
+#include "maki/core/utils/logging.hpp"
+#include <cereal/archives/binary.hpp>
 #include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
@@ -11,7 +15,10 @@
 namespace cdbg {
 
 std::size_t BuildOptions::chunks() const {
-  return ShortSuffix::numSuffixes(suffix_size);
+  auto n = ShortSuffix::numSuffixes(suffix_size);
+  LOG_INFO() << "Configured build to use " << n
+             << " suffix chunks (suffix size = " << suffix_size << ")";
+  return n;
 }
 
 // -----------------------------------------------------------------------------
@@ -22,16 +29,29 @@ void Buffers::collectKmers(const std::vector<const SequenceContainer *> &seqs_,
                            const std::vector<SuffixTable> &blocks_,
                            ShortSuffix s_) {
   std::size_t size = blocks_.back()[s_];
+
+  LOG_DEBUG() << "Collecting k-mers for suffix " << s_.toString()
+              << " ; count = " << size;
+
   kmers.resize(size);
   temp.resize(size);
+
   kmers.fill(seqs_, blocks_, s_);
+
   if (size > 1) {
     kmers.sort(&temp);
   }
+
   adjacentDifference(kmers, b);
 }
 
 void Buffers::setTerminals(TerminalRange &&data_) {
+  const std::size_t n = data_.size();
+
+  if (n == 0) {
+    LOG_DEBUG() << "No terminal nodes for this suffix";
+  }
+
   terminals = std::move(data_);
   adjacentDifference(terminals, t);
 }
@@ -48,9 +68,17 @@ SuffixwiseKmers::SuffixwiseKmers(
       blocks_(std::make_shared<std::vector<SuffixTable>>(
           createSuffixPlan(seqs, k, s))),
       buffers_(std::make_shared<BufferMaker>(blocks_->back().maxValue(),
-                                             value_size(cmap->colourWidth()),
-                                             k, k - s)),
-      pool_() {}
+                                             value_size(cmap->colourWidth()), k,
+                                             k - s)),
+      pool_() {
+
+  LOG_INFO() << "Initialised suffix-wise k-mer extractor"
+             << " (k=" << k << ", suffix=" << s << ")";
+
+  LOG_INFO() << "Suffix plan maximum value = " << blocks_->back().maxValue();
+
+  LOG_INFO() << "Terminal ranges total = " << terminals.size();
+}
 
 void SuffixwiseKmers::setPool(std::shared_ptr<BundlePool> &p) { pool_ = p; }
 
@@ -67,47 +95,61 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_getbundle(uint64_t id) const {
   return bnd;
 }
 
-std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t rnk) const {
-  auto sfx = ShortSuffix::fromRank(rnk);
-  if (sfx.size() == s_) {
-    return _extractPartialKmers(rnk, sfx);
+std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t idx) const {
+  auto sfx = ShortSuffix::fromRank(idx + 1);
+
+  LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
+              << ")";
+
+  if (sfx.size() < s_) {
+    return _extractPartialKmers(idx, sfx);
   } else {
-    return _extractKmers(rnk, sfx);
+    return _extractKmers(idx, sfx);
   }
 }
 
 std::unique_ptr<Bundle>
-SuffixwiseKmers::_extractPartialKmers(uint64_t rnk, ShortSuffix sfx) const {
-  // request work buffer
+SuffixwiseKmers::_extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
+
   auto bfr = buffers_->obtain();
-  // collect terminals with this partial suffix
   bfr->setTerminals(terminals_.retrieve(sfx));
-  // flush to output buffers
-  auto bnd = _getbundle(rnk);
+
+  const std::size_t n = bfr->terminals.size();
+
+  LOG_DEBUG() << "Extracted " << n << " terminal (partial) k-mers for suffix "
+              << sfx.toString();
+
+  auto bnd = _getbundle(idx);
   auto &[edges, succ, carch] = bnd->payloads;
+
   auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ, carch,
                           *cmap_, sfx.msb());
+
   _count(counts);
-  // clear and return buffers
+
   buffers_->release(bfr);
   return bnd;
 }
 
-std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t rnk,
+std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t idx,
                                                        ShortSuffix sfx) const {
-  // request work buffer
+
   auto bfr = buffers_->obtain();
-  // collect sequence data for suffix
   bfr->collectKmers(seqs_, *blocks_, sfx);
   bfr->setTerminals(terminals_.endsWith(sfx));
-  // flush to output buffers
-  auto bnd = _getbundle(rnk);
+
+  LOG_DEBUG() << "Interleaving " << bfr->kmers.size() << " k-mers and "
+              << bfr->terminals.size() << " terminals";
+
+  auto bnd = _getbundle(idx);
   auto &[edges, succ, carch] = bnd->payloads;
+
   auto counts =
       interleave(bfr->kmers, bfr->b.begin(), bfr->terminals, bfr->t.begin(),
                  edges, succ, carch, *cmap_, sfx.msb());
+
   _count(counts);
-  // clear and return buffers
+
   buffers_->release(bfr);
   return bnd;
 }
@@ -117,13 +159,19 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t rnk,
 // -----------------------------------------------------------------------------
 
 void initSuccSupport(ColouredGraphFiles &outp) {
+  LOG_INFO() << "Initialising rank/select support for successor bitvector";
+
   sdsl::bit_vector succ;
   sdsl::load_from_file(succ, outp.l);
+
+  LOG_INFO() << "Successor bitvector length = " << succ.size();
+
   {
     sdsl::rank_support_v5<1, 1> lRnk;
     sdsl::util::init_support(lRnk, &succ);
     sdsl::store_to_file(std::move(lRnk), outp.lR);
   }
+
   {
     sdsl::select_support_mcl<1, 1> lSel;
     sdsl::util::init_support(lSel, &succ);
@@ -131,20 +179,43 @@ void initSuccSupport(ColouredGraphFiles &outp) {
   }
 }
 
-ColouredGraphFiles finalise(TempBuffers inp, const std::string &out) {
+ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
+                            const std::string &out) {
+
+  LOG_INFO() << "Finalising coloured de Bruijn graph (k=" << k << ")";
+
   ColouredGraphFiles outp = graphFiles(out);
 
-  // edges wavelet matrix
+  LOG_INFO() << "Constructing edge wavelet matrix";
   initW(inp.files.edges, outp.W, out);
+
+  LOG_INFO() << "Removing temporary edge file: " << inp.files.edges;
   std::filesystem::remove(inp.files.edges);
 
-  // succ array
+  LOG_INFO() << "Moving successor array to final location";
   std::filesystem::rename(inp.files.succ, outp.l);
+
   initSuccSupport(outp);
 
-  // colour archive
+  LOG_INFO() << "Moving colour archive";
   std::filesystem::rename(inp.files.colours, outp.archive);
 
+  ColouredGraph g;
+  g.k = k;
+  g.colours = toRegistry(std::move(cols));
+  g.F = inp.str.F;
+  g.C = inp.str.C;
+
+  LOG_INFO() << "Serialising graph metadata";
+  std::ofstream os(outp.meta, std::ios::binary);
+  if (!os) {
+    LOG_ERROR() << "Failed to open metadata file: " << outp.meta;
+  }
+
+  cereal::BinaryOutputArchive oarchive(os);
+  oarchive(g);
+
+  LOG_INFO() << "Graph construction complete";
   return outp;
 }
 
@@ -153,22 +224,34 @@ ColouredGraphFiles finalise(TempBuffers inp, const std::string &out) {
 // -----------------------------------------------------------------------------
 
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
-                             MetaColours &cmap, BuildOptions params) {
+                             MetaColours &&cmap, BuildOptions params) {
+
+  LOG_INFO() << "Starting CDBG construction";
+  LOG_INFO() << "Input sequences: " << data.size();
+  LOG_INFO() << "Output directory: " << params.out;
+
   TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
                              .succ = params.out / "temp-succ.sdsl",
                              .colours = params.out / "temp-colours.maki"},
                    .str = {}};
-  // extract terminals and create suffix plan
+
+  LOG_INFO() << "Extracting terminal k-mers";
   auto terminals = extractTerminalsSparse(data, params.kmer_size);
-  // suffix-wise processing and sink chunks to disk
+
+  LOG_INFO() << "Total terminal entries = " << terminals.size();
+
   Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
               ColourSink(outp.files.colours)};
+
   ProcessChunks(SuffixwiseKmers(data, terminals.asRange(), params.kmer_size,
                                 params.suffix_size, &cmap, &outp.str),
                 sinks, params.pool_size, params.reserve_per_chunk,
                 params.chunks());
+
+  LOG_INFO() << "Finalising sinks";
   sinks.finalize();
-  return finalise(outp, params.out);
+
+  return finalise(outp, params.kmer_size, std::move(cmap), params.out);
 }
 
 } // namespace cdbg

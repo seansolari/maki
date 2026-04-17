@@ -1,5 +1,6 @@
 
 #include "maki/core/graph/cdbg.hpp"
+#include <cereal/archives/binary.hpp>
 
 ColouredGraphFiles graphFiles(fs::path base) {
   return ColouredGraphFiles{.l = base / "succ.dat",
@@ -8,6 +9,29 @@ ColouredGraphFiles graphFiles(fs::path base) {
                             .W = base / "edges.dat",
                             .archive = base / "archive.dat",
                             .meta = base / "graph.dat"};
+}
+
+void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
+  auto files = graphFiles(path);
+
+  // Load metadata
+  {
+    std::ifstream is(files.meta, std::ios::binary);
+    cereal::BinaryInputArchive iarchive(is);
+    iarchive(g);
+  }
+
+  // Load `l` arrays
+  sdsl::load_from_file(g.l, files.l);
+
+  sdsl::load_from_file(g.lR, files.lR);
+  g.lR.set_vector(&g.l);
+
+  sdsl::load_from_file(g.lS, files.lS);
+  g.lS.set_vector(&g.l);
+
+  // Load `W` matrix
+  sdsl::load_from_file(g.W, files.W);
 }
 
 uint8_t ColouredGraph::block(size_t i) const {

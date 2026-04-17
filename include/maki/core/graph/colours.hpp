@@ -6,12 +6,18 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <cereal/types/vector.hpp>
+#include <cereal/types/string.hpp>
 
 using colour_t = uint32_t;
 
 struct ColourRegistry {
   using vector_ref = std::reference_wrapper<const std::vector<colour_t>>;
   using id_result = std::variant<colour_t, vector_ref>;
+
+  // Disk IO
+  friend class cereal::access;
+  template <class Archive> void serialize(Archive &ar) { ar(seeds, occs, metas); }
 
   // Get seed name for a colour id.
   inline const std::string &seed(colour_t c) const {

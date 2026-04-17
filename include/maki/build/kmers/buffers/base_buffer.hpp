@@ -630,11 +630,13 @@ public:
 
 } // namespace ndim
 
+static constexpr uint8_t TerminalEdge = 0b00000111;
+
 template <template <typename T> class Iter> class BaseKmerBuffer {
   using MyMatrix = ndim::Matrix<Iter>;
 
 public:
-  static constexpr uint8_t terminalEdge = 0b00000111;
+  static constexpr uint8_t terminalEdge = ::TerminalEdge;
 
 public:
   using size_type = typename MyMatrix::size_type;

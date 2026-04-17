@@ -149,16 +149,10 @@ protected:
 };
 
 // -----------------------------------------------------------------------------
-// Finalisation
-// -----------------------------------------------------------------------------
-
-ColouredGraphFiles finalise(TempBuffers, const std::string &);
-
-// -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
 
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
-                             MetaColours &cmap, BuildOptions params = {});
+                             MetaColours &&cmap, BuildOptions params = {});
 
 } // namespace cdbg

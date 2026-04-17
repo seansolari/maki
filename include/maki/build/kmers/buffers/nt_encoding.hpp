@@ -24,8 +24,9 @@ public:
   ShortSuffix(std::size_t _size);
   ShortSuffix(std::size_t _size, Dna4SequenceConstIter _it);
   ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end);
-  
-  static std::size_t numSuffixes(std::size_t s_); // number of suffixes up to and including size `s_`
+
+  static std::size_t numSuffixes(
+      std::size_t s_); // number of suffixes up to and including size `s_`
   static ShortSuffix fromRank(std::size_t r_);
 
   ShortSuffix(const ShortSuffix &other) = default;
@@ -40,7 +41,12 @@ public:
   inline uint64_t data() const { return _data; }
   inline std::size_t size() const { return _s; }
   std::string toString() const;
-  inline uint8_t msb() const noexcept { return _data >> (2 * (_s - 1)); }
+
+  // Return dna4 representation of most significant nucleotide, where
+  // `TerminalEdge` represents the empty suffix
+  inline uint8_t msb() const noexcept {
+    return _s > 0 ? (_data >> (2 * (_s - 1))) : TerminalEdge;
+  }
 
   /**
    * Rolls back base-pair to most significant position, removing least

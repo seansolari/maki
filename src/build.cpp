@@ -2,9 +2,9 @@
 #include <cstdint>
 #include <string>
 
-#include "maki/build/io/fasta.hpp"
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/construct_cdbg.hpp"
+#include "maki/build/io/fasta.hpp"
 #include "maki/core/seq/seq_io.hpp"
 
 struct BuildParameters {
@@ -23,18 +23,12 @@ int gff_main(const BuildParameters &params) {
   Colours colours;
   auto genomes = parse(files, parseGFF, colours, (std::size_t)params.k);
 
-  // prepare input data
-  auto view = toView(genomes);
-  MetaColours cmap(std::move(colours.ids));
-
   // suffix-wise buffer construction
-  cdbg::BuildOptions ops{
-    .kmer_size = params.k,
-    .suffix_size = params.s,
-    .out = params.outputFolder,
-    .pool_size = 2 * params.threads
-  };
-  auto g = cdbg::construct(view, cmap, ops);
+  auto g = cdbg::construct(toView(genomes), MetaColours(std::move(colours.ids)),
+                           {.kmer_size = params.k,
+                            .suffix_size = params.s,
+                            .out = params.outputFolder,
+                            .pool_size = 2 * params.threads});
 
   return 0;
 }
@@ -47,18 +41,13 @@ int filter_main(const BuildParameters &params) {
   auto filters = parse(files, parseFilterFNA, colours,
                        (std::size_t)params.threads, (std::size_t)params.k);
 
-  // prepare input data
-  auto view = toView(filters);
-  MetaColours cmap(std::move(colours.ids));
-
   // suffix-wise buffer construction
-  cdbg::BuildOptions ops{
-    .kmer_size = params.k,
-    .suffix_size = params.s,
-    .out = params.outputFolder,
-    .pool_size = 2 * params.threads
-  };
-  auto g = cdbg::construct(view, cmap, ops);
+  cdbg::BuildOptions ops;
+  auto g = cdbg::construct(toView(filters), MetaColours(std::move(colours.ids)),
+                           {.kmer_size = params.k,
+                            .suffix_size = params.s,
+                            .out = params.outputFolder,
+                            .pool_size = 2 * params.threads});
 
   return 0;
 }
