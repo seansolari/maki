@@ -14,19 +14,19 @@ wavelet_matrix EdgesToWaveletMatrix(const sdsl::int_vector<4> &edges) {
 
 /*
 
-NNN A 1 0 1
-NNN C 2 0 1
-NNN G 3 0 1
-NNN T 4 0 1
-NNA G 3 0 1
+NNN A 1 0 1 *
+NNN C 2 0 1 *
+NNN G 3 0 1 *
+NNN T 4 0 1 *
+NNA G 3 0 1 *
 ACA C 2 1 1
 TCA N 0 0 1
-NGA C 2 0 1
+NGA C 2 0 1 *
 CGA G 3 2 1
 TGA G 3 3 1
-NTA C 2 0 1
+NTA C 2 0 1 *
 GTA N 0 0 1
-NNC G 3 0 1
+NNC G 3 0 1 *
 CAC T 4 1 1
 GAC T 4 3 1
 TAC A 1 1 1
@@ -34,16 +34,16 @@ TAC T 4 2 1
 CTC A 1 3 1
 CTC G 3 2 1
 GTC N 0 0 1
-NNG A 1 0 1
-NAG T 4 0 1
+NNG A 1 0 1 *
+NAG T 4 0 1 *
 GAG T 4 2 1
 GAG T 4 3 0
-NCG A 1 0 1
+NCG A 1 0 1 *
 TCG N 0 0 1
-NTG A 1 0 1
+NTG A 1 0 1 *
 GTG T 4 1 1
-NNT A 1 0 1
-NNT G 3 0 1
+NNT A 1 0 1 *
+NNT G 3 0 1 *
 ACT C 2 2 1
 ACT C 2 3 0
 AGT A 1 2 1

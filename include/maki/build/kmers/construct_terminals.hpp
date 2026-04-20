@@ -14,8 +14,8 @@ planTerminalRanges(const std::vector<const SequenceContainer *> &data_,
                    std::size_t k_);
 
 /**
- * Extract all terminal sequences into a `TerminalBuffer`. Result is neither
- * unique nor sorted.
+ * Extract all terminal sequences into a `TerminalBuffer`. Result is sorted
+ * and unique.
  */
 TerminalBuffer
 extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,

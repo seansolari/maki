@@ -17,5 +17,5 @@ TerminalBuffer extractTerminalsSparse(const std::vector<const SequenceContainer*
   auto blocks = planTerminalRanges(data_, k_);
   TerminalBuffer buffer(blocks.back(), k_, TerminalBuffer::autofit_tag);
   buffer.fill(data_, blocks);
-  return buffer;
+  return buffer.OOPsort();
 }
