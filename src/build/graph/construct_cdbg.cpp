@@ -202,7 +202,7 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
 
   ColouredGraph g;
   g.k = k;
-  g.colours = toRegistry(std::move(cols));
+  g.cmap = toRegistry(std::move(cols));
   g.F = inp.str.F;
   g.C = inp.str.C;
 

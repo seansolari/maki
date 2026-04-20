@@ -1,6 +1,7 @@
 
 #pragma once
 #include "colours.hpp"
+#include "maki/core/graph/archive/archive_reader.hpp"
 #include "maki/core/seq/seq_io.hpp"
 #include <filesystem>
 #include <cereal/types/array.hpp>
@@ -21,12 +22,17 @@ using wavelet_matrix = sdsl::wm_int<>;
 
 struct ColouredGraph {
   uint8_t k;
+
+  // Structural data
   sdsl::bit_vector l;
   sdsl::rank_support_v5<1, 1> lR;
   sdsl::select_support_mcl<1, 1> lS;
   wavelet_matrix W;
-  ColourRegistry colours;
   std::array<size_t, 5> F, C;
+
+  // Colour data
+  std::unique_ptr<ArchiveReader> carch;
+  ColourRegistry cmap;
 
   // load from disk
   static void FromDisk(ColouredGraph &g, const std::string &path);
@@ -34,7 +40,7 @@ struct ColouredGraph {
 private:
   // serialise to disk
   friend class cereal::access;
-  template <class Archive> void serialize(Archive &ar) { ar(k, colours, F, C); }
+  template <class Archive> void serialize(Archive &ar) { ar(k, cmap, F, C); }
 
 public:
   // number of nodes in graph

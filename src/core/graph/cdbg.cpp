@@ -32,6 +32,9 @@ void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
 
   // Load `W` matrix
   sdsl::load_from_file(g.W, files.W);
+
+  // Initialise colour archive reader
+  g.carch = std::make_unique<ArchiveReader>(files.archive);
 }
 
 uint8_t ColouredGraph::block(size_t i) const {

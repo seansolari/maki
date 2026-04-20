@@ -1,16 +1,9 @@
-#include <sdsl/construct.hpp>
-
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/utils/tempfile.hpp"
 #include "test_common.hpp"
-
-wavelet_matrix EdgesToWaveletMatrix(const sdsl::int_vector<4> &edges) {
-  wavelet_matrix wm;
-  sdsl::construct_im(wm, edges);
-  return wm;
-}
+#include "gmock/gmock.h"
 
 /*
 
@@ -94,4 +87,15 @@ TEST_F(EgidiGraphTests, SuffixFill_1) {
 
   EXPECT_THAT(g.W, ContainerEq(XW));
   EXPECT_THAT(g.l, ContainerEq(Xl));
+
+  // Colours
+  auto craw = UnpackColours(g);
+  EXPECT_THAT(
+      craw.first,
+      ElementsAreArray({0, 0, 0, 0, 0, 1, 0, 0, 2, 3, 0, 0, 0, 1, 3, 1, 2, 3,
+                        2, 0, 0, 0, 2, 3, 0, 0, 0, 1, 0, 0, 2, 3, 2, 3, 1, 1}));
+  EXPECT_THAT(
+      craw.second,
+      ElementsAreArray({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1}));
 }
