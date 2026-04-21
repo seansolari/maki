@@ -1,4 +1,4 @@
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 
 #include <filesystem>
 

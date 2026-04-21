@@ -6,7 +6,7 @@
 #include <ranges>
 #include <utility>
 
-#include "seq_io.hpp"
+#include "io.hpp"
 
 template <typename T> class poly_input_range {
 public:

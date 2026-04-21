@@ -3,7 +3,7 @@
 #include "base_buffer.hpp"
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/utils/bits.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 #include "nt_encoding.hpp"
 #include <cstdint>
 #include <sdsl/int_vector.hpp>

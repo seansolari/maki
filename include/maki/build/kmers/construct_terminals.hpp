@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "./buffers/terminals.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
+#include "maki/core/seq/concepts.hpp"
 
 /**
  * Count number of terminals in each `SequenceContainer` and accumulate output

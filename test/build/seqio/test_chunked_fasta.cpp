@@ -1,7 +1,7 @@
 
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/io/fasta.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
+#include "maki/core/seq/concepts.hpp"
 #include "maki/core/utils/tempfile.hpp"
 #include "maki/maki.h"
 #include "test_common.hpp"

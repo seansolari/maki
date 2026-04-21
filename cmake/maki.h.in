@@ -23,6 +23,7 @@
 #define TREE_TWO                @TREE_TWO_PATH@
 #define TEST_SEQ                @SEQUENCE_FNA_PATH@
 #define SMALL_SEQ               @SMALL_FNA_PATH@
+#define SMALL_DUP_SEQ           @SMALL_DUP_FNA_PATH@
 #define GRAPH_FNA_PATH          @GRAPH_FNA_PATH@
 #define CONTIG_ONE_PATH         @CONTIG_ONE_PATH@
 #define CONTIG_TWO_PATH         @CONTIG_TWO_PATH@

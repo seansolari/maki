@@ -2,7 +2,7 @@
 #pragma once
 #include "colours.hpp"
 #include "maki/core/graph/archive/archive_reader.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 #include <filesystem>
 #include <cereal/types/array.hpp>
 #include <sdsl/int_vector.hpp>

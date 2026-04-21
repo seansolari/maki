@@ -12,8 +12,8 @@
 #include <zstr.hpp>
 
 #include "maki/build/graph/build_colours.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/concepts.hpp"
+#include "maki/core/seq/io.hpp"
 
 using namespace seqan3::literals;
 

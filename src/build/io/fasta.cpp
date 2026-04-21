@@ -1,5 +1,5 @@
 #include "maki/build/io/fasta.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 
 #include <algorithm>
 #include <array>

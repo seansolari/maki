@@ -7,8 +7,8 @@
 
 #include "base_buffer.hpp"
 #include "maki/build/utils/bits.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/concepts.hpp"
+#include "maki/core/seq/io.hpp"
 
 /**
  * Represent nt using the 2-bit encoding: `[A, C, G, T] <=> [0, 1, 2, 3]`.

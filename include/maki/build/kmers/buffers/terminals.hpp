@@ -11,7 +11,7 @@
 #include "base_buffer.hpp"
 #include "kmers.hpp"
 #include "maki/build/utils/bits.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
+#include "maki/core/seq/concepts.hpp"
 #include "nt_encoding.hpp"
 
 template <typename T>

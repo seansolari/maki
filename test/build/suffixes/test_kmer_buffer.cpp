@@ -2,7 +2,7 @@
 #include "maki/build/io/fasta.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 #include "test_common.hpp"
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 

@@ -10,7 +10,7 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/cdbg.hpp"
-#include "maki/core/seq/seq_concepts.hpp"
+#include "maki/core/seq/concepts.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <memory>

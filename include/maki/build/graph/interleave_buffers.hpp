@@ -9,7 +9,7 @@
 #include "archive/archive_writer.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 
 struct value_comp {
   inline constexpr bool operator()(const BufferValue &lhs,

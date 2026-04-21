@@ -106,7 +106,7 @@ class SmallFastaTests : public testing::Test {
 protected:
   SmallFastaTests()
       : k(9), c(), genomes(1), out(tempio::create_temporary_directory()) {
-    ParseFastaToGenome(genomes[0], STRING(SMALL_SEQ), c, k);
+    ParseFastaToGenome(genomes[0], STRING(SMALL_DUP_SEQ), c, k);
   }
 
   ~SmallFastaTests() { std::filesystem::remove_all(out); }

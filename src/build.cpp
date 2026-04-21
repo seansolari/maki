@@ -5,7 +5,7 @@
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/io/fasta.hpp"
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 
 struct BuildParameters {
   std::string queryFile;

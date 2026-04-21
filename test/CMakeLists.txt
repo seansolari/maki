@@ -47,10 +47,11 @@ ADD_TEST ("build/wm/test_wm_construct.cpp")
 ADD_TEST ("build/graph/test_push.cpp")
 ADD_TEST ("build/graph/test_construct.cpp")
 
+ADD_TEST ("core/graph/test_navigate.cpp")
+
 # parsing
 
 #ADD_TEST ("reads/test_parse_fq.cpp")
-#ADD_TEST ("index/test_graph_nav.cpp")
 
 ## classify
 

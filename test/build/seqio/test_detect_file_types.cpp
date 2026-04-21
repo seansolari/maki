@@ -1,5 +1,5 @@
 
-#include "maki/core/seq/seq_io.hpp"
+#include "maki/core/seq/io.hpp"
 #include <gtest/gtest.h>
 
 TEST(FileTypeTests, DetectTar) {
