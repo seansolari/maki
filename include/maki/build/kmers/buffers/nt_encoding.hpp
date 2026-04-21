@@ -27,7 +27,7 @@ public:
 
   static std::size_t numSuffixes(
       std::size_t s_); // number of suffixes up to and including size `s_`
-  static ShortSuffix fromRank(std::size_t r_);
+  static ShortSuffix fromIndex(std::size_t r_, std::size_t s_);
 
   ShortSuffix(const ShortSuffix &other) = default;
   ShortSuffix(ShortSuffix &&other) = default;

@@ -96,7 +96,7 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_getbundle(uint64_t id) const {
 }
 
 std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t idx) const {
-  auto sfx = ShortSuffix::fromRank(idx + 1);
+  auto sfx = ShortSuffix::fromIndex(idx, s_);
 
   LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
               << ")";

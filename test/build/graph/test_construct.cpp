@@ -64,8 +64,8 @@ protected:
 
 TEST_F(EgidiGraphTests, SuffixFill_1) {
   // Construct graph
-  auto files = cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
-                               {.kmer_size = k, .suffix_size = 1, .out = out});
+  cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
+                  {.kmer_size = k, .suffix_size = 1, .out = out});
 
   // Load graph
   ColouredGraph g;
@@ -98,4 +98,77 @@ TEST_F(EgidiGraphTests, SuffixFill_1) {
       craw.second,
       ElementsAreArray({1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                         1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1}));
+}
+
+// larger k-mer and suffix size
+
+class SmallFastaTests : public testing::Test {
+protected:
+  SmallFastaTests()
+      : k(9), c(), genomes(1), out(tempio::create_temporary_directory()) {
+    ParseFastaToGenome(genomes[0], STRING(SMALL_SEQ), c, k);
+  }
+
+  ~SmallFastaTests() { std::filesystem::remove_all(out); }
+
+  uint8_t k;
+  Colours c;
+  std::vector<Dna4Genome> genomes;
+  std::filesystem::path out;
+};
+
+TEST_F(SmallFastaTests, SuffixFill_3) {
+  std::size_t s = 3;
+
+  // Construct graph
+  cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
+                  {.kmer_size = k, .suffix_size = s, .out = out});
+
+  // Load graph
+  ColouredGraph g;
+  ColouredGraph::FromDisk(g, out);
+
+  // Structure
+  EXPECT_EQ(g.k, k);
+  EXPECT_THAT(g.C, ElementsAreArray({1, 27, 33, 33, 27}));
+  EXPECT_THAT(g.F, ElementsAreArray({2, 27, 33, 33, 27}));
+
+  // Edges
+  wavelet_matrix XW = EdgesToWaveletMatrix(
+      {0b1010, 0b1011, 0b1011, 0b1011, 0b1010, 0b1100, 0b1010, 0b1011, 0b1010,
+       0b1100, 0b1010, 0b1100, 0b1100, 0b1011, 0b1001, 0b1100, 0b1001, 0b1011,
+       0b1010, 0b1010, 0b1100, 0b1011, 0b1001, 0b1011, 0b1011, 0b1001, 0b1001,
+       0b1011, 0b1010, 0b1001, 0b1011, 0b1100, 0b1000, 0b1010, 0b1001, 0b1001,
+       0b1100, 0b1011, 0b1100, 0b1001, 0b1011, 0b1001, 0b1001, 0b1001, 0b1100,
+       0b1011, 0b1010, 0b1100, 0b1100, 0b1100, 0b1001, 0b1100, 0b1010, 0b1011,
+       0b1010, 0b1001, 0b1011, 0b1010, 0b1011, 0b1011, 0b1100, 0b1010, 0b1100,
+       0b1001, 0b1100, 0b1010, 0b1010, 0b1010, 0b1011, 0b1010, 0b1010, 0b1100,
+       0b1001, 0b1010, 0b1001, 0b1011, 0b1001, 0b1100, 0b1001, 0b1011, 0b1010,
+       0b1100, 0b1001, 0b1001, 0b1001, 0b1010, 0b1001, 0b1011, 0b1100, 0b1011,
+       0b1010, 0b1000, 0b1100, 0b1011, 0b1010, 0b1011, 0b1011, 0b1010, 0b1011,
+       0b1100, 0b1011, 0b1100, 0b1001, 0b1010, 0b1010, 0b1011, 0b1010, 0b1010,
+       0b1011, 0b1100, 0b1011, 0b1100, 0b1001, 0b1100, 0b1011, 0b1010, 0b1010,
+       0b1001, 0b1010, 0b1011, 0b1001, 0b1010});
+  sdsl::bit_vector Xl = {
+      0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+
+  EXPECT_THAT(g.W, ContainerEq(XW));
+  EXPECT_THAT(g.l, ContainerEq(Xl));
+
+  // Colours
+  auto craw = UnpackColours(g);
+  EXPECT_THAT(
+      craw.first,
+      ElementsAreArray({0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1,
+                        1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1,
+                        1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1,
+                        1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1,
+                        1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1,
+                        1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1}));
+  EXPECT_THAT(craw.second, ElementsAreArray(std::vector<uint64_t>(122, 1)));
 }

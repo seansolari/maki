@@ -93,15 +93,14 @@ constexpr void tuple_for_each_pair(TupleA &&a, TupleB &&b, F &&f) {
  * no buffers are available, a new one is created.
  */
 template <typename Container> struct Factory {
-  Factory() =default;
+  Factory() = default;
 
   void release(std::unique_ptr<Container> &p) {
     std::lock_guard lock(mtx_);
     free_.push_back(std::move(p));
   }
 
-  template <class... Args>
-  std::unique_ptr<Container> obtain(Args&&... args) {
+  template <class... Args> std::unique_ptr<Container> obtain(Args &&...args) {
     {
       std::lock_guard lock(mtx_);
       if (!free_.empty()) {
@@ -231,10 +230,10 @@ private:
 template <class... Sinks> class MultiSink {
 public:
   using Bundle = ChunkBundleT<Sinks...>;
-  MultiSink(Sinks&& ...sinks) : sinks_(std::forward<Sinks>(sinks)...) {}
+  MultiSink(Sinks &&...sinks) : sinks_(std::forward<Sinks>(sinks)...) {}
 
-  MultiSink(const MultiSink&) =delete;
-  MultiSink& operator=(const MultiSink&) =delete;
+  MultiSink(const MultiSink &) = delete;
+  MultiSink &operator=(const MultiSink &) = delete;
 
   void write_bundle(Bundle &b) {
     detail::tuple_for_each_pair(b.payloads, sinks_,
@@ -303,7 +302,7 @@ protected:
       auto it = pending_->find(*next_);
       if (it == pending_->end())
         break;
-      
+
       multi_->write_bundle(*it->second);
       pool_->release(std::move(it->second));
       pending_->erase(it);
@@ -319,7 +318,8 @@ protected:
 };
 
 template <class T, class... Sinks>
-concept BundleProducer = requires(const T fn, T gn, uint64_t i, std::shared_ptr<BundlePool<Sinks...>> &p) {
+concept BundleProducer = requires(const T fn, T gn, uint64_t i,
+                                  std::shared_ptr<BundlePool<Sinks...>> &p) {
   { fn(i) } -> std::same_as<std::unique_ptr<ChunkBundleT<Sinks...>>>;
   { gn.setPool(p) } -> std::same_as<void>;
 };
@@ -335,9 +335,11 @@ void ProcessChunks(T op, MultiSink<Sinks...> &sinks, std::size_t pool_size,
   oneapi::tbb::parallel_pipeline(
       pool_size,
       oneapi::tbb::make_filter<void, uint64_t>(
-          oneapi::tbb::filter_mode::serial_in_order, NextChunk{expected_chunks}) &
+          oneapi::tbb::filter_mode::serial_in_order,
+          NextChunk{expected_chunks}) &
           oneapi::tbb::make_filter<uint64_t, std::unique_ptr<Bundle>>(
               oneapi::tbb::filter_mode::parallel, std::move(op)) &
           oneapi::tbb::make_filter<std::unique_ptr<Bundle>, void>(
-              oneapi::tbb::filter_mode::serial_in_order, FlushBundle{pool, &sinks}));
+              oneapi::tbb::filter_mode::serial_in_order,
+              FlushBundle{pool, &sinks}));
 }

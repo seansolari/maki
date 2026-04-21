@@ -1482,7 +1482,7 @@ TEST_F(EgidiGraphReadTests, SuffixFill_1) {
 
 class SmallFastaTests : public testing::Test {
 protected:
-    SmallFastaTests() : 
+    SmallFastaTests() :
         k(9),
         genomes(loadGenomes({ STRING(SMALL_SEQ) }, k)),
         num_colours(genomes.numGenomes()),
