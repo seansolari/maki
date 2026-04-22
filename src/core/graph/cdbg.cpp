@@ -3,12 +3,12 @@
 #include <cereal/archives/binary.hpp>
 
 ColouredGraphFiles graphFiles(fs::path base) {
-  return ColouredGraphFiles{.l = base / "succ.dat",
-                            .lR = base / "succ-rank.dat",
-                            .lS = base / "succ-select.dat",
-                            .W = base / "edges.dat",
-                            .archive = base / "archive.dat",
-                            .meta = base / "graph.dat"};
+  return ColouredGraphFiles{.l = base / "1.dat",
+                            .lR = base / "2.dat",
+                            .lS = base / "3.dat",
+                            .W = base / "4.dat",
+                            .archive = base / "5.dat",
+                            .meta = base / "6.dat"};
 }
 
 void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {

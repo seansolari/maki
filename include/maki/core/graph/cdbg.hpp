@@ -3,8 +3,8 @@
 #include "colours.hpp"
 #include "maki/core/graph/archive/archive_reader.hpp"
 #include "maki/core/seq/io.hpp"
-#include <filesystem>
 #include <cereal/types/array.hpp>
+#include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>

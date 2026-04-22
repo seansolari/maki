@@ -203,8 +203,18 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
   ColouredGraph g;
   g.k = k;
   g.cmap = toRegistry(std::move(cols));
-  g.F = inp.str.F;
-  g.C = inp.str.C;
+
+  g.F[0] = 0u;
+  g.F[1] = inp.str.F[0];
+  g.F[2] = inp.str.F[0] + inp.str.F[1];
+  g.F[3] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2];
+  g.F[4] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2] + inp.str.F[3];
+  
+  g.C[0] = 0u;
+  g.C[1] = inp.str.C[0];
+  g.C[2] = inp.str.C[0] + inp.str.C[1];
+  g.C[3] = inp.str.C[0] + inp.str.C[1] + inp.str.C[2];
+  g.C[4] = inp.str.C[0] + inp.str.C[1] + inp.str.C[2] + inp.str.C[3];
 
   LOG_INFO() << "Serialising graph metadata";
   std::ofstream os(outp.meta, std::ios::binary);

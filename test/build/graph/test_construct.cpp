@@ -73,8 +73,10 @@ TEST_F(EgidiGraphTests, SuffixFill_1) {
 
   // Structure
   EXPECT_EQ(g.k, k);
-  EXPECT_THAT(g.C, ElementsAreArray({1, 8, 6, 7, 4}));
-  EXPECT_THAT(g.F, ElementsAreArray({4, 8, 8, 7, 7}));
+  // EXPECT_THAT(g.C, ElementsAreArray({1, 8, 6, 7, 4}));
+  // EXPECT_THAT(g.F, ElementsAreArray({4, 8, 8, 7, 7}));
+  EXPECT_THAT(g.C, ElementsAreArray({0, 1, 9, 15, 22 }));
+  EXPECT_THAT(g.F, ElementsAreArray({0, 4, 12, 20, 27 }));
 
   // Edges
   wavelet_matrix XW = EdgesToWaveletMatrix(
@@ -130,8 +132,10 @@ TEST_F(SmallFastaTests, SuffixFill_3) {
 
   // Structure
   EXPECT_EQ(g.k, k);
-  EXPECT_THAT(g.C, ElementsAreArray({1, 27, 33, 33, 27}));
-  EXPECT_THAT(g.F, ElementsAreArray({2, 27, 33, 33, 27}));
+  // EXPECT_THAT(g.C, ElementsAreArray({1, 27, 33, 33, 27}));
+  // EXPECT_THAT(g.F, ElementsAreArray({2, 27, 33, 33, 27}));
+  EXPECT_THAT(g.C, ElementsAreArray({ 0, 1, 28, 61, 94 }));
+  EXPECT_THAT(g.F, ElementsAreArray({ 0, 2, 29, 62, 95 }));
 
   // Edges
   wavelet_matrix XW = EdgesToWaveletMatrix(

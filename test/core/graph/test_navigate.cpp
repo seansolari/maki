@@ -64,15 +64,7 @@ TEST_F(TraversableGraph_Kmer, RandomizedFuzz_Small) {
 
   for (int iter = 0; iter < 50; ++iter) {
     int numSeqs = numSeqDist(rng);
-    std::vector<std::string> seqs;
-    seqs.reserve(numSeqs);
-    size_t minLen = SIZE_MAX;
-    for (int s = 0; s < numSeqs; ++s) {
-      size_t len = static_cast<size_t>(lenDist(rng));
-      seqs.push_back(RandomDNA(len, rng));
-      minLen = std::min(minLen, len);
-    }
-    std::string fasta = BuildFasta(seqs);
+    auto [fasta, minLen] = RandomFasta(numSeqs, rng, lenDist);
 
     std::uniform_int_distribution<size_t> kDist(4,
                                                 std::min<size_t>(10, minLen));
@@ -114,7 +106,8 @@ class GraphTraverseTests : public testing::Test {
 protected:
   GraphTraverseTests()
       : k(4), bufferPath(tempio::create_temporary_directory()), g() {
-    MakeGraph(">contig_one\nGACTCA\n>contig_two\nTGAGTC\n", k-1, 1, bufferPath);
+    MakeGraph(">contig_one\nGACTCA\n>contig_two\nTGAGTC\n", k - 1, 1,
+              bufferPath);
     ColouredGraph::FromDisk(g, bufferPath);
   }
 
@@ -210,7 +203,7 @@ class GraphTraverseRepeatTests : public testing::Test {
 protected:
   GraphTraverseRepeatTests()
       : k(4), bufferPath(tempio::create_temporary_directory()), g() {
-    MakeGraph(">contig_one\nACGGTCGG\n", k-1, 1, bufferPath);
+    MakeGraph(">contig_one\nACGGTCGG\n", k - 1, 1, bufferPath);
     ColouredGraph::FromDisk(g, bufferPath);
   }
 
@@ -265,17 +258,14 @@ protected:
  * Collect requested colours from graph
  */
 TEST_F(TraversableGraph_Colour, RandomSequences) {
-  // generate random genomes
-  std::mt19937 rng(123456); // reproducible
+  // Generate random genomes
+  std::mt19937 rng(123456);
   std::uniform_int_distribution<int> numSeqDist(5, 20);
+  std::uniform_int_distribution<int> lenDist(100u, 10000u);
   int numSeqs = numSeqDist(rng);
-  auto fna = RandomGenomes(numSeqs, 42u, 100u, 10000u);
+  auto [fasta, _] = RandomFasta(numSeqs, rng, lenDist);
 
-  // build graph
-  size_t k = 4;
-  Colours c;
-  MakeGraph(fna, c, k-1, 1, bufferPath);
-  ColouredGraph g;
-  ColouredGraph::FromDisk(g, bufferPath);
-  CheckBufferEdgePositions(g);
+  // Build graph
+  std::size_t k = 4u;
+  BuildAndCheckBufferEdgePositions(fasta, k, 1u, bufferPath);
 }

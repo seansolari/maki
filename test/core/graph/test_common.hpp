@@ -9,6 +9,7 @@
 #include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/io/fasta.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/utils/logging.hpp"
 
 using ::testing::ContainerEq;
 using ::testing::ElementsAreArray;
@@ -156,6 +157,20 @@ inline static std::string RandomDNA(size_t length, std::mt19937 &rng) {
   return s;
 }
 
+template <class Dist>
+inline static auto RandomFasta(size_t numSeqs, std::mt19937 &rng,
+                               Dist &lenDist) {
+  std::vector<std::string> seqs;
+  seqs.reserve(numSeqs);
+  size_t minLen = SIZE_MAX;
+  for (size_t s = 0; s < numSeqs; ++s) {
+    size_t len = static_cast<size_t>(lenDist(rng));
+    seqs.push_back(RandomDNA(len, rng));
+    minLen = std::min(minLen, len);
+  }
+  return std::make_pair(BuildFasta(seqs), minLen);
+}
+
 inline std::vector<Dna4Genome> ReadGenome(const std::string &data, Colours &c,
                                           size_t k) {
   std::vector<Dna4Genome> result(1);
@@ -170,11 +185,21 @@ inline void MakeGraph(const std::vector<Dna4Genome> &fna, Colours &c, size_t k,
                   {.kmer_size = k, .suffix_size = s, .out = bufferPath});
 }
 
-inline void MakeGraph(const std::string &data, size_t k, size_t s,
+inline void MakeGraph(std::string data, size_t k, size_t s,
                       fs::path &bufferPath) {
   Colours c;
   std::vector<Dna4Genome> fna = ReadGenome(data, c, k);
   MakeGraph(fna, c, k, s, bufferPath);
+}
+
+inline void PrintKmers(const ColouredGraph &g) {
+  std::cout << "k-mers in graph:\n";
+  const size_t E = edge_count(g);
+  for (size_t i = 0; i < E; ++i) {
+    std::string km = toString(g.kmer(i));
+    std::cout << km << '\n';
+  }
+  std::cout << "end" << std::endl;
 }
 
 // ==== Core checker that targets both correctness and bwd sanity
@@ -199,12 +224,7 @@ inline static void BuildAndCheckGraph(const std::string &fasta, size_t k,
   const size_t E = edge_count(g);
   const auto expected_set = UniqueKMersFromFasta(fasta, k);
 
-  // If your BOSS includes sentinel ($) edges or duplicates, this equality may
-  // need relaxing. Otherwise, assert exact match between unique k-mers and
-  // edges stored.
-  ASSERT_GE(E, expected_set.size())
-      << "Edge count != unique k-mers in FASTA; adjust if graph retains "
-         "multiplicity/sentinels.";
+  ASSERT_GE(E, expected_set.size()) << "Edge count < unique k-mers in FASTA";
 
   std::unordered_set<std::string> observed;
   observed.reserve(E);
@@ -244,11 +264,18 @@ inline static void BuildAndCheckGraph(const std::string &fasta, size_t k,
 }
 
 /**
- * Check buffer structure.
+ * Check colour buffer structure.
  */
-inline static void CheckBufferEdgePositions(const ColouredGraph &g) {
+inline static void BuildAndCheckBufferEdgePositions(const std::string &fasta,
+                                                    size_t k, size_t s,
+                                                    fs::path &bufferPath) {
+  MakeGraph(fasta, k - 1u, s, bufferPath);
+  ColouredGraph g;
+  ColouredGraph::FromDisk(g, bufferPath);
+
   std::size_t numBuffers = g.carch->chunk_count();
-  std::cout << "checking " << numBuffers << " colour buffers" << std::endl;
+  LOG_DEBUG() << "checking " << numBuffers << " colour buffers";
+
   std::size_t edgeCount = 0;
   for (std::size_t c = 0; c < numBuffers; ++c) {
     auto meta = g.carch->meta(c);

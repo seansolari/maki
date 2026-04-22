@@ -17,7 +17,7 @@
 
 // Compile-time minimum log level
 #ifndef LOG_COMPILED_LEVEL
-#define LOG_COMPILED_LEVEL 0 // 0=Debug, 1=Info, 2=Warn, 3=Error
+#define LOG_COMPILED_LEVEL 1 // 0=Debug, 1=Info, 2=Warn, 3=Error
 #endif
 
 // Async queue size limit
