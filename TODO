@@ -1,12 +1,28 @@
 # To do:
 
-*Last updated*: Tue 27 Jan. 2026
+*Last updated*: Wed 22 Apr. 2026
 
 ## High priority
 
-  - unit tests
+  - Classification algorithm.
+  - Counting graph creation from FastQ.
 
-### Unit Testing
+## Low priority
+
+  - Compress metacolour representation.
+  - Compress k-mer counts in read graph.
+  - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
+
+## Planned updates
+
+### Wed 22 Apr. 2026 - Migrate merge algorithm
+
+  - Migrate small merge
+  - Migrate small merge tests
+  - Implement large merge
+  - Implement large merge tests
+
+### Tue 27 Jan. 2026 - Unit Testing
 
   - [DONE] Colour Archive
     - [DONE] Bit-packed array.
@@ -33,10 +49,5 @@
   - [DONE] Suffix tests
   - [DONE] k-mer and terminal buffers
     - [DONE] migrate test_terminals and test_kmers from archive
-  - flushing tests
-  - graph IO tests
-
-## Low priority
-
-  - adapt count and classify for colours
-  - in DB: use counts rrna genes to estimate genome size. in cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
+  - [DONE] flushing tests
+  - [DONE] graph IO tests

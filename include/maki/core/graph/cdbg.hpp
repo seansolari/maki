@@ -20,7 +20,7 @@ ColouredGraphFiles graphFiles(fs::path base);
 
 using wavelet_matrix = sdsl::wm_int<>;
 
-struct ColouredGraph {
+struct DeBruijnGraph {
   uint8_t k;
 
   // Structural data
@@ -30,19 +30,6 @@ struct ColouredGraph {
   wavelet_matrix W;
   std::array<size_t, 5> F, C;
 
-  // Colour data
-  std::unique_ptr<ArchiveReader> carch;
-  ColourRegistry cmap;
-
-  // load from disk
-  static void FromDisk(ColouredGraph &g, const std::string &path);
-
-private:
-  // serialise to disk
-  friend class cereal::access;
-  template <class Archive> void serialize(Archive &ar) { ar(k, cmap, F, C); }
-
-public:
   // number of nodes in graph
   inline size_t nodes() const { return lR(l.size()); }
 
@@ -100,4 +87,18 @@ protected:
   inline size_t WSucc(size_t i, uint8_t c) const {
     return W.select(W.rank(i, c) + 1, c);
   }
+};
+
+struct ColouredGraph : public DeBruijnGraph {
+  // Colour data
+  std::unique_ptr<ArchiveReader> carch;
+  ColourRegistry cmap;
+
+  // load from disk
+  static void FromDisk(ColouredGraph &g, const std::string &path);
+
+private:
+  // serialise to disk
+  friend class cereal::access;
+  template <class Archive> void serialize(Archive &ar) { ar(k, cmap, F, C); }
 };

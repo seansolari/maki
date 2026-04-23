@@ -37,7 +37,7 @@ void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
   g.carch = std::make_unique<ArchiveReader>(files.archive);
 }
 
-uint8_t ColouredGraph::block(size_t i) const {
+uint8_t DeBruijnGraph::block(size_t i) const {
   if (F[1] > i)
     return 0u | 0b1000u;
   else if (F[2] > i)
@@ -50,9 +50,9 @@ uint8_t ColouredGraph::block(size_t i) const {
     return 4u | 0b1000u;
 }
 
-uint8_t ColouredGraph::edge(size_t i) const { return W[i] & 0b0111; }
+uint8_t DeBruijnGraph::edge(size_t i) const { return W[i] & 0b0111; }
 
-Dna4Sequence ColouredGraph::kmer(size_t i) const {
+Dna4Sequence DeBruijnGraph::kmer(size_t i) const {
   size_t remaining = k + 1;
   Dna4Sequence s;
   s.reserve(remaining);
@@ -73,7 +73,7 @@ Dna4Sequence ColouredGraph::kmer(size_t i) const {
 }
 
 // WARNING: no bounds check on input
-std::optional<size_t> ColouredGraph::fwd(size_t i) const {
+std::optional<size_t> DeBruijnGraph::fwd(size_t i) const {
   uint8_t e = edge(i);
   if (e == 0u)
     return std::nullopt;
@@ -82,7 +82,7 @@ std::optional<size_t> ColouredGraph::fwd(size_t i) const {
 }
 
 // WARNING: no bounds check on input
-std::optional<size_t> ColouredGraph::bwd(size_t i) const {
+std::optional<size_t> DeBruijnGraph::bwd(size_t i) const {
   uint8_t c = block(i);
   if ((c ^ 0b1000u) == 0u)
     return std::nullopt;
@@ -90,7 +90,7 @@ std::optional<size_t> ColouredGraph::bwd(size_t i) const {
   return W.select(r1 - r2, c);
 }
 
-std::optional<size_t> ColouredGraph::outgoing(size_t i, uint8_t e) const {
+std::optional<size_t> DeBruijnGraph::outgoing(size_t i, uint8_t e) const {
   IndexRange r = getNode(i);
 
   size_t j = WPred(r.end, e | 0b1000u);

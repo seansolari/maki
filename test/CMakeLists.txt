@@ -49,6 +49,8 @@ ADD_TEST ("build/graph/test_construct.cpp")
 
 ADD_TEST ("core/graph/test_navigate.cpp")
 
+ADD_TEST ("classify/interleave/test_elm_merge.cpp")
+
 # parsing
 
 #ADD_TEST ("reads/test_parse_fq.cpp")
