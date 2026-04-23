@@ -17,9 +17,13 @@
 
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 
-  - Migrate small merge
-  - Migrate small merge tests
+  - [DONE] Migrate small merge
   - Implement large merge
+    - InterleaveRange
+    - NextIteration
+    - FetchRange
+    - ELMMergeLarge(...)
+  - Migrate small merge tests
   - Implement large merge tests
 
 ### Tue 27 Jan. 2026 - Unit Testing
