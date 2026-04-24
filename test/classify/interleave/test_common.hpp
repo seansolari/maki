@@ -1,8 +1,34 @@
 #pragma once
+#include "maki/build/io/fasta.hpp"
+#include "maki/build/graph/construct_cdbg.hpp"
 #include <random>
 #include <string>
-#include <unordered_set>
-#include <vector>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+using ::testing::ContainerEq;
+using ::testing::ElementsAreArray;
+
+inline std::vector<Dna4Genome> ReadGenome(const std::string &data, Colours &c,
+                                          size_t k) {
+  std::vector<Dna4Genome> result(1);
+  std::istringstream datastream(data);
+  parseFastaStream(result[0], datastream, c, k);
+  return result;
+}
+
+inline void MakeGraph(const std::vector<Dna4Genome> &fna, Colours &c, size_t k,
+                      size_t s, fs::path &bufferPath) {
+  cdbg::construct(toView(fna), std::move(c.ids),
+                  {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+}
+
+inline void MakeGraph(std::string data, size_t k, size_t s,
+                      fs::path &bufferPath) {
+  Colours c;
+  std::vector<Dna4Genome> fna = ReadGenome(data, c, k);
+  MakeGraph(fna, c, k, s, bufferPath);
+}
 
 inline std::vector<std::string>
 GenerateRandomKmers(size_t k, size_t count, uint32_t seed,

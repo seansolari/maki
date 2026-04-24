@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include <gtest/gtest.h>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_for.h>
 #include <oneapi/tbb/parallel_invoke.h>
@@ -11,8 +12,8 @@
 #include <sdsl/rank_support.hpp>
 #include <sdsl/select_support_mcl.hpp>
 
-#include "maki/classify/utils/locks.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/utils/locks.hpp"
 
 struct InterleavingOpts {
   std::size_t grainSize, querySize, referenceSize;
@@ -117,6 +118,16 @@ protected:
 // ========================================================
 
 class ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>> {
+  FRIEND_TEST(SmallMergeSequences, H1InterleavingStructure);
+  FRIEND_TEST(SmallMergeSequences, H1InterleavingStructureGsize5);
+  FRIEND_TEST(SmallMergeSequences, LastRefEdge);
+  FRIEND_TEST(SmallMergeSequences, H2InterleavingStructure);
+  FRIEND_TEST(SmallMergeSequences, H2InterleavingStructureGsize5);
+  FRIEND_TEST(SmallMergeSequences, H3InterleavingStructure);
+  FRIEND_TEST(SmallMergeSequences, FullInterleavingBiggerGrainsize);
+  friend class IdenticalSequences;
+  friend class DisjointSequences;
+  
 public:
   ELMMergeSmall(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
@@ -134,7 +145,6 @@ private:
   inline auto &refBlocks() const { return refBpPos; }
 
   detail::Input From(int64_t);
-
   void InitPrevBlocks(int64_t, int64_t &, int64_t &, detail::Blocks &,
                       detail::Output &);
 

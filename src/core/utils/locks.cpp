@@ -1,5 +1,5 @@
 
-#include "maki/classify/utils/locks.hpp"
+#include "maki/core/utils/locks.hpp"
 
 MutexManager::MutexManager(size_t numLocks)
     : numWords((numLocks + BITS_PER_WORD - 1) / BITS_PER_WORD),

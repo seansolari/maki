@@ -15,7 +15,7 @@
 #include <sdsl/int_vector.hpp>
 
 #include "maki/build/utils/bits.hpp"
-#include "maki/build/utils/locks.hpp"
+#include "maki/core/utils/locks.hpp"
 #include "maki/maki.h"
 #include "sort.hpp"
 

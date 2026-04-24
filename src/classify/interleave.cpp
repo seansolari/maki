@@ -1,6 +1,6 @@
 #include "maki/classify/interleave.hpp"
-#include "maki/classify/utils/locks.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/utils/locks.hpp"
 #include "oneapi/tbb/parallel_invoke.h"
 
 #include <cstdint>
@@ -325,7 +325,8 @@ void ELMMergeLarge::NextIteration() {
   ++h;
 }
 
-void ELMMergeLarge::FetchRange(int64_t z_, int64_t end_, std::vector<int64_t> &out) {
+void ELMMergeLarge::FetchRange(int64_t z_, int64_t end_,
+                               std::vector<int64_t> &out) {
   while (z_ < end_) {
     if (b.Bp[z_] == 0) {
       auto [r, q] = edgesAt(z_);
