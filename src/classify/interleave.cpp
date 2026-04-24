@@ -1,6 +1,7 @@
 #include "maki/classify/interleave.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/utils/locks.hpp"
+#include "maki/core/utils/logging.hpp"
 #include "oneapi/tbb/parallel_invoke.h"
 
 #include <cstdint>
@@ -8,15 +9,20 @@
 
 std::size_t InterleavingOpts::size() const { return querySize + referenceSize; }
 
+detail::Overlap::Overlap(std::size_t size_)
+    : B(size_, 0), Bp(size_, 0), BpRank(), BpSelect() {
+
+  LOG_DEBUG() << "Initialised overlap structure with size " << size_;
+}
+
 void detail::Overlap::update() {
+  LOG_DEBUG() << "Updating overlap rank/select structures";
+
   oneapi::tbb::parallel_invoke(
       [&] { sdsl::util::set_to_value(B, 0); },
       [&] { sdsl::util::init_support(BpRank, &Bp); },
       [&] { sdsl::util::init_support(BpSelect, &Bp); });
 }
-
-detail::Overlap::Overlap(std::size_t size_)
-    : B(size_, 0), Bp(size_, 0), BpRank(), BpSelect() {}
 
 void detail::SetToOne(sdsl::bit_vector &bv, std::size_t begin_,
                       std::size_t end_) {
@@ -31,12 +37,16 @@ ELMMergeSmall::ELMMergeSmall(const DeBruijnGraph *qry_,
                              const DeBruijnGraph *ref_, std::size_t grainsize_)
     : ELMMergeBase(qry_, ref_, grainsize_), qo(opts.querySize),
       ro(opts.querySize), refBPos(opts.querySize), refBpPos(opts.querySize),
-      rC({/* <N */ static_cast<int64_t>(ref->C[0]),
-          /* <A */ static_cast<int64_t>(ref->C[1]),
-          /* <C */ static_cast<int64_t>(ref->C[2]),
-          /* <G */ static_cast<int64_t>(ref->C[3]),
-          /* <T */ static_cast<int64_t>(ref->C[4]),
-          /* <. */ static_cast<int64_t>(ref->nodes())}) {
+      rC({static_cast<int64_t>(ref->C[0]), static_cast<int64_t>(ref->C[1]),
+          static_cast<int64_t>(ref->C[2]), static_cast<int64_t>(ref->C[3]),
+          static_cast<int64_t>(ref->C[4]),
+          static_cast<int64_t>(ref->nodes())}) {
+
+  LOG_INFO() << "Initialising small merge";
+  LOG_INFO() << "Query nodes     = " << opts.querySize;
+  LOG_INFO() << "Reference nodes = " << opts.referenceSize;
+  LOG_DEBUG() << "Grain size      = " << grainsize_;
+
   data[0].resize(opts.querySize);
   data[1].resize(opts.querySize);
   locks.realloc(opts.querySize, opts.lockSampleRate);
@@ -53,38 +63,36 @@ ELMMergeSmall::ELMMergeSmall(const DeBruijnGraph *qry_,
   std::size_t z = 0, zend;
   for (std::size_t c = 0; c < 5; ++c) {
     std::size_t qryNodes = qC[c + 1] - qC[c], refNodes = rC[c + 1] - rC[c];
+    
     if (refNodes) {
       ro.B[z] = 1;
       refBPos[z] = rC[c];
     } else if (qryNodes) {
       qo.B[z] = 1;
     }
+
     zend = z + qryNodes;
     while (z < zend) {
       if (c == 0)
         Zp[z] = rC[c + 1];
       Z[z++] = rC[c + 1];
     }
+
+    LOG_DEBUG() << "Symbol " << c << ": query=" << qryNodes
+                << ", ref=" << refNodes;
   }
 
-  // Update rank-select structures
   NextIteration();
 }
 
 int64_t ELMMergeSmall::getPrevQryBlock(int64_t zPos) const {
-  auto zRank = qo.BpRank(zPos);
-  if (zRank)
-    return qo.BpSelect(zRank);
-  else
-    return 0;
+  auto r = qo.BpRank(zPos);
+  return r ? qo.BpSelect(r) : 0;
 }
 
 int64_t ELMMergeSmall::getPrevRefBlock(int64_t zPos) const {
-  auto zRank = ro.BpRank(zPos);
-  if (zRank)
-    return ro.BpSelect(zRank);
-  else
-    return 0;
+  auto r = ro.BpRank(zPos);
+  return r ? ro.BpSelect(r) : 0;
 }
 
 detail::Input ELMMergeSmall::From(int64_t eq_) {
@@ -124,6 +132,9 @@ void ELMMergeSmall::InitPrevBlocks(int64_t zqry, int64_t &prevBlock,
 }
 
 void ELMMergeSmall::InterleaveRange(int64_t zq_, int64_t end_) {
+  LOG_DEBUG() << "ELMMergeSmall interleaving range [" << zq_ << ", " << end_
+              << ")";
+
   auto &Zp = previous(), &Z = current();
   int64_t eq = qryEdge(zq_) /* current edge in query graph */,
           block = -1 /* current block */, refBlockStart = -1;
@@ -213,9 +224,13 @@ void ELMMergeSmall::FetchRange(int64_t zq_, int64_t end_,
 std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
                                    const DeBruijnGraph *ref,
                                    std::size_t grainsize) {
-  ELMMergeSmall Buffers(qry, ref, grainsize);
-  Buffers.Interleave();
-  return Buffers.Fetch();
+  LOG_INFO() << "Running small-query classification";
+
+  ELMMergeSmall buffers(qry, ref, grainsize);
+  buffers.Interleave();
+
+  LOG_INFO() << "Small-query merge complete";
+  return buffers.Fetch();
 }
 
 // Large-query interleaving
@@ -224,6 +239,9 @@ std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
 ELMMergeLarge::ELMMergeLarge(const DeBruijnGraph *qry_,
                              const DeBruijnGraph *ref_, std::size_t grainsize_)
     : ELMMergeBase(qry_, ref_, grainsize_), b(opts.size()) {
+  LOG_INFO() << "Initialising large merge";
+  LOG_INFO() << "Total nodes = " << opts.size();
+
   data[0].resize(opts.size());
   data[1].resize(opts.size());
   locks.realloc(opts.size(), opts.lockSampleRate);
@@ -239,12 +257,16 @@ ELMMergeLarge::ELMMergeLarge(const DeBruijnGraph *qry_,
       zmid = z + opts.referenceSize - ref->C[c];
       zend = zmid + opts.querySize - qry->C[c];
     }
+
     if (c == 0) {
       detail::SetToOne(Zp, zmid, zend);
     }
     detail::SetToOne(Z, zmid, zend);
     b.B[z] = 1;
     z = zend;
+
+    LOG_DEBUG() << "Symbol " << c << ": block range [" << zmid << ", " << zend
+                << ")";
   }
 
   // Update rank-select structures
@@ -289,6 +311,9 @@ int64_t ELMMergeLarge::InitPrevBlocks(int64_t z, int64_t re, int64_t qe,
 }
 
 void ELMMergeLarge::InterleaveRange(int64_t z_, int64_t zend_) {
+  LOG_DEBUG() << "ELMMergeLarge interleaving range [" << z_ << ", " << zend_
+              << ")";
+
   auto &Zp = previous(), &Z = current();
   auto O = UpTo(z_);
   detail::Input I = From(O[0].second, O[1].second);
@@ -344,7 +369,12 @@ void ELMMergeLarge::FetchRange(int64_t z_, int64_t end_,
 std::vector<int64_t> ClassifyLarge(const DeBruijnGraph *qry,
                                    const DeBruijnGraph *ref,
                                    std::size_t grainsize) {
-  ELMMergeLarge Buffers(qry, ref, grainsize);
-  Buffers.Interleave();
-  return Buffers.Fetch();
+
+  LOG_INFO() << "Running large-query classification";
+
+  ELMMergeLarge buffers(qry, ref, grainsize);
+  buffers.Interleave();
+
+  LOG_INFO() << "Large-query merge complete";
+  return buffers.Fetch();
 }

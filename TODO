@@ -23,7 +23,7 @@
     - [DONE] NextIteration
     - [DONE] ELMMergeLarge(...)
     - [DONE] FetchRange
-  - Migrate small merge tests
+  - [DONE] Migrate small merge tests
   - Implement large merge tests
 
 ### Tue 27 Jan. 2026 - Unit Testing
