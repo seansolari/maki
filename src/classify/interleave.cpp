@@ -1,12 +1,12 @@
 #include "maki/classify/interleave.hpp"
 #include "maki/classify/utils/locks.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "oneapi/tbb/parallel_invoke.h"
 
 #include <cstdint>
+#include <utility>
 
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/parallel_for.h>
-#include <oneapi/tbb/parallel_invoke.h>
+std::size_t InterleavingOpts::size() const { return querySize + referenceSize; }
 
 void detail::Overlap::update() {
   oneapi::tbb::parallel_invoke(
@@ -18,49 +18,10 @@ void detail::Overlap::update() {
 detail::Overlap::Overlap(std::size_t size_)
     : B(size_, 0), Bp(size_, 0), BpRank(), BpSelect() {}
 
-// ELM merge base class
-// ========================================================
-
-ELMMergeBase::ELMMergeBase(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
-                           std::size_t grainsize_)
-    : qry(qry_), ref(ref_),
-      opts({.grainSize = grainsize_, .querySize = qry->nodes()}), data(),
-      locks(), h(0) {}
-
-void ELMMergeBase::Interleave() {
-  while (h < ref->k)
-    this->DoOneInterleave();
-}
-
-std::vector<int64_t> ELMMergeBase::Fetch() {
-  std::vector<int64_t> result(qry->W.size(), -1);
-  oneapi::tbb::parallel_for(
-      oneapi::tbb::blocked_range<size_t>(0, opts.querySize, opts.grainSize),
-      [&](oneapi::tbb::blocked_range<size_t> const &r) -> void {
-        this->FetchRange(r.begin(), r.end(), result);
-      });
-  return result;
-}
-
-void ELMMergeBase::DoOneInterleave() {
-  oneapi::tbb::parallel_for(
-      oneapi::tbb::blocked_range<int64_t>(0, opts.querySize, opts.grainSize),
-      [&](const oneapi::tbb::blocked_range<int64_t> &r) -> void {
-        this->InterleaveRange(r.begin(), r.end());
-      });
-  this->NextIteration();
-}
-
-int64_t ELMMergeBase::refFindBetween(int64_t l, int64_t r, uint8_t c) const {
-  auto lrank = ref->W.rank(l, c), rrank = ref->W.rank(r, c);
-  if (lrank < rrank) {
-    return ref->W.select(lrank + 1, c);
-  } else {
-    c ^= 0b1000;
-    lrank = ref->W.rank(l, c);
-    rrank = ref->W.rank(r, c);
-    return (lrank < rrank) ? ref->W.select(lrank + 1, c) : -1;
-  }
+void detail::SetToOne(sdsl::bit_vector &bv, std::size_t begin_,
+                      std::size_t end_) {
+  while (begin_ < end_)
+    bv[begin_++] = 1;
 }
 
 // Small-query interleaving
@@ -76,7 +37,6 @@ ELMMergeSmall::ELMMergeSmall(const DeBruijnGraph *qry_,
           /* <G */ static_cast<int64_t>(ref->C[3]),
           /* <T */ static_cast<int64_t>(ref->C[4]),
           /* <. */ static_cast<int64_t>(ref->nodes())}) {
-  assert(qry->k == ref->k);
   data[0].resize(opts.querySize);
   data[1].resize(opts.querySize);
   locks.realloc(opts.querySize, opts.lockSampleRate);
@@ -237,7 +197,10 @@ void ELMMergeSmall::FetchRange(int64_t zq_, int64_t end_,
       int64_t r = refEdge(Z[zq_] - 1), rend = refEdge(Z[zq_]);
       while (q < qend) {
         uint8_t c = qry->W[q];
-        out[q] = refFindBetween(r, rend, c);
+        if (auto _re = ref->findBetween(r, rend, c); _re.has_value())
+          out[q] = static_cast<int64_t>(_re.value());
+        else
+          out[q] = -1;
         ++q;
       }
     } else {
@@ -258,11 +221,124 @@ std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
 // Large-query interleaving
 // ========================================================
 
-void ELMMergeLarge::InterleaveRange(int64_t, int64_t) {}
+ELMMergeLarge::ELMMergeLarge(const DeBruijnGraph *qry_,
+                             const DeBruijnGraph *ref_, std::size_t grainsize_)
+    : ELMMergeBase(qry_, ref_, grainsize_), b(opts.size()) {
+  data[0].resize(opts.size());
+  data[1].resize(opts.size());
+  locks.realloc(opts.size(), opts.lockSampleRate);
 
-void ELMMergeLarge::NextIteration() {}
+  // h=1 interleaving
+  auto &Z = current(), &Zp = previous();
+  std::size_t z = 0, zmid, zend;
+  for (std::size_t c = 0; c < 5; ++c) {
+    if (c < 4) {
+      zmid = z + ref->C[c + 1] - ref->C[c];
+      zend = zmid + qry->C[c + 1] - qry->C[c];
+    } else {
+      zmid = z + opts.referenceSize - ref->C[c];
+      zend = zmid + opts.querySize - qry->C[c];
+    }
+    if (c == 0) {
+      detail::SetToOne(Zp, zmid, zend);
+    }
+    detail::SetToOne(Z, zmid, zend);
+    b.B[z] = 1;
+    z = zend;
+  }
 
-void ELMMergeLarge::FetchRange(int64_t, int64_t, std::vector<int64_t> &) {}
+  // Update rank-select structures
+  NextIteration();
+}
+
+int64_t ELMMergeLarge::getPrevBlock(int64_t z) const {
+  return b.BpSelect(b.BpRank(z + 1));
+}
+
+std::pair<int64_t, int64_t> ELMMergeLarge::edgesAt(int64_t z_) const {
+  std::size_t qn = ZpRank(z_), rn = z_ - qn;
+  return std::make_pair(refEdge(rn), qryEdge(qn));
+}
+
+std::array<std::pair<const DeBruijnGraph *, int64_t>, 2>
+ELMMergeLarge::UpTo(int64_t z_) const {
+  auto x = edgesAt(z_);
+  return {std::make_pair(ref, x.first), std::make_pair(qry, x.second)};
+}
+
+detail::Input ELMMergeLarge::From(int64_t re, int64_t qe) const {
+  return detail::Input{
+      0, /* dummy value */
+      static_cast<int64_t>(ref->W.rank(re, 0b1001) + qry->W.rank(qe, 0b1001)),
+      static_cast<int64_t>(ref->W.rank(re, 0b1010) + qry->W.rank(qe, 0b1010)),
+      static_cast<int64_t>(ref->W.rank(re, 0b1011) + qry->W.rank(qe, 0b1011)),
+      static_cast<int64_t>(ref->W.rank(re, 0b1100) + qry->W.rank(qe, 0b1100))};
+}
+
+int64_t ELMMergeLarge::InitPrevBlocks(int64_t z, int64_t re, int64_t qe,
+                                      detail::Blocks &blocks) const {
+  int64_t block = getPrevBlock(z);
+  if (block == z)
+    return block;
+  auto [pre, pqe] = edgesAt(block);
+  for (uint64_t c = 1; c < 5; ++c) {
+    if (ref->findBetween(pre, re, c) || qry->findBetween(pqe, qe, c))
+      blocks[c] = block;
+  }
+  return block;
+}
+
+void ELMMergeLarge::InterleaveRange(int64_t z_, int64_t zend_) {
+  auto &Zp = previous(), &Z = current();
+  auto O = UpTo(z_);
+  detail::Input I = From(O[0].second, O[1].second);
+  detail::Blocks BlockId = {-1, -1, -1, -1, -1};
+  int64_t block = InitPrevBlocks(z_, O[0].second, O[1].second, BlockId);
+
+  LockedRegionManager::Accessor a(locks);
+  while (z_ < zend_) {
+    if (b.Bp[z_]) {
+      block = z_;
+    }
+    auto j = Zp[z_];
+    auto &[g, i] = O[j];
+    do {
+      uint8_t edge = g->W[i], c = edge & 0b0111;
+      if ((edge & 0b1000) && c) {
+        int64_t outz = I[c]++;
+        a.access(outz);
+        Z[outz] = j;
+        if (BlockId[c] != block) {
+          BlockId[c] = block;
+          b.B[outz] = 1;
+        }
+      }
+    } while (g->l[i++] == 0);
+  }
+}
+
+void ELMMergeLarge::NextIteration() {
+  oneapi::tbb::parallel_invoke(
+      [&] { b.Bp |= b.B; },
+      [&] { sdsl::util::init_support(ZpRank, &current()); });
+  b.update();
+  ++h;
+}
+
+void ELMMergeLarge::FetchRange(int64_t z_, int64_t end_, std::vector<int64_t> &out) {
+  while (z_ < end_) {
+    if (b.Bp[z_] == 0) {
+      auto [r, q] = edgesAt(z_);
+      decltype(r) rend = ref->enclose(r);
+      do {
+        uint8_t c = qry->W[q];
+        if (auto rf = ref->findBetween(r, rend, c); rf.has_value())
+          out[q] = static_cast<int64_t>(rf.value());
+      } while (qry->l[q++] == 0);
+    }
+    ++z_;
+  }
+}
 
 std::vector<int64_t> ClassifyLarge(const DeBruijnGraph *qry,
                                    const DeBruijnGraph *ref,

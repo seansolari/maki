@@ -18,11 +18,11 @@
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 
   - [DONE] Migrate small merge
-  - Implement large merge
-    - InterleaveRange
-    - NextIteration
-    - FetchRange
-    - ELMMergeLarge(...)
+  - [DONE] Implement large merge
+    - [DONE] InterleaveRange
+    - [DONE] NextIteration
+    - [DONE] ELMMergeLarge(...)
+    - [DONE] FetchRange
   - Migrate small merge tests
   - Implement large merge tests
 

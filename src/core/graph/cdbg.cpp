@@ -1,6 +1,7 @@
 
 #include "maki/core/graph/cdbg.hpp"
 #include <cereal/archives/binary.hpp>
+#include <optional>
 
 ColouredGraphFiles graphFiles(fs::path base) {
   return ColouredGraphFiles{.l = base / "1.dat",
@@ -102,5 +103,17 @@ std::optional<size_t> DeBruijnGraph::outgoing(size_t i, uint8_t e) const {
       return std::make_optional(j);
     else
       return std::nullopt;
+  }
+}
+
+std::optional<size_t> DeBruijnGraph::findBetween(int64_t l, int64_t r, uint8_t c) const {
+  auto lrank = W.rank(l, c), rrank = W.rank(r, c);
+  if (lrank < rrank) {
+    return std::make_optional(W.select(lrank + 1, c));
+  } else {
+    c ^= 0b1000;
+    lrank = W.rank(l, c);
+    rrank = W.rank(r, c);
+    return (lrank < rrank) ? std::make_optional(W.select(lrank + 1, c)) : std::nullopt;
   }
 }

@@ -55,6 +55,12 @@ struct DeBruijnGraph {
   // return k-mer represented by edge `i`
   Dna4Sequence kmer(size_t i) const;
 
+  // get start of node containing edge `i`
+  inline size_t enopen(size_t i) const { return lastPred(i - 1) + 1u; }
+
+  // get one-past-end of node containing edge `i`
+  inline size_t enclose(size_t i) const { return lastSucc(i) + 1u; }
+
   inline IndexRange getRoot() const {
     return IndexRange(0u, lastSucc(0u) + 1u);
   }
@@ -62,12 +68,15 @@ struct DeBruijnGraph {
   // get Node/k-mer containing the edge at `i` in the form `[begin, end)`
   inline IndexRange getNode(size_t i) const {
     assert(i > 0u);
-    return IndexRange(lastPred(i - 1) + 1u, lastSucc(i) + 1u);
+    return IndexRange(enopen(i), enclose(i));
   }
 
   // returns index of node by taking edge `e` from node at `i` (if the edge
   // exists)
   std::optional<size_t> outgoing(size_t i, uint8_t e) const;
+
+  // find edge encoding character `c` between edges `[l, r)`
+  std::optional<size_t> findBetween(int64_t l, int64_t r, uint8_t c) const;
 
 protected:
   uint8_t block(size_t i) const;
