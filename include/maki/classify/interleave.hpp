@@ -163,6 +163,16 @@ std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
 // ========================================================
 
 class ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector> {
+  FRIEND_TEST(LargeMergeSequences, H1InterleavingStructure);
+  FRIEND_TEST(LargeMergeSequences, H1InterleavingStructureGsize5);
+  FRIEND_TEST(LargeMergeSequences, LastRefEdge);
+  FRIEND_TEST(LargeMergeSequences, H2InterleavingStructure);
+  FRIEND_TEST(LargeMergeSequences, H2InterleavingStructureGsize5);
+  FRIEND_TEST(LargeMergeSequences, H3InterleavingStructure);
+  FRIEND_TEST(LargeMergeSequences, FullInterleavingBiggerGrainsize);
+  friend class IdenticalSequences;
+  friend class DisjointSequences;
+  
 public:
   ELMMergeLarge(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
