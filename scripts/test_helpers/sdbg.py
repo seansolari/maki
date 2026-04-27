@@ -217,6 +217,15 @@ class succinct_graph_container:
                 return i
         else:
             raise ValueError("no nodes found!")
+          
+    def edge(self, x: int):
+        i = self._order[x]
+        suff_i = max(0, i-self._k)
+        suff = self.seq[suff_i:i]
+        if len(suff) < self._k:
+              df = self._k - len(suff)
+              suff = self.seq[-df:] + suff
+        return suff, self.seq[i]
 
 def finalise_graph(seq: str, k: int, order: List[int], blocks: List[int]):
     NE = len(order)

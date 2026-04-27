@@ -8,6 +8,9 @@ COMPLEMENT = {
     'T': 'A'
 }
 
+def reverse_complement(seq: str) -> str:
+  return "".join(COMPLEMENT[c] for c in seq[::-1])
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("[error] expects one argument!")
@@ -18,5 +21,5 @@ if __name__ == "__main__":
     if not all(c in COMPLEMENT for c in seq):
         print("[error] must be DNA sequence: %s" % seq)
         
-    rc = "".join(COMPLEMENT[c] for c in seq[::-1])
+    rc = reverse_complement(seq)
     print(rc)
