@@ -7,8 +7,6 @@
 #include <cstdint>
 #include <utility>
 
-std::size_t InterleavingOpts::size() const { return querySize + referenceSize; }
-
 detail::Overlap::Overlap(std::size_t size_)
     : B(size_, 0), Bp(size_, 0), BpRank(), BpSelect() {
 
@@ -41,15 +39,10 @@ ELMMergeSmall::ELMMergeSmall(const DeBruijnGraph *qry_,
           static_cast<int64_t>(ref->C[2]), static_cast<int64_t>(ref->C[3]),
           static_cast<int64_t>(ref->C[4]),
           static_cast<int64_t>(ref->nodes())}) {
-
   LOG_INFO() << "Initialising small merge";
   LOG_INFO() << "Query nodes     = " << opts.querySize;
   LOG_INFO() << "Reference nodes = " << opts.referenceSize;
   LOG_DEBUG() << "Grain size      = " << grainsize_;
-
-  data[0].resize(opts.querySize);
-  data[1].resize(opts.querySize);
-  locks.realloc(opts.querySize, opts.lockSampleRate);
 
   // h=1 interleaving
   std::array<std::size_t, 6> qC = {/* <N */ qry->C[0],
@@ -63,7 +56,7 @@ ELMMergeSmall::ELMMergeSmall(const DeBruijnGraph *qry_,
   std::size_t z = 0, zend;
   for (std::size_t c = 0; c < 5; ++c) {
     std::size_t qryNodes = qC[c + 1] - qC[c], refNodes = rC[c + 1] - rC[c];
-    
+
     if (refNodes) {
       ro.B[z] = 1;
       refBPos[z] = rC[c];
@@ -182,18 +175,19 @@ void ELMMergeSmall::InterleaveRange(int64_t zq_, int64_t end_) {
 }
 
 void ELMMergeSmall::NextIteration() {
-  oneapi::tbb::parallel_invoke([&] { qo.Bp |= qo.B; }, [&] { ro.Bp |= ro.B; },
-                               [&] {
-                                 oneapi::tbb::parallel_for(
-                                     (size_t)0, opts.querySize,
-                                     [&](const size_t &i) -> void {
-                                       int64_t newv = refBPos[i];
-                                       if (newv) {
-                                         refBpPos[i] = newv;
-                                         refBPos[i] = 0;
-                                       }
-                                     });
-                               });
+  oneapi::tbb::parallel_invoke(
+      [&] { qo.Bp |= qo.B; }, [&] { ro.Bp |= ro.B; },
+      [&] {
+        oneapi::tbb::parallel_for((size_t)0,
+                                  detail::interleavingSize<ELMMergeSmall>(opts),
+                                  [&](const size_t &i) -> void {
+                                    int64_t newv = refBPos[i];
+                                    if (newv) {
+                                      refBpPos[i] = newv;
+                                      refBPos[i] = 0;
+                                    }
+                                  });
+      });
   oneapi::tbb::parallel_invoke([&] { qo.update(); }, [&] { ro.update(); });
   ++h;
 }
@@ -238,13 +232,11 @@ std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
 
 ELMMergeLarge::ELMMergeLarge(const DeBruijnGraph *qry_,
                              const DeBruijnGraph *ref_, std::size_t grainsize_)
-    : ELMMergeBase(qry_, ref_, grainsize_), b(opts.size()) {
+    : ELMMergeBase(qry_, ref_, grainsize_),
+      b(detail::interleavingSize<ELMMergeLarge>(opts)) {
   LOG_INFO() << "Initialising large merge";
-  LOG_INFO() << "Total nodes = " << opts.size();
-
-  data[0].resize(opts.size());
-  data[1].resize(opts.size());
-  locks.realloc(opts.size(), opts.lockSampleRate);
+  LOG_INFO() << "Total nodes = "
+             << detail::interleavingSize<ELMMergeLarge>(opts);
 
   // h=1 interleaving
   auto &Z = current(), &Zp = previous();
@@ -282,19 +274,23 @@ std::pair<int64_t, int64_t> ELMMergeLarge::edgesAt(int64_t z_) const {
   return std::make_pair(refEdge(rn), qryEdge(qn));
 }
 
-std::array<std::pair<const DeBruijnGraph *, int64_t>, 2>
-ELMMergeLarge::UpTo(int64_t z_) const {
+std::array<detail::GraphCursor, 2> ELMMergeLarge::UpTo(int64_t z_) const {
   auto x = edgesAt(z_);
-  return {std::make_pair(ref, x.first), std::make_pair(qry, x.second)};
+  return {detail::GraphCursor{ref, x.first},
+          detail::GraphCursor{qry, x.second}};
 }
 
 detail::Input ELMMergeLarge::From(int64_t re, int64_t qe) const {
   return detail::Input{
       0, /* dummy value */
-      static_cast<int64_t>(ref->W.rank(re, 0b1001) + qry->W.rank(qe, 0b1001)),
-      static_cast<int64_t>(ref->W.rank(re, 0b1010) + qry->W.rank(qe, 0b1010)),
-      static_cast<int64_t>(ref->W.rank(re, 0b1011) + qry->W.rank(qe, 0b1011)),
-      static_cast<int64_t>(ref->W.rank(re, 0b1100) + qry->W.rank(qe, 0b1100))};
+      static_cast<int64_t>(ref->C[1] + ref->W.rank(re, 0b1001) + qry->C[1] +
+                           qry->W.rank(qe, 0b1001)),
+      static_cast<int64_t>(ref->C[2] + ref->W.rank(re, 0b1010) + qry->C[2] +
+                           qry->W.rank(qe, 0b1010)),
+      static_cast<int64_t>(ref->C[3] + ref->W.rank(re, 0b1011) + qry->C[3] +
+                           qry->W.rank(qe, 0b1011)),
+      static_cast<int64_t>(ref->C[4] + ref->W.rank(re, 0b1100) + qry->C[4] +
+                           qry->W.rank(qe, 0b1100))};
 }
 
 int64_t ELMMergeLarge::InitPrevBlocks(int64_t z, int64_t re, int64_t qe,
@@ -315,20 +311,30 @@ void ELMMergeLarge::InterleaveRange(int64_t z_, int64_t zend_) {
               << ")";
 
   auto &Zp = previous(), &Z = current();
-  auto O = UpTo(z_);
-  detail::Input I = From(O[0].second, O[1].second);
+  std::array<detail::GraphCursor, 2> O = UpTo(z_);
+  detail::Input I = From(O[0].i, O[1].i);
   detail::Blocks BlockId = {-1, -1, -1, -1, -1};
-  int64_t block = InitPrevBlocks(z_, O[0].second, O[1].second, BlockId);
+  int64_t block = InitPrevBlocks(z_, O[0].i, O[1].i, BlockId);
+
+  LOG_DEBUG() << "Interleaving at position " << z_ << ", starting at G0{node "
+              << ref->lR(O[0].i) << "[" << opts.referenceSize << "], edge "
+              << O[0].i << "[" << ref->edges() << "]} "
+              << "G1{node " << qry->lR(O[1].i) << "[" << opts.querySize
+              << "], edge " << O[1].i << "[" << qry->edges()
+              << "]}, output configured to {" << I[1] << ", " << I[2] << ", "
+              << I[3] << ", " << I[4] << "}"
+              << " at block=" << block << " [" << BlockId[1] << ", "
+              << BlockId[2] << ", " << BlockId[3] << ", " << BlockId[4] << "];";
 
   LockedRegionManager::Accessor a(locks);
   while (z_ < zend_) {
     if (b.Bp[z_]) {
       block = z_;
     }
-    auto j = Zp[z_];
-    auto &[g, i] = O[j];
+    auto j = Zp[z_++];
+    auto &g = O[j];
     do {
-      uint8_t edge = g->W[i], c = edge & 0b0111;
+      uint8_t edge = g.edge(), c = edge & 0b0111;
       if ((edge & 0b1000) && c) {
         int64_t outz = I[c]++;
         a.access(outz);
@@ -338,7 +344,7 @@ void ELMMergeLarge::InterleaveRange(int64_t z_, int64_t zend_) {
           b.B[outz] = 1;
         }
       }
-    } while (g->l[i++] == 0);
+    } while (g++ == 0);
   }
 }
 
@@ -354,7 +360,11 @@ void ELMMergeLarge::FetchRange(int64_t z_, int64_t end_,
                                std::vector<int64_t> &out) {
   while (z_ < end_) {
     if (b.Bp[z_] == 0) {
-      auto [r, q] = edgesAt(z_);
+      assert(z_ > 0);
+      assert(previous()[z_-1] == 0);
+      assert(previous()[z_] == 1);
+
+      auto [r, q] = edgesAt(z_-1);
       decltype(r) rend = ref->enclose(r);
       do {
         uint8_t c = qry->W[q];

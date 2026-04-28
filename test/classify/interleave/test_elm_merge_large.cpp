@@ -87,7 +87,7 @@ TEST_F(LargeMergeSequences, H1InterleavingStructureGsize5) {
 
 TEST_F(LargeMergeSequences, H2InterleavingStructure) {
   ELMMergeLarge Ix(&qry, &ref, 1);
-  Ix.DoOneInterleave();
+  Ix.DoOneDummyInterleave();
 
   sdsl::bit_vector expectedZ = {0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1,
                                 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1},
@@ -166,7 +166,7 @@ protected:
 
     sdsl::bit_vector expectedQ(2 * numQueries, 0);
     for (std::size_t i = 0; i < numQueries; ++i)
-      expectedZ[2 * i] = 1;
+      expectedQ[2 * i] = 1;
 
     // check
 
@@ -204,13 +204,13 @@ protected:
     MakeGraph(seqAT, k, 1, qryBuffer);
     ColouredGraph::FromDisk(qry, qryBuffer);
 
-    size_t numQueries = qry.nodes();
+    size_t numQueries = qry.nodes(), numReferences = ref.nodes();
 
     ELMMergeLarge Ix(&qry, &ref, 1);
     Ix.Interleave();
 
     // expected values
-    sdsl::bit_vector expectedQ(2 * numQueries, 1);
+    sdsl::bit_vector expectedQ(numQueries + numReferences, 1);
     expectedQ[1] = 0;
 
     ASSERT_THAT(Ix.b.Bp, ContainerEq(expectedQ));

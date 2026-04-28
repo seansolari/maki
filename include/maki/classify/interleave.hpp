@@ -18,7 +18,6 @@
 struct InterleavingOpts {
   std::size_t grainSize, querySize, referenceSize;
   std::size_t lockSampleRate = 8 * 1024;
-  std::size_t size() const;
 };
 
 namespace detail {
@@ -36,14 +35,17 @@ struct Overlap {
   void update();
 };
 
-void SetToOne(sdsl::bit_vector&, std::size_t begin_, std::size_t end_);
+void SetToOne(sdsl::bit_vector &, std::size_t begin_, std::size_t end_);
+
+template <typename T>
+std::size_t interleavingSize(const InterleavingOpts &) noexcept;
 
 }; // namespace detail
 
 // ELM merge base class
 // ========================================================
 
-template <typename T> class ELMMergeBase {
+template <typename T, typename X> class ELMMergeBase {
 public:
   ELMMergeBase(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                std::size_t grainsize_)
@@ -52,6 +54,10 @@ public:
                                     .referenceSize = ref->nodes()}),
         data(), locks(), h(0) {
     assert(qry->k == ref->k);
+
+    data[0].resize(detail::interleavingSize<X>(opts));
+    data[1].resize(detail::interleavingSize<X>(opts));
+    locks.realloc(detail::interleavingSize<X>(opts), opts.lockSampleRate);
   }
 
   void Interleave() {
@@ -59,10 +65,16 @@ public:
       this->DoOneInterleave();
   }
 
+  void DummyInterleave() {
+    while (h < ref->k)
+      this->DoOneDummyInterleave();
+  }
+
   std::vector<int64_t> Fetch() {
     std::vector<int64_t> result(qry->W.size(), -1);
     oneapi::tbb::parallel_for(
-        oneapi::tbb::blocked_range<size_t>(0, opts.querySize, opts.grainSize),
+        oneapi::tbb::blocked_range<size_t>(0, detail::interleavingSize<X>(opts),
+                                           opts.grainSize),
         [&](oneapi::tbb::blocked_range<size_t> const &r) -> void {
           this->FetchRange(r.begin(), r.end(), result);
         });
@@ -101,10 +113,23 @@ protected:
   // call `InterleaveRange()` on each range and then call `NextIteration()`
   void DoOneInterleave() {
     oneapi::tbb::parallel_for(
-        oneapi::tbb::blocked_range<int64_t>(0, opts.querySize, opts.grainSize),
+        oneapi::tbb::blocked_range<int64_t>(
+            0, detail::interleavingSize<X>(opts), opts.grainSize),
         [&](const oneapi::tbb::blocked_range<int64_t> &r) -> void {
           this->InterleaveRange(r.begin(), r.end());
         });
+    this->NextIteration();
+  }
+
+  // Serial version of `DoOneInterleave()` for testing purposes
+  void DoOneDummyInterleave() {
+    std::size_t begin = 0, end;
+    while (begin < detail::interleavingSize<X>(opts)) {
+      end = std::min(begin + opts.grainSize, detail::interleavingSize<X>(opts));
+      this->InterleaveRange(static_cast<int64_t>(begin),
+                            static_cast<int64_t>(end));
+      begin = end;
+    }
     this->NextIteration();
   }
 
@@ -117,7 +142,7 @@ protected:
 // Small-query interleaving
 // ========================================================
 
-class ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>> {
+class ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>, ELMMergeSmall> {
   FRIEND_TEST(SmallMergeSequences, H1InterleavingStructure);
   FRIEND_TEST(SmallMergeSequences, H1InterleavingStructureGsize5);
   FRIEND_TEST(SmallMergeSequences, LastRefEdge);
@@ -127,7 +152,7 @@ class ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>> {
   FRIEND_TEST(SmallMergeSequences, FullInterleavingBiggerGrainsize);
   friend class IdenticalSequences;
   friend class DisjointSequences;
-  
+
 public:
   ELMMergeSmall(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
@@ -155,6 +180,12 @@ protected:
                           std::vector<int64_t> &) override final;
 };
 
+template <>
+inline std::size_t
+detail::interleavingSize<ELMMergeSmall>(const InterleavingOpts &opts) noexcept {
+  return opts.querySize;
+}
+
 std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
                                    const DeBruijnGraph *ref,
                                    std::size_t grainsize);
@@ -162,7 +193,19 @@ std::vector<int64_t> ClassifySmall(const DeBruijnGraph *qry,
 // Large-query interleaving
 // ========================================================
 
-class ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector> {
+namespace detail {
+
+struct GraphCursor {
+  const DeBruijnGraph *g;
+  int64_t i;
+
+  inline auto edge() const { return g->W[i]; }
+  inline auto operator++(int) { return g->l[i++]; }
+};
+
+} // namespace detail
+
+class ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector, ELMMergeLarge> {
   FRIEND_TEST(LargeMergeSequences, H1InterleavingStructure);
   FRIEND_TEST(LargeMergeSequences, H1InterleavingStructureGsize5);
   FRIEND_TEST(LargeMergeSequences, LastRefEdge);
@@ -172,7 +215,7 @@ class ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector> {
   FRIEND_TEST(LargeMergeSequences, FullInterleavingBiggerGrainsize);
   friend class IdenticalSequences;
   friend class DisjointSequences;
-  
+
 public:
   ELMMergeLarge(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
@@ -190,7 +233,7 @@ private:
   std::pair<int64_t, int64_t> edgesAt(int64_t) const;
 
   // Get pointers for current position in the interleaving
-  std::array<std::pair<const DeBruijnGraph*, int64_t>, 2> UpTo(int64_t) const;
+  std::array<detail::GraphCursor, 2> UpTo(int64_t) const;
 
   // Count occurrences of edges up to a position in the interleaving
   detail::Input From(int64_t, int64_t) const;
@@ -204,6 +247,12 @@ protected:
   virtual void FetchRange(int64_t, int64_t,
                           std::vector<int64_t> &) override final;
 };
+
+template <>
+inline std::size_t
+detail::interleavingSize<ELMMergeLarge>(const InterleavingOpts &opts) noexcept {
+  return opts.referenceSize + opts.querySize;
+}
 
 std::vector<int64_t> ClassifyLarge(const DeBruijnGraph *qry,
                                    const DeBruijnGraph *ref,
