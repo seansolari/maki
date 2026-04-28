@@ -4,7 +4,6 @@
 
 ## High priority
 
-  - Classification algorithm.
   - Counting graph creation from FastQ.
 
 ## Low priority
@@ -14,6 +13,14 @@
   - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
 
 ## Planned updates
+
+### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
+
+  - Migrate source code
+    - [DONE] Migrate read parsing code
+    - Implement counting graph construction in build module
+  - Migrate fastq parsing unit tests
+  - Implement counting graph tests
 
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 
@@ -26,7 +33,7 @@
   - [DONE] Migrate small merge tests
   - [DONE] Implement large merge tests
     - [DONE] Create equivalent tests to small merge tests
-  - Implement generic merge test suite
+  - [DONE] Implement generic merge test suite
 
 ### Tue 27 Jan. 2026 - Unit Testing
 
