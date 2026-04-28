@@ -1,10 +1,9 @@
 #pragma once
-#include "maki/build/io/fasta.hpp"
 #include "maki/build/graph/construct_cdbg.hpp"
-#include <random>
-#include <string>
+#include "maki/build/io/fasta.hpp"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <string>
 
 using ::testing::ContainerEq;
 using ::testing::ElementsAreArray;
@@ -30,35 +29,38 @@ inline void MakeGraph(std::string data, size_t k, size_t s,
   MakeGraph(fna, c, k, s, bufferPath);
 }
 
-inline std::vector<std::string>
-GenerateRandomKmers(size_t k, size_t count, uint32_t seed,
-                    const std::string &alphabet = "ACGT") {
-  std::mt19937 rng(seed);
-  std::uniform_int_distribution<> dist(0, alphabet.size() - 1);
-
-  std::unordered_set<std::string> unique;
-  while (unique.size() < count) {
-    std::string km(k, 'A');
-    for (size_t i = 0; i < k; ++i)
-      km[i] = alphabet[dist(rng)];
-    unique.insert(km);
+inline void MakeGraph(const std::vector<std::string> &kmers, size_t k, size_t s,
+                      fs::path &bufferPath) {
+  for (const auto &kmer : kmers) {
+    ASSERT_EQ(kmer.size(), k + 1);
   }
-
-  return {unique.begin(), unique.end()};
+  MakeGraph(">header\n" +
+                std::accumulate(kmers.begin(), kmers.end(), std::string("N")) +
+                "\n",
+            k, s, bufferPath);
 }
 
-// Guarantees controlled overlap between two sets
-inline void GenerateOverlappingKmers(size_t k, size_t total,
-                                     double overlap_ratio, uint32_t seed,
-                                     std::vector<std::string> &out1,
-                                     std::vector<std::string> &out2) {
-  auto base = GenerateRandomKmers(k, total, seed);
+inline static std::string random_dna_sequence(size_t length, uint32_t seed) {
+  static const char alphabet[] = {'A', 'C', 'G', 'T'};
+  std::mt19937 rng(seed);
+  std::uniform_int_distribution<int> dist(0, 3);
 
-  size_t shared = static_cast<size_t>(total * overlap_ratio);
-  out1.assign(base.begin(), base.end());
-  out2.assign(base.begin(), base.begin() + shared);
+  std::string s;
+  s.reserve(length);
+  for (size_t i = 0; i < length; ++i) {
+    s.push_back(alphabet[dist(rng)]);
+  }
+  return s;
+}
 
-  auto extra = GenerateRandomKmers(k, total - shared, seed + 1);
-
-  out2.insert(out2.end(), extra.begin(), extra.end());
+inline static std::string apply_snp(const std::string &seq, std::size_t position) {
+  std::string mutated = seq;
+  assert(position < mutated.size());
+  for (char c : std::array<char,4>{'A', 'C', 'G', 'T'}) {
+    if (mutated[position] != c) {
+      mutated[position] = c;
+      break;
+    }
+  }
+  return mutated;
 }

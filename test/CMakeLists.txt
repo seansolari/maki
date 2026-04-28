@@ -51,6 +51,7 @@ ADD_TEST ("core/graph/test_navigate.cpp")
 
 ADD_TEST ("classify/interleave/test_elm_merge_small.cpp")
 ADD_TEST ("classify/interleave/test_elm_merge_large.cpp")
+ADD_TEST ("classify/interleave/test_merge.cpp")
 
 # parsing
 
