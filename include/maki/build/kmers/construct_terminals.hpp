@@ -2,7 +2,7 @@
 #pragma once
 #include <vector>
 
-#include "./buffers/terminals.hpp"
+#include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/seq/concepts.hpp"
 
 /**
@@ -15,16 +15,25 @@ planTerminalRanges(const std::vector<const SequenceContainer *> &data_,
 
 /**
  * Extract all terminal sequences into a `TerminalBuffer`. Result is sorted
- * and unique.
+ * and made unique.
  */
 TerminalBuffer
 extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,
                        std::size_t k_);
 
+namespace detail {
+
+class TerminalsGate {
+
+};
+
+}
+
 /**
  * Extract unique terminal sequences into a `TerminalBuffer` by
  * competetive multi-threaded insertion of sequences and an atomic
- * pressence-absence pre-insertion check. Results are unique but not sorted.
+ * pressence-absence pre-insertion check. Results is sorted and
+ * made unique.
  */
 TerminalBuffer
 extractTerminalsDense(const std::vector<const SequenceContainer *> &data_,

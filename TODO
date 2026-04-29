@@ -1,6 +1,6 @@
 # To do:
 
-*Last updated*: Wed 22 Apr. 2026
+*Last updated*: Wed 29 Apr. 2026
 
 ## High priority
 
@@ -18,10 +18,17 @@
 
   - Migrate source code
     - [DONE] Migrate read parsing code
-    - Implement competitive terminal extraction from read data
-    - Implement counting graph construction in build module
-  - Migrate fastq parsing unit tests
+    - Implement competitive terminal extraction from read data and counting graph construction in build module
+      - Implement CountsBuffer
+      - Implement pushNode for terminals (interleave_buffers.[hc]pp)
+      - Implement TerminalsGate (construct_terminals.[hc]pp)
+      - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
+  - [DONE] Migrate fastq parsing unit tests
   - Implement counting graph tests
+    - CountsBuffer tests
+    - pushNode tests
+    - TerminalsGate tests
+    - ...
 
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 

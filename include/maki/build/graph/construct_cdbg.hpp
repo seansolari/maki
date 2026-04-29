@@ -40,9 +40,7 @@ namespace cdbg {
 
 struct Buffers {
   Buffers(std::size_t length, std::size_t width, std::size_t k,
-          std::size_t keff)
-      : kmers(length, width, k, keff), temp(length, width, k, keff),
-        terminals(), b(), t() {}
+          std::size_t keff);
 
   /**
    * Collect k-mers with given suffix `s_` from input sequences.
@@ -55,8 +53,7 @@ struct Buffers {
    */
   void setTerminals(TerminalRange &&t_);
 
-  KmerBuffer kmers;
-  KmerBuffer temp;
+  KmerBuffer kmers, temp;
   TerminalRange terminals;
   sdsl::int_vector<2> b, t;
 };

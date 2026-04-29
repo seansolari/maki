@@ -4,6 +4,8 @@
 #include "construct_common.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
 #include "maki/build/graph/archive/vector_writer.hpp"
+#include "maki/build/graph/interleave_buffers.hpp"
+#include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
 
@@ -21,6 +23,38 @@ namespace wdbg {
 //        k-mer in the sample graph.
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// Intermediate data
+// -----------------------------------------------------------------------------
+
+struct Buffers {
+  Buffers(std::size_t length, std::size_t width, std::size_t k,
+          std::size_t keff);
+
+  /**
+   * Collect k-mers with given suffix `s_` from input sequences.
+   */
+  void collectKmers(const std::vector<const SequenceContainer *> &seqs_,
+                    const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
+
+  /**
+   * Load terminals data.
+   */
+  void setTerminals(TerminalRange &&t_);
+
+  TerminalBuffer kmers, temp;
+  TerminalRange terminals;
+  sdsl::int_vector<2> b, t;
+};
+
+// -----------------------------------------------------------------------------
+// Output data
+// -----------------------------------------------------------------------------
+
+using EdgeSink = SdslIntVectorOnDiskSink<4>;
+using SuccSink = SdslIntVectorOnDiskSink<1>;
+
+
 using WDBGSinks =
     std::tuple<SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> ->
                                              // sdsl::int_vector<4>
@@ -30,10 +64,22 @@ using WDBGSinks =
                                              // std::vector<uint64_t>
                >;
 
-struct Buffers {
-  sdsl::int_vector<4> edges;
-  sdsl::bit_vector succ;
-  std::vector<uint64_t> counts;
+// -----------------------------------------------------------------------------
+// Pipeline
+// -----------------------------------------------------------------------------
+
+struct SuffixwiseTerminals {
+  void setPool(std::shared_ptr<BundlePool> &p);
+  std::unique_ptr<Bundle> operator()(uint64_t) const;
+
+protected:
+  // input data
+  std::size_t s_;
+  push_summary *str_;
+
+  // input buffers
+  const std::vector<const SequenceContainer *> &seqs_;
+  const TerminalRange &terminals_;
 };
 
 // -----------------------------------------------------------------------------

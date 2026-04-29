@@ -18,6 +18,11 @@ namespace cdbg {
 // Intermediate data
 // -----------------------------------------------------------------------------
 
+Buffers::Buffers(std::size_t length, std::size_t width, std::size_t k,
+                 std::size_t keff)
+    : kmers(length, width, k, keff), temp(length, width, k, keff), terminals(),
+      b(), t() {}
+
 void Buffers::collectKmers(const std::vector<const SequenceContainer *> &seqs_,
                            const std::vector<SuffixTable> &blocks_,
                            ShortSuffix s_) {
@@ -202,7 +207,7 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
   g.F[2] = inp.str.F[0] + inp.str.F[1];
   g.F[3] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2];
   g.F[4] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2] + inp.str.F[3];
-  
+
   g.C[0] = 0u;
   g.C[1] = inp.str.C[0];
   g.C[2] = inp.str.C[0] + inp.str.C[1];
@@ -240,7 +245,6 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
 
   LOG_INFO() << "Extracting terminal k-mers";
   auto terminals = extractTerminalsSparse(data, params.kmer_size);
-
   LOG_INFO() << "Total terminal entries = " << terminals.size();
 
   Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
