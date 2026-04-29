@@ -42,7 +42,7 @@ int filter_main(const BuildParameters &params) {
                        (std::size_t)params.threads, (std::size_t)params.k);
 
   // suffix-wise buffer construction
-  cdbg::BuildOptions ops;
+  dbg::BuildOptions ops;
   auto g = cdbg::construct(toView(filters), MetaColours(std::move(colours.ids)),
                            {.kmer_size = params.k,
                             .suffix_size = params.s,

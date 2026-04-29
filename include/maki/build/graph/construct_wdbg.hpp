@@ -1,6 +1,14 @@
 
 #pragma once
 
+#include "construct_common.hpp"
+#include "maki/build/graph/archive/sdsl_writer.hpp"
+#include "maki/build/graph/archive/vector_writer.hpp"
+#include "maki/core/graph/wdbg.hpp"
+#include "maki/core/seq/concepts.hpp"
+
+namespace wdbg {
+
 // -----------------------------------------------------------------------------
 // Construct abundance-weighted succinct de Bruijn graph
 // -----------------------------------------------------------------------------
@@ -13,20 +21,26 @@
 //        k-mer in the sample graph.
 // -----------------------------------------------------------------------------
 
-#include <utility>
+using WDBGSinks =
+    std::tuple<SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> ->
+                                             // sdsl::int_vector<4>
+               SdslIntVectorInMemorySink<1>, // succ: sdsl::bit_vector ->
+                                             // sdsl::bit_vector
+               VectorInMemorySink<uint64_t>  // counts: std::vector<uint64_t> ->
+                                             // std::vector<uint64_t>
+               >;
 
-#include "maki/build/graph/archive/sdsl_writer.hpp"
-#include "maki/build/graph/archive/vector_writer.hpp"
-
-using WDBGSinks = std::tuple<
-    SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> -> sdsl::int_vector<4>
-    SdslIntVectorInMemorySink<1>, // succ: sdsl::bit_vector -> sdsl::bit_vector
-    VectorInMemorySink<uint64_t>  // counts: std::vector<uint64_t> -> std::vector<uint64_t>
-    >;
-
-struct Buffers
-{
+struct Buffers {
   sdsl::int_vector<4> edges;
   sdsl::bit_vector succ;
   std::vector<uint64_t> counts;
 };
+
+// -----------------------------------------------------------------------------
+// API
+// -----------------------------------------------------------------------------
+
+WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
+                             dbg::BuildOptions params = {});
+
+} // namespace wdbg

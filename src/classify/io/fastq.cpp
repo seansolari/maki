@@ -73,6 +73,10 @@ detail::CharBuffer::CharBuffer(std::size_t size)
     : _data(reinterpret_cast<char *>(std::malloc(size * sizeof(char)))),
       _capacity(size), _size(0) {}
 
+std::size_t detail::CharBuffer::bytesRemaining() const noexcept {
+  return _capacity - _size;
+}
+
 void detail::CharBuffer::flushTo(detail::CharBuffer &dest) {
   assert(_size < dest.bytesRemaining());
   std::copy(_data, _data + _size, dest.back());
@@ -134,12 +138,11 @@ std::ostream &detail::operator<<(std::ostream &os,
   return os;
 }
 
-constexpr std::size_t detail::CharBuffer::count(const char c) const {
+std::size_t detail::CharBuffer::count(const char c) const {
   return std::count(_data, _data + _size, c);
 }
 
-constexpr std::size_t detail::CharBuffer::countTo(const char *end_,
-                                                  const char c) const {
+std::size_t detail::CharBuffer::countTo(const char *end_, const char c) const {
   return std::count(const_cast<const char *>(_data), end_, c);
 }
 
@@ -458,9 +461,8 @@ std::size_t detail::numKmers(const ReadVector &v, std::size_t k) {
 
 std::size_t detail::numFragments(const ReadVector &data) {
   return std::accumulate(data.cbegin(), data.cend(), (std::size_t)0,
-                         [](std::size_t total, const Read &rec) -> std::size_t {
-                           return total + rec.sequences[0].size() +
-                                  rec.sequences[1].size();
+                         [](std::size_t total, const Read &r) -> std::size_t {
+                           return total + r.numFragments();
                          });
 }
 

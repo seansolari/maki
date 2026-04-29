@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include "construct_common.hpp"
 #include "interleave_buffers.hpp"
 #include "maki/build/graph/archive/archive_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
@@ -32,18 +33,6 @@ namespace cdbg {
 //    3) Colour archive - Holds colour information in chunked format for
 //        disk-based traversal and lookup.
 // -----------------------------------------------------------------------------
-
-struct BuildOptions {
-  // Algorithm parameters
-  std::size_t kmer_size = 31;
-  std::size_t suffix_size = 8;
-  // Output parameters
-  std::filesystem::path out;
-  // Space parameters
-  std::size_t pool_size = 16;
-  std::size_t reserve_per_chunk = 0;
-  std::size_t chunks() const;
-};
 
 // -----------------------------------------------------------------------------
 // Intermediate data
@@ -153,6 +142,6 @@ protected:
 // -----------------------------------------------------------------------------
 
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
-                             MetaColours &&cmap, BuildOptions params = {});
+                             MetaColours &&cmap, dbg::BuildOptions params = {});
 
 } // namespace cdbg

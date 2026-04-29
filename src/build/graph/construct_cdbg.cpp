@@ -14,13 +14,6 @@
 
 namespace cdbg {
 
-std::size_t BuildOptions::chunks() const {
-  auto n = ShortSuffix::numSuffixes(suffix_size);
-  LOG_INFO() << "Configured build to use " << n
-             << " suffix chunks (suffix size = " << suffix_size << ")";
-  return n;
-}
-
 // -----------------------------------------------------------------------------
 // Intermediate data
 // -----------------------------------------------------------------------------
@@ -184,7 +177,7 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
 
   LOG_INFO() << "Finalising coloured de Bruijn graph (k=" << k << ")";
 
-  ColouredGraphFiles outp = graphFiles(out);
+  ColouredGraphFiles outp = ColouredGraph::GraphFiles(out);
 
   LOG_INFO() << "Constructing edge wavelet matrix";
   initW(inp.files.edges, outp.W, out);
@@ -234,7 +227,7 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
 // -----------------------------------------------------------------------------
 
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
-                             MetaColours &&cmap, BuildOptions params) {
+                             MetaColours &&cmap, dbg::BuildOptions params) {
 
   LOG_INFO() << "Starting CDBG construction";
   LOG_INFO() << "Input sequences: " << data.size();

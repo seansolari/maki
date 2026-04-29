@@ -1,17 +1,15 @@
 
-#include "maki/core/graph/cdbg.hpp"
-#include <cereal/archives/binary.hpp>
+#include "maki/core/graph/wdbg.hpp"
 
-ColouredGraphFiles ColouredGraph::GraphFiles(fs::path base) {
-  return ColouredGraphFiles{.l = base / "1.dat",
+WeightedGraphFiles WeightedGraph::GraphFiles(fs::path base) {
+  return WeightedGraphFiles{.l = base / "1.dat",
                             .lR = base / "2.dat",
                             .lS = base / "3.dat",
                             .W = base / "4.dat",
-                            .archive = base / "5.dat",
                             .meta = base / "6.dat"};
 }
 
-void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
+void WeightedGraph::FromDisk(WeightedGraph &g, const std::string &path) {
   auto files = GraphFiles(path);
 
   // Load metadata
@@ -32,7 +30,5 @@ void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
 
   // Load `W` matrix
   sdsl::load_from_file(g.W, files.W);
-
-  // Initialise colour archive reader
-  g.carch = std::make_unique<ArchiveReader>(files.archive);
 }
+

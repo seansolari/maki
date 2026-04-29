@@ -42,9 +42,7 @@ public:
   inline const char *back() const noexcept { return _data + _size; }
   inline std::size_t size() const noexcept { return _size; }
   inline std::size_t capacity() const noexcept { return _capacity; }
-  inline std::size_t bytesRemaining() const noexcept {
-    return _capacity - _size;
-  }
+  std::size_t bytesRemaining() const noexcept;
   inline bool empty() const { return _size == 0; }
   inline void clear() { _size = 0; }
   void flushTo(CharBuffer &dest);
@@ -55,8 +53,8 @@ public:
   void read(std::istream &);
   void flushOverflow(const char *end_, CharBuffer &out);
   inline char operator[](std::size_t i_) const { return _data[i_]; }
-  constexpr std::size_t count(const char c) const;
-  constexpr std::size_t countTo(const char *end_, const char c) const;
+  std::size_t count(const char c) const;
+  std::size_t countTo(const char *end_, const char c) const;
 
 private:
   char *_data;
