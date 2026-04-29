@@ -18,6 +18,7 @@
 
   - Migrate source code
     - [DONE] Migrate read parsing code
+    - Implement competitive terminal extraction from read data
     - Implement counting graph construction in build module
   - Migrate fastq parsing unit tests
   - Implement counting graph tests
