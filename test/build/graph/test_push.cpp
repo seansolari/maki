@@ -34,7 +34,7 @@ TEST_F(GraphInsertTests, WriteColouredEdges) {
   ArchivePayload carch;
   MetaColours cmap(8);
 
-  pushNode(pkt, edges, succ, carch, cmap, 1u /* A */);
+  pushNode(pkt, edges, succ, 1u /* A */, carch, cmap);
 
   // Check graph structure
   EXPECT_EQ(pkt.block, 0);
@@ -78,8 +78,8 @@ TEST_F(GraphInsertTests, InsertColouredKmers) {
   MetaColours cmap(7);
 
   packet pkt{};
-  pushNodes(pkt, buffer.begin(), buffer.end(), B.begin(), edges, succ, carch,
-            cmap, 3u /* T */);
+  pushNodes(pkt, buffer.begin(), buffer.end(), B.begin(), edges, succ,
+            3u /* T */, carch, cmap);
 
   // Check graph structure
   sdsl::int_vector<4> Xedges = {0b1010, 0b1100, 0b1001, 0b0001, 0b1010, 0b0010};
@@ -136,7 +136,7 @@ TEST_F(GraphInsertTests, InsertTerminals) {
   MetaColours cmap(7);
 
   auto view = terminals.asRange();
-  auto ps = pushRange(view, B.begin(), edges, succ, carch, cmap, 3u /* T */);
+  auto ps = pushRange(view, B.begin(), edges, succ, 3u /* T */, carch, cmap);
 
   // Check graph structure
   sdsl::int_vector<4> Xedges = {0b1001, 0b1010, 0b1011, 0b1011,
@@ -318,8 +318,8 @@ TEST_F(GraphFlushingTests, FlushRange) {
   MetaColours cmap(7);
 
   auto terms = terminals.asRange();
-  interleave(kmers, Bk.begin(), terms, Bt.begin(), edges, succ, carch, cmap,
-             /* T */ 3);
+  interleave(kmers, Bk.begin(), terms, Bt.begin(), edges, succ, /* T */ 3,
+             carch, cmap);
 
   // Check graph structure
   sdsl::int_vector<4> Xedges = {0b1001, 0b1011, 0b1100, 0b1001, 0b1001,

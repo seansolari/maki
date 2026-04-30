@@ -120,8 +120,8 @@ SuffixwiseKmers::_extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
   auto bnd = _getbundle(idx);
   auto &[edges, succ, carch] = bnd->payloads;
 
-  auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ, carch,
-                          *cmap_, sfx.msb());
+  auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ,
+                          sfx.msb(), carch, *cmap_);
 
   _count(counts);
 
@@ -144,7 +144,7 @@ std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t idx,
 
   auto counts =
       interleave(bfr->kmers, bfr->b.begin(), bfr->terminals, bfr->t.begin(),
-                 edges, succ, carch, *cmap_, sfx.msb());
+                 edges, succ, sfx.msb(), carch, *cmap_);
 
   _count(counts);
 
