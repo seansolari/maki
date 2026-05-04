@@ -19,12 +19,13 @@
   - Migrate source code
     - [DONE] Migrate read parsing code
     - Implement competitive terminal extraction from read data and counting graph construction in build module
-      - Implement CountsBuffer
+      - [DONE] Implement CountsBuffer
       - Implement pushNode for terminals (interleave_buffers.[hc]pp)
       - Implement TerminalsGate (construct_terminals.[hc]pp)
       - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
   - [DONE] Migrate fastq parsing unit tests
   - Implement counting graph tests
+    - wap_vector
     - CountsBuffer tests
     - pushNode tests
     - TerminalsGate tests
