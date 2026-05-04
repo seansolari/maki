@@ -69,6 +69,7 @@ using WDBGSinks =
 // -----------------------------------------------------------------------------
 
 struct SuffixwiseTerminals {
+
   void setPool(std::shared_ptr<BundlePool> &p);
   std::unique_ptr<Bundle> operator()(uint64_t) const;
 

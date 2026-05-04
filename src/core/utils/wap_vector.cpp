@@ -2,12 +2,19 @@
 #include "maki/core/utils/wap_vector.hpp"
 #include "maki/core/utils/algo.hpp"
 #include <limits>
+#include <sdsl/io.hpp>
 
 wo_wap_vector::wo_wap_vector(std::size_t reserve_) {
   is_u8.reserve(reserve_);
   is_u16.reserve(reserve_);
   is_u32.reserve(reserve_);
   is_u64.reserve(reserve_);
+}
+
+wo_wap_vector::wo_wap_vector(const std::vector<uint64_t> &data)
+    : wo_wap_vector::wo_wap_vector(data.size()) {
+  for (const auto &x : data)
+    push_back(x);
 }
 
 std::size_t wo_wap_vector::size() const {
@@ -98,4 +105,24 @@ void ro_wap_vector::init_support() {
   sdsl::util::init_support(rs_u16, &is_u16);
   sdsl::util::init_support(rs_u32, &is_u32);
   sdsl::util::init_support(rs_u64, &is_u64);
+}
+
+std::size_t detail::size_in_bytes(const wo_wap_vector &vec) {
+  return sdsl::size_in_bytes(vec.is_u8) + sdsl::size_in_bytes(vec.is_u16) +
+         sdsl::size_in_bytes(vec.is_u32) + sdsl::size_in_bytes(vec.is_u64) +
+         (sizeof(uint8_t) * vec.u8.capacity()) +
+         (sizeof(uint16_t) * vec.u16.capacity()) +
+         (sizeof(uint32_t) * vec.u32.capacity()) +
+         (sizeof(uint64_t) * vec.u64.capacity());
+}
+
+std::size_t detail::size_in_bytes(const ro_wap_vector &vec) {
+  return sdsl::size_in_bytes(vec.is_u8) + sdsl::size_in_bytes(vec.is_u16) +
+         sdsl::size_in_bytes(vec.is_u32) + sdsl::size_in_bytes(vec.is_u64) +
+         sdsl::size_in_bytes(vec.rs_u8) + sdsl::size_in_bytes(vec.rs_u16) +
+         sdsl::size_in_bytes(vec.rs_u32) + sdsl::size_in_bytes(vec.rs_u64) +
+         (sizeof(uint8_t) * vec.u8.capacity()) +
+         (sizeof(uint16_t) * vec.u16.capacity()) +
+         (sizeof(uint32_t) * vec.u32.capacity()) +
+         (sizeof(uint64_t) * vec.u64.capacity());
 }

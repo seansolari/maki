@@ -50,7 +50,7 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
 }
 
 void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-              uint8_t msb_dna5, CountsPayload &c) {
+              uint8_t msb_dna5, CountBuffer &c) {
   if (pkt.data.empty()) {
     return;
   }

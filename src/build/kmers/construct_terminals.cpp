@@ -41,7 +41,7 @@ extractTerminalsDense(const std::vector<const SequenceContainer *> &data_,
                       std::size_t k_) {
   TerminalBuffer buffer(ShortSuffix::numSuffixes(k_), k_,
                         TerminalBuffer::autofit_tag);
-  detail::TerminalsGate gates(k_);
-  buffer.fill(data_, gates);
+  // detail::TerminalsGate gates(k_);
+  // buffer.fill(data_, gates);
   return buffer.OOPsort();
 }

@@ -7,9 +7,9 @@
 #include <sdsl/int_vector.hpp>
 
 #include "archive/archive_writer.hpp"
-#include "archive/counts_writer.hpp"
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/core/graph/archive/counts.hpp"
 #include "maki/core/seq/io.hpp"
 
 struct value_comp {
@@ -49,7 +49,7 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
  * structure (edges, succ) as well as edge count data.
  */
 void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-              uint8_t msb_dna5, CountsPayload &c);
+              uint8_t msb_dna5, CountBuffer &c);
 
 /**
  * Iterate over k-mers and push structure into graph buffers.
