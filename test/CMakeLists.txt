@@ -55,6 +55,7 @@ ADD_TEST ("classify/interleave/test_elm_merge_large.cpp")
 ADD_TEST ("classify/interleave/test_merge.cpp")
 
 ADD_TEST ("core/utils/test_wap_vector.cpp")
+ADD_TEST ("core/graph/archive/test_counts.cpp")
 
 ## trees
 

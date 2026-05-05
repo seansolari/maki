@@ -25,8 +25,8 @@
       - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
   - [DONE] Migrate fastq parsing unit tests
   - Implement counting graph tests
-    - wap_vector
-    - CountsBuffer tests
+    - [DONE] wap_vector
+    - [DONE] CountsBuffer tests
     - pushNode tests
     - TerminalsGate tests
     - ...

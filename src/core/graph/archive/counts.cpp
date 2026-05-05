@@ -1,6 +1,9 @@
 
 #include "maki/core/graph/archive/counts.hpp"
 #include "maki/core/utils/algo.hpp"
+#include "maki/core/utils/wap_vector.hpp"
+#include <cstdint>
+#include <sdsl/io.hpp>
 
 NodeCountClass NodeClassifier::classify(const NodeInsertInfo &n) const {
   if (n.outdegree == 0)
@@ -61,7 +64,7 @@ bool CountBuffer::empty() const noexcept {
   return is_single.empty();
 }
 
-std::size_t CountBuffer::size() const {
+std::size_t CountBuffer::node_count() const {
   assert(is_uniform.size() == is_single.size());
   assert(is_delta.size() == is_single.size());
   assert(is_explicit.size() == is_single.size());
@@ -131,10 +134,10 @@ void CountBuffer::append(const CountBuffer &rhs) {
   vector_append(is_delta, rhs.is_delta);
   vector_append(is_explicit, rhs.is_explicit);
   base_counts.append(rhs.base_counts);
-  vector_append_add(delta_offsets, rhs.delta_offsets, delta_offsets.size());
+  vector_append_add(delta_offsets, rhs.delta_offsets, delta_counts.size());
   vector_append(delta_counts, rhs.delta_counts);
   vector_append_add(explicit_offsets, rhs.explicit_offsets,
-                    explicit_offsets.size());
+                    explicit_counts.size());
   explicit_counts.append(rhs.explicit_counts);
 }
 
@@ -159,7 +162,7 @@ CompressedCountBuffer::CompressedCountBuffer(CountBuffer &&raw_)
   init_support();
 }
 
-std::size_t CompressedCountBuffer::size() const {
+std::size_t CompressedCountBuffer::node_count() const {
   assert(is_uniform.size() == is_single.size());
   assert(is_delta.size() == is_single.size());
   assert(is_explicit.size() == is_single.size());
@@ -197,4 +200,30 @@ uint64_t CompressedCountBuffer::edge_count(uint64_t node,
 void CompressedCountBuffer::init_support() {
   sdsl::util::init_support(rs_delta, &is_delta);
   sdsl::util::init_support(rs_explicit, &is_explicit);
+}
+
+std::size_t detail::size_in_bytes(const CountBuffer &vec) {
+  return sdsl::size_in_bytes(vec.is_single) +
+         sdsl::size_in_bytes(vec.is_uniform) +
+         sdsl::size_in_bytes(vec.is_delta) +
+         sdsl::size_in_bytes(vec.is_explicit) +
+         detail::size_in_bytes(vec.base_counts) +
+         (sizeof(uint64_t) * vec.delta_offsets.capacity()) +
+         (sizeof(int16_t) * vec.delta_counts.capacity()) +
+         (sizeof(uint64_t) * vec.explicit_offsets.capacity()) +
+         detail::size_in_bytes(vec.explicit_counts);
+}
+
+std::size_t detail::size_in_bytes(const CompressedCountBuffer &vec) {
+  return sdsl::size_in_bytes(vec.is_single) +
+         sdsl::size_in_bytes(vec.is_uniform) +
+         sdsl::size_in_bytes(vec.is_delta) +
+         sdsl::size_in_bytes(vec.is_explicit) +
+         sdsl::size_in_bytes(vec.rs_delta) +
+         sdsl::size_in_bytes(vec.rs_explicit) +
+         detail::size_in_bytes(vec.base_counts) +
+         sdsl::size_in_bytes(vec.delta_offsets) +
+         (sizeof(int16_t) * vec.delta_counts.capacity()) +
+         sdsl::size_in_bytes(vec.explicit_offsets) +
+         detail::size_in_bytes(vec.explicit_counts);
 }

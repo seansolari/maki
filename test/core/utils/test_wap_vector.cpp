@@ -49,9 +49,37 @@ TEST(WidthAdaptivePacking, Clear) {
   std::mt19937_64 rng(42);
   constexpr std::size_t total = 1'000;
   auto truth = random_vector_equal_bits_bulk(rng, total);
-  
+
   wo_wap_vector interm(truth);
   EXPECT_EQ(interm.size(), total);
   interm.clear();
   EXPECT_EQ(interm.size(), 0);
+}
+
+TEST(WidthAdaptivePacking, Append100Even) {
+  std::mt19937_64 rng(42);
+  constexpr std::size_t totalA = 100, totalB = 1'000;
+  TestAppendRaw(random_vector_equal_bits_bulk(rng, totalA),
+                random_vector_equal_bits_bulk(rng, totalB));
+}
+
+TEST(WidthAdaptivePacking, Append100Unbalanced) {
+  std::mt19937_64 rng(42);
+  constexpr std::size_t totalA = 100, totalB = 1'000;
+  TestAppendRaw(random_vector_weighted_bits_bulk(rng, totalA, 4.0),
+                random_vector_weighted_bits_bulk(rng, totalB, 4.0));
+}
+
+TEST(WidthAdaptivePacking, CommutativeAppend100Even) {
+  std::mt19937_64 rng(42);
+  constexpr std::size_t totalA = 1'000, totalB = 10'000;
+  TestAppendCommutative(random_vector_equal_bits_bulk(rng, totalA),
+                        random_vector_equal_bits_bulk(rng, totalB));
+}
+
+TEST(WidthAdaptivePacking, CommutativeAppend100Unbalanced) {
+  std::mt19937_64 rng(42);
+  constexpr std::size_t totalA = 1'000, totalB = 10'000;
+  TestAppendCommutative(random_vector_weighted_bits_bulk(rng, totalA, 4.0),
+                        random_vector_weighted_bits_bulk(rng, totalB, 4.0));
 }

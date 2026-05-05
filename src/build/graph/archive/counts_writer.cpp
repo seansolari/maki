@@ -3,5 +3,5 @@
 
 std::size_t CountBufferSink::write(const CountBuffer &pld) {
   data.append(pld);
-  return pld.size();
+  return pld.node_count();
 }

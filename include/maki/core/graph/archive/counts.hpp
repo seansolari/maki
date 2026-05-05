@@ -5,6 +5,16 @@
 #include <sdsl/enc_vector.hpp>
 #include <sdsl/rrr_vector.hpp>
 
+class CountBuffer;
+class CompressedCountBuffer;
+
+namespace detail {
+
+std::size_t size_in_bytes(const CountBuffer &);
+std::size_t size_in_bytes(const CompressedCountBuffer &);
+
+} // namespace detail
+
 /*
  * Node classification following Karasikov et al. - each node belongs to one
  * class.
@@ -42,12 +52,13 @@ private:
 
 class CountBuffer {
   friend class CompressedCountBuffer;
+  friend std::size_t detail::size_in_bytes(const CountBuffer &);
 
 public:
   void reserve(std::size_t size_);
   void clear();
   bool empty() const noexcept;
-  std::size_t size() const;
+  std::size_t node_count() const;
   void insert_node(const NodeInsertInfo &node);
   void append(const CountBuffer &rhs);
 
@@ -64,9 +75,12 @@ protected:
 };
 
 class CompressedCountBuffer {
+  friend std::size_t detail::size_in_bytes(const CompressedCountBuffer &);
+
+public:
   CompressedCountBuffer(const CountBuffer &raw_);
   CompressedCountBuffer(CountBuffer &&raw_);
-  std::size_t size() const;
+  std::size_t node_count() const;
   uint64_t edge_count(uint64_t node, uint32_t edge_rank) const;
 
 private:
