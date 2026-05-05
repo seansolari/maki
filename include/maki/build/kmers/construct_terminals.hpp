@@ -21,14 +21,6 @@ TerminalBuffer
 extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,
                        std::size_t k_);
 
-namespace detail {
-
-class TerminalsGate {
-
-};
-
-}
-
 /**
  * Extract unique terminal sequences into a `TerminalBuffer` by
  * competetive multi-threaded insertion of sequences and an atomic
@@ -37,4 +29,4 @@ class TerminalsGate {
  */
 TerminalBuffer
 extractTerminalsDense(const std::vector<const SequenceContainer *> &data_,
-                      std::size_t k_);
+                      std::size_t s_);

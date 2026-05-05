@@ -196,10 +196,17 @@ public:
 
 public:
   /**
-   * Fill with terminal sequences.
+   * Fill terminal sequences into disjoint regions.
    */
   void fill(const std::vector<const SequenceContainer *> &data_,
             const std::vector<size_t> &blocks_);
+
+  /**
+   * Competitively fill unique terminal sequences.
+   */
+  void fill(const std::vector<const SequenceContainer *> &data_,
+            LongSuffixGate &lock);
+
   /**
    * Fill with k-mer sequences that have a specific suffix.
    */
@@ -210,10 +217,16 @@ public:
   iterator insert(iterator it, Dna4SequenceConstIter begin,
                   Dna4SequenceConstIter end, bool endIsTerminal,
                   ShortSuffix key);
+  /**
+   * Lock-based insert
+   */
+  void insert(LongSuffixGate &lock, Dna4SequenceConstIter begin,
+              Dna4SequenceConstIter end, bool endIsTerminal);
+
   void sort(TerminalBuffer *temp);
   void sort();
   void unique();
-  TerminalBuffer OOPsort() const;
+  TerminalBuffer OOPsort(bool makeUnique = true) const;
   TerminalRange asRange() const;
 };
 

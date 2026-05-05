@@ -925,6 +925,76 @@ TEST_F(CountChunkedGenomeTests, ExtractTerminals100) {
   checkTerminals(buffer);
 }
 
+class SuffixGateExtract : public testing::Test {
+protected:
+  SuffixGateExtract() : s(4), c(), genomes() {}
+
+  uint8_t s;
+  Colours c;
+  std::vector<Dna4Genome> genomes;
+
+  void fillGenomes(std::size_t n_) {
+    genomes.resize(n_);
+
+    for (std::size_t i = 0; i < n_; ++i) {
+      ParseFastaToGenome(genomes[i], STRING(SMALL_SEQ), c, s);
+    }
+  }
+
+  std::vector<const SequenceContainer *> localView() {
+    std::vector<const SequenceContainer *> res;
+    for (const auto &genome : genomes) {
+      res.push_back(&genome);
+    }
+    return res;
+  }
+
+  /*
+
+  GTGTCGGAGGCTCCATCGACATGGAACGAGCGGTGGCAAGAAGTTACTAATGAGCTGCTG
+
+  00000000 - 00000000 - 001       |        $$$$ - 0 - C
+  00000000 - 00000000 - 010       |        $$$$ - 0 - G
+  00010000 - 00000010 - 010       |        $$CA - 2 - G
+  01000000 - 00000001 - 000       |        $$$C - 1 - A
+  01100001 - 00000100 - 000       |        CAGC - 4 - A
+  10000000 - 00000001 - 011       |        $$$G - 1 - T
+  10000100 - 00000011 - 001       |        $CAG - 3 - C
+  10111000 - 00000011 - 011       |        $GTG - 3 - T
+  11100000 - 00000010 - 010       |        $$GT - 2 - G
+  11101110 - 00000100 - 001       |        GTGT - 4 - C
+
+  */
+
+  void CheckTerminals(const TerminalBuffer &buffer) {
+    auto expected = ndim::Matrix(
+        {{/* size */ 0b00000000, /* kmer */ 0b00000000, /* edge */ 0b00000001},
+         {/* size */ 0b00000000, /* kmer */ 0b00000000, /* edge */ 0b00000010},
+         {/* size */ 0b00000010, /* kmer */ 0b00010000, /* edge */ 0b00000010},
+         {/* size */ 0b00000001, /* kmer */ 0b01000000, /* edge */ 0b00000000},
+         {/* size */ 0b00000001, /* kmer */ 0b10000000, /* edge */ 0b00000011},
+         {/* size */ 0b00000011, /* kmer */ 0b10000100, /* edge */ 0b00000001},
+         {/* size */ 0b00000011, /* kmer */ 0b10111000, /* edge */ 0b00000011},
+         {/* size */ 0b00000010, /* kmer */ 0b11100000,
+          /* edge */ 0b00000010}});
+    ASSERT_THAT(buffer.memoryview(), MatrixEq(std::cref(expected)));
+  }
+};
+
+TEST_F(SuffixGateExtract, Serial) {
+  fillGenomes(1);
+  auto view = localView();
+  auto terminals = extractTerminalsDense(view, s);
+  CheckTerminals(terminals);
+}
+
+TEST_F(SuffixGateExtract, Parallel5) {
+  fillGenomes(5);
+  auto view = localView();
+  auto terminals = extractTerminalsDense(view, s);
+  CheckTerminals(terminals);
+}
+
 class TerminalBufferSortSubroutinesTests : public testing::Test {};
 
 TEST_F(TerminalBufferSortSubroutinesTests, SortShort) {

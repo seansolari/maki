@@ -32,6 +32,7 @@ ADD_TEST ("build/colours/test_construct_registry.cpp")
 
 ADD_TEST ("build/suffixes/test_suffix_encoding.cpp")
 ADD_TEST ("build/suffixes/test_suffix_counting.cpp")
+ADD_TEST ("build/suffixes/parallel/test_suffix_gate.cpp")
 ADD_TEST ("build/suffixes/test_kmer_buffer.cpp")
 ADD_TEST ("build/suffixes/test_terminal_buffer.cpp")
 ADD_TEST ("build/suffixes/test_sorting.cpp")

@@ -38,10 +38,11 @@ extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,
  */
 TerminalBuffer
 extractTerminalsDense(const std::vector<const SequenceContainer *> &data_,
-                      std::size_t k_) {
-  TerminalBuffer buffer(ShortSuffix::numSuffixes(k_), k_,
+                      std::size_t s_) {
+  TerminalBuffer buffer(5 * ShortSuffix::numSuffixes(s_), s_,
                         TerminalBuffer::autofit_tag);
-  // detail::TerminalsGate gates(k_);
-  // buffer.fill(data_, gates);
-  return buffer.OOPsort();
+  LongSuffixGate lock(s_);
+  buffer.fill(data_, lock);
+  buffer.shrink(lock.count());
+  return buffer.OOPsort(false);
 }

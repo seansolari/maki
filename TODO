@@ -9,7 +9,6 @@
 ## Low priority
 
   - Compress metacolour representation.
-  - Compress k-mer counts in read graph.
   - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
 
 ## Planned updates
@@ -20,16 +19,17 @@
     - [DONE] Migrate read parsing code
     - Implement competitive terminal extraction from read data and counting graph construction in build module
       - [DONE] Implement CountsBuffer
-      - Implement pushNode for terminals (interleave_buffers.[hc]pp)
-      - Implement TerminalsGate (construct_terminals.[hc]pp)
+      - [DONE] Implement pushNode for terminals (interleave_buffers.[hc]pp)
+      - [DONE] Implement TerminalsGate (construct_terminals.[hc]pp)
       - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
   - [DONE] Migrate fastq parsing unit tests
   - Implement counting graph tests
     - [DONE] wap_vector
     - [DONE] CountsBuffer tests
+    - [DONE] TerminalsGate tests
+      - [DONE] LongSuffixGate tests
+      - [DONE] extractTerminalsDense tests
     - pushNode tests
-    - TerminalsGate tests
-    - ...
 
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 

@@ -223,6 +223,8 @@ struct LongSuffix : public Kmer {
       ++_size;
   }
 
+  size_t rank() const noexcept;
+
   // Returns number of base-pairs currently in terminal (starts with 0).
   inline size_t terminalLength() const noexcept { return _size; }
 
@@ -268,6 +270,21 @@ public:
 private:
   size_t s;
   std::vector<uint64_t> _data;
+};
+
+class LongSuffixGate {
+public:
+  LongSuffixGate(std::size_t _length);
+  std::optional<std::size_t> trySet(const LongSuffix &sfx, uint8_t dna4_edge);
+  std::size_t count() const;
+
+private:
+  std::size_t _words;
+  std::unique_ptr<std::atomic_uint8_t[]> _locks;
+  std::atomic_size_t _elems;
+
+  std::size_t calculateBitPosition(const LongSuffix &sfx, uint8_t dna4_edge);
+  bool trySetBit(const LongSuffix &sfx, uint8_t dna4_edge);
 };
 
 /**

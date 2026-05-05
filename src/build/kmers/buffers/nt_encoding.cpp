@@ -1,6 +1,8 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
+#include "maki/core/seq/io.hpp"
 #include <iterator>
 #include <oneapi/tbb/parallel_for.h>
+#include <optional>
 
 ShortSuffix::ShortSuffix(std::size_t _size, uint64_t init)
     : _s(_size), _data(init) {
@@ -29,12 +31,12 @@ ShortSuffix ShortSuffix::fromIndex(std::size_t r_, std::size_t s_) {
   std::size_t x = 0u, l = s_, ls, f;
   while (r_ > 0u) {
     assert(l > 0u);
-    ls = numSuffixes(l-1u), f = (r_-1u) / ls;
+    ls = numSuffixes(l - 1u), f = (r_ - 1u) / ls;
     x = (x << 2u) | f;
     r_ -= f * ls + 1u;
     l -= 1;
   }
-  return ShortSuffix(s_-l, x);
+  return ShortSuffix(s_ - l, x);
 }
 
 std::string ShortSuffix::toString() const {
@@ -101,6 +103,14 @@ void Kmer::roll(uint8_t nt) {
   _data[i] = (_data[i] >> 2) | (nt << _edge_bit_offset);
 }
 
+size_t LongSuffix::rank() const noexcept {
+  size_t res = 0;
+  for (size_t i = 0; 4 * i < _size; ++i) {
+    res |= static_cast<size_t>(_data[i]) << (size_t(8) * i);
+  }
+  return res;
+}
+
 void SuffixTable::count(Dna4SequenceConstIter it, Dna4SequenceConstIter end) {
   ShortSuffix suffix{s};
 
@@ -156,4 +166,46 @@ createSuffixPlan(const std::vector<const SequenceContainer *> &data,
   }
 
   return tables;
+}
+
+LongSuffixGate::LongSuffixGate(std::size_t _length)
+    : _words((ShortSuffix::numSuffixes(_length) * 5 + 7) / 8),
+      _locks(std::make_unique<std::atomic_uint8_t[]>(_words)), _elems(0) {}
+
+std::optional<std::size_t> LongSuffixGate::trySet(const LongSuffix &sfx,
+                                                  uint8_t dna4_edge) {
+  if (trySetBit(sfx, dna4_edge)) {
+    return std::make_optional(_elems++);
+  } else
+    return std::nullopt;
+}
+
+std::size_t LongSuffixGate::count() const {
+  return _elems.load(std::memory_order_relaxed);
+}
+
+bool LongSuffixGate::trySetBit(const LongSuffix &sfx, uint8_t dna4_edge) {
+  std::size_t suffix_index = calculateBitPosition(sfx, dna4_edge),
+              w = suffix_index / 8, b = suffix_index % 8;
+  assert(w < _words);
+  uint8_t mask = 1U << b, expected = _locks[w].load(std::memory_order_relaxed);
+  while (!(expected & mask)) {
+    if (_locks[w].compare_exchange_weak(expected, expected | mask,
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::size_t LongSuffixGate::calculateBitPosition(const LongSuffix &sfx,
+                                                 uint8_t dna4_edge) {
+  auto dna5_edge = parsing::dna4ToDna5(dna4_edge);
+  if (sfx.size() == 0)
+    return dna5_edge;
+  else {
+    return 5 * (ShortSuffix::numSuffixes(sfx.size() - 1) + sfx.rank()) +
+           dna5_edge;
+  }
 }

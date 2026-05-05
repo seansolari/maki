@@ -3,6 +3,7 @@
 #include "maki/build/kmers/buffers/sort.hpp"
 #include "maki/maki.h"
 #include <execution>
+#include <optional>
 
 void TerminalBuffer::shrink(size_t new_size_) {
   assert(new_size_ <= _num_records);
@@ -79,6 +80,34 @@ TerminalBuffer::iterator TerminalBuffer::insert(iterator it,
   return it;
 }
 
+void TerminalBuffer::insert(LongSuffixGate &lock, Dna4SequenceConstIter seqIter,
+                            Dna4SequenceConstIter seqEnd, bool endIsTerminal) {
+  LongSuffix tl(k_eff /* here, will be same as k */);
+
+  uint8_t edge;
+  std::optional<std::size_t> p = std::nullopt;
+
+  while (seqIter != seqEnd) {
+    edge = parsing::dna4ToShort(*seqIter++);
+
+    if (p = lock.trySet(tl, edge); p) {
+      auto it = at(p.value());
+      it.writeKey(tl);
+      it.writeEdge(edge);
+    }
+
+    tl.push(edge);
+  }
+
+  if (endIsTerminal) {
+    if (p = lock.trySet(tl, terminalEdge); p) {
+      auto it = at(p.value());
+      it.writeKey(tl);
+      it.writeEdge(terminalEdge);
+    }
+  }
+}
+
 void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
                           std::vector<size_t> const &blocks_) {
   oneapi::tbb::parallel_for(
@@ -86,6 +115,16 @@ void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
         auto it = at(i == 0 ? 0 : blocks_[i - 1]);
         for (auto seq : data_[i]->terminals()) {
           it = insert(it, seq.begin(), seq.begin() + k, false);
+        }
+      });
+}
+
+void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
+                          LongSuffixGate &lock) {
+  oneapi::tbb::parallel_for(
+      (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
+        for (auto seq : data_[i]->terminals()) {
+          insert(lock, seq.begin(), seq.begin() + k, false);
         }
       });
 }
@@ -231,18 +270,21 @@ void TerminalBuffer::sort() {
   sort(&temp);
 }
 
-TerminalBuffer TerminalBuffer::OOPsort() const {
+TerminalBuffer TerminalBuffer::OOPsort(bool makeUnique) const {
   std::vector<size_t> indices(_num_records); // capacity constructor
   std::iota(indices.begin(), indices.end(), 0ul);
 
   // sort indices
   std::sort(std::execution::par_unseq, indices.begin(), indices.end(),
             TerminalsLessThan{*this});
+  auto indices_end = indices.end();
 
-  // get rid of duplicate values
-  auto indices_end =
-      std::unique(std::execution::par_unseq, indices.begin(), indices.end(),
-                  [&](size_t i, size_t j) -> bool { return *at(i) == *at(j); });
+  if (makeUnique) {
+    // get rid of duplicate values
+    indices_end = std::unique(
+        std::execution::par_unseq, indices.begin(), indices_end,
+        [&](size_t i, size_t j) -> bool { return *at(i) == *at(j); });
+  }
 
   // take values in order
   return TerminalBuffer(*this, indices.begin(), indices_end);
