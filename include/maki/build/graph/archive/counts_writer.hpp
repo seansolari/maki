@@ -8,9 +8,12 @@
 
 struct CountBufferSink {
   using Payload = CountBuffer;
+  
+  CountBufferSink(CountBuffer *out);
+  CountBuffer *data;
+  
   std::size_t write(const CountBuffer &);
   void finalize() {} // do nothing
-  CountBuffer data;
 };
 
 template <> struct sink_payload<CountBufferSink> {

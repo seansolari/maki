@@ -39,7 +39,8 @@ extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,
 TerminalBuffer
 extractTerminalsDense(const std::vector<const SequenceContainer *> &data_,
                       std::size_t s_) {
-  TerminalBuffer buffer(5 * ShortSuffix::numSuffixes(s_), s_,
+  assert(s_ > 0);
+  TerminalBuffer buffer(5 * ShortSuffix::numSuffixes(s_ - 1), s_,
                         TerminalBuffer::autofit_tag);
   LongSuffixGate lock(s_);
   buffer.fill(data_, lock);

@@ -34,45 +34,8 @@ namespace cdbg {
 //        disk-based traversal and lookup.
 // -----------------------------------------------------------------------------
 
-// -----------------------------------------------------------------------------
-// Intermediate data
-// -----------------------------------------------------------------------------
-
-struct Buffers {
-  Buffers(std::size_t length, std::size_t width, std::size_t k,
-          std::size_t keff);
-
-  /**
-   * Collect k-mers with given suffix `s_` from input sequences.
-   */
-  void collectKmers(const std::vector<const SequenceContainer *> &seqs_,
-                    const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
-
-  /**
-   * Load terminals data.
-   */
-  void setTerminals(TerminalRange &&t_);
-
-  KmerBuffer kmers, temp;
-  TerminalRange terminals;
-  sdsl::int_vector<2> b, t;
-};
-
-struct BufferMaker : public Factory<Buffers> {
-  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_,
-              std::size_t keff_)
-      : Factory<Buffers>(), length(length_), width(width_), k(k_), keff(keff_) {
-  }
-
-  std::size_t length;
-  std::size_t width;
-  std::size_t k;
-  std::size_t keff;
-
-  inline std::unique_ptr<Buffers> obtain() {
-    return Factory<Buffers>::obtain(length, width, k, keff);
-  }
-};
+using Buffers = dbg::Buffers<KmerBuffer>;
+using BufferMaker = dbg::BufferMaker<KmerBuffer>;
 
 // -----------------------------------------------------------------------------
 // Output data
@@ -82,10 +45,12 @@ using EdgeSink = SdslIntVectorOnDiskSink<4>;
 using SuccSink = SdslIntVectorOnDiskSink<1>;
 using ColourSink = ArchiveWriter<>;
 
-using Sinks = std::tuple<EdgeSink, SuccSink, ColourSink>;
-using Bundle = ChunkBundleT<EdgeSink, SuccSink, ColourSink>;
-using BundlePool = ::BundlePool<EdgeSink, SuccSink, ColourSink>;
-using Multi = MultiSink<EdgeSink, SuccSink, ColourSink>;
+#define CDBG_SINK_SET EdgeSink, SuccSink, ColourSink
+
+using Sinks = std::tuple<CDBG_SINK_SET>;
+using Bundle = ChunkBundleT<CDBG_SINK_SET>;
+using BundlePool = ::BundlePool<CDBG_SINK_SET>;
+using Multi = MultiSink<CDBG_SINK_SET>;
 
 struct BufferPaths {
   std::filesystem::path edges;
@@ -102,36 +67,15 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
-struct SuffixwiseKmers {
+struct SuffixwiseKmers : public dbg::Suffixwise<KmerBuffer, CDBG_SINK_SET> {
   SuffixwiseKmers(const std::vector<const SequenceContainer *> &seqs,
                   const TerminalRange &terminals, std::size_t k, std::size_t s,
                   MetaColours *cmap, push_summary *);
 
-  void setPool(std::shared_ptr<BundlePool> &p);
+  MetaColours *colourMap;
   std::unique_ptr<Bundle> operator()(uint64_t) const;
-
-protected:
-  void _count(push_summary &) const;
-  std::unique_ptr<Bundle> _getbundle(uint64_t id) const;
-  std::unique_ptr<Bundle> _extractKmers(uint64_t, ShortSuffix) const;
-  std::unique_ptr<Bundle> _extractPartialKmers(uint64_t, ShortSuffix) const;
-
-protected:
-  // input data
-  std::size_t s_;
-  MetaColours *cmap_;
-  push_summary *str_;
-
-  // input buffers
-  const std::vector<const SequenceContainer *> &seqs_;
-  const TerminalRange &terminals_;
-
-  // shared auxilliary data
-  std::shared_ptr<std::vector<SuffixTable>> blocks_;
-  std::shared_ptr<BufferMaker> buffers_;
-
-  // output buffers
-  std::shared_ptr<BundlePool> pool_;
+  std::unique_ptr<Bundle> extractKmers(uint64_t, ShortSuffix) const;
+  std::unique_ptr<Bundle> extractPartialKmers(uint64_t, ShortSuffix) const;
 };
 
 // -----------------------------------------------------------------------------

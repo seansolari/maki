@@ -2,8 +2,9 @@
 #pragma once
 
 #include "construct_common.hpp"
+#include "maki/build/graph/archive/counts_writer.hpp"
 #include "maki/build/graph/archive/sdsl_writer.hpp"
-#include "maki/build/graph/archive/vector_writer.hpp"
+#include "maki/build/graph/archive/sink_manager.hpp"
 #include "maki/build/graph/interleave_buffers.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/wdbg.hpp"
@@ -23,29 +24,8 @@ namespace wdbg {
 //        k-mer in the sample graph.
 // -----------------------------------------------------------------------------
 
-// -----------------------------------------------------------------------------
-// Intermediate data
-// -----------------------------------------------------------------------------
-
-struct Buffers {
-  Buffers(std::size_t length, std::size_t width, std::size_t k,
-          std::size_t keff);
-
-  /**
-   * Collect k-mers with given suffix `s_` from input sequences.
-   */
-  void collectKmers(const std::vector<const SequenceContainer *> &seqs_,
-                    const std::vector<SuffixTable> &blocks_, ShortSuffix s_);
-
-  /**
-   * Load terminals data.
-   */
-  void setTerminals(TerminalRange &&t_);
-
-  TerminalBuffer kmers, temp;
-  TerminalRange terminals;
-  sdsl::int_vector<2> b, t;
-};
+using Buffers = dbg::Buffers<TerminalBuffer>;
+using BufferMaker = dbg::BufferMaker<TerminalBuffer>;
 
 // -----------------------------------------------------------------------------
 // Output data
@@ -53,34 +33,39 @@ struct Buffers {
 
 using EdgeSink = SdslIntVectorOnDiskSink<4>;
 using SuccSink = SdslIntVectorOnDiskSink<1>;
+using CountSink = CountBufferSink;
 
+#define WDBG_SINK_SET EdgeSink, SuccSink, CountSink
 
-using WDBGSinks =
-    std::tuple<SdslIntVectorInMemorySink<4>, // edges: sdsl::int_vector<4> ->
-                                             // sdsl::int_vector<4>
-               SdslIntVectorInMemorySink<1>, // succ: sdsl::bit_vector ->
-                                             // sdsl::bit_vector
-               VectorInMemorySink<uint64_t>  // counts: std::vector<uint64_t> ->
-                                             // std::vector<uint64_t>
-               >;
+using Sinks = std::tuple<WDBG_SINK_SET>;
+using Bundle = ChunkBundleT<WDBG_SINK_SET>;
+using BundlePool = ::BundlePool<WDBG_SINK_SET>;
+using Multi = MultiSink<WDBG_SINK_SET>;
+
+struct BufferPaths {
+  std::filesystem::path edges;
+  std::filesystem::path succ;
+};
+
+struct TempBuffers {
+  BufferPaths files;
+  push_summary str;
+};
 
 // -----------------------------------------------------------------------------
 // Pipeline
 // -----------------------------------------------------------------------------
 
-struct SuffixwiseTerminals {
+struct SuffixwiseTerminals
+    : public dbg::Suffixwise<TerminalBuffer, WDBG_SINK_SET> {
+  SuffixwiseTerminals(const std::vector<const SequenceContainer *> &seqs,
+                      const TerminalRange &terminals, std::size_t k,
+                      std::size_t s, push_summary *);
 
-  void setPool(std::shared_ptr<BundlePool> &p);
   std::unique_ptr<Bundle> operator()(uint64_t) const;
-
-protected:
-  // input data
-  std::size_t s_;
-  push_summary *str_;
-
-  // input buffers
-  const std::vector<const SequenceContainer *> &seqs_;
-  const TerminalRange &terminals_;
+  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t idx,
+                                               ShortSuffix sfx) const;
+  std::unique_ptr<Bundle> extractSuffix(uint64_t idx, ShortSuffix sfx) const;
 };
 
 // -----------------------------------------------------------------------------

@@ -107,6 +107,13 @@ void ro_wap_vector::init_support() {
   sdsl::util::init_support(rs_u64, &is_u64);
 }
 
+void ro_wap_vector::stabilize_support() {
+  rs_u8.set_vector(&is_u8);
+  rs_u16.set_vector(&is_u16);
+  rs_u32.set_vector(&is_u32);
+  rs_u64.set_vector(&is_u64);
+}
+
 std::size_t detail::size_in_bytes(const wo_wap_vector &vec) {
   return sdsl::size_in_bytes(vec.is_u8) + sdsl::size_in_bytes(vec.is_u16) +
          sdsl::size_in_bytes(vec.is_u32) + sdsl::size_in_bytes(vec.is_u64) +

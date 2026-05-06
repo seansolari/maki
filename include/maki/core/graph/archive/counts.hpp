@@ -78,10 +78,24 @@ class CompressedCountBuffer {
   friend std::size_t detail::size_in_bytes(const CompressedCountBuffer &);
 
 public:
+  CompressedCountBuffer() = default;
   CompressedCountBuffer(const CountBuffer &raw_);
   CompressedCountBuffer(CountBuffer &&raw_);
   std::size_t node_count() const;
   uint64_t edge_count(uint64_t node, uint32_t edge_rank) const;
+
+  template <class Archive> void save(Archive &ar) const {
+    ar(is_single, is_uniform, is_delta, is_explicit, rs_delta, rs_explicit,
+       base_counts, delta_offsets, delta_counts, explicit_offsets,
+       explicit_counts);
+  }
+
+  template <class Archive> void load(Archive &ar) {
+    ar(is_single, is_uniform, is_delta, is_explicit, rs_delta, rs_explicit,
+       base_counts, delta_offsets, delta_counts, explicit_offsets,
+       explicit_counts);
+    stabilize_support();
+  }
 
 private:
   sdsl::rrr_vector<> is_single, is_uniform, is_delta, is_explicit;
@@ -93,4 +107,5 @@ private:
   ro_wap_vector explicit_counts;       // WAP
 
   void init_support();
+  void stabilize_support();
 };

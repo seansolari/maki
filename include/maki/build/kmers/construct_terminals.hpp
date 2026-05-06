@@ -23,7 +23,7 @@ extractTerminalsSparse(const std::vector<const SequenceContainer *> &data_,
 
 /**
  * Extract unique terminal sequences into a `TerminalBuffer` by
- * competetive multi-threaded insertion of sequences and an atomic
+ * competitive multi-threaded insertion of sequences and an atomic
  * pressence-absence pre-insertion check. Results is sorted and
  * made unique.
  */

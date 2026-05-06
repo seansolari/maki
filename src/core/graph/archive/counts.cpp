@@ -202,6 +202,11 @@ void CompressedCountBuffer::init_support() {
   sdsl::util::init_support(rs_explicit, &is_explicit);
 }
 
+void CompressedCountBuffer::stabilize_support() {
+  rs_delta.set_vector(&is_delta);
+  rs_explicit.set_vector(&is_explicit);
+}
+
 std::size_t detail::size_in_bytes(const CountBuffer &vec) {
   return sdsl::size_in_bytes(vec.is_single) +
          sdsl::size_in_bytes(vec.is_uniform) +

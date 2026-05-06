@@ -1,5 +1,6 @@
 
 #include "maki/core/graph/archive/counts.hpp"
+#include "maki/core/utils/tempfile.hpp"
 #include "test_common.hpp"
 #include <gtest/gtest.h>
 
@@ -154,4 +155,44 @@ TEST(CountingVectorTests, AppendMultipleSeeds) {
   for (uint32_t seed = 1; seed <= 10; ++seed) {
     run_append_test(2'000, 1'000, dist, seed);
   }
+}
+
+class SerializeTests : public testing::Test {
+protected:
+  SerializeTests() : tmp(tempio::create_temporary_directory()) {}
+  ~SerializeTests() { fs::remove_all(tmp); }
+  fs::path tmp;
+
+  static inline void save(const std::string &file, const CompressedCountBuffer &data) {
+    std::ofstream os(file, std::ios::binary);
+    cereal::BinaryOutputArchive archive( os );
+    archive(data);
+  }
+
+  static inline void load(const std::string &file, CompressedCountBuffer &data) {
+    std::ifstream os(file, std::ios::binary);
+    cereal::BinaryInputArchive archive( os );
+    archive(data);
+  }
+};
+
+TEST_F(SerializeTests, SaveAndLoadRandom) {
+  NodeTypeDistribution dist{
+      .single = 0.25, .uniform = 0.25, .delta = 0.25, .expl = 0.25};
+  constexpr std::size_t size = 1'000;
+
+  CountBuffer builder;
+  builder.reserve(size);
+  auto types = generate_node_types(size, dist, 1);
+  DummyOracle oracle = build_oracle_and_builder(builder, types, 2);
+  CompressedCountBuffer compressed(builder);
+  builder.clear();
+  
+  fs::path bin = tmp / "SaveAndLoadRandom.bin";
+  save(bin, compressed);
+
+  CompressedCountBuffer result;
+  load(bin, result);
+
+  check_counts_equal(oracle, result);
 }

@@ -89,6 +89,13 @@ random_vector_weighted_bits_bulk(URNG &rng, std::size_t total, double X) {
   return out;
 }
 
+inline static ro_wap_vector MakeRoWapVector(const std::vector<uint64_t> &truth) {
+  wo_wap_vector interm;
+  for (const auto &x : truth)
+    interm.push_back(x);
+  return ro_wap_vector(std::move(interm));
+}
+
 inline static void TestAppend(const std::vector<uint64_t> &truth) {
   // construct vector
   wo_wap_vector interm;

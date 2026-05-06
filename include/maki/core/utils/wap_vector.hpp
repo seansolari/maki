@@ -2,6 +2,7 @@
 #pragma once
 #include <cassert>
 #include <cstdint>
+#include <cereal/types/vector.hpp>
 #include <sdsl/bit_vectors.hpp>
 #include <sdsl/rrr_vector.hpp>
 #include <vector>
@@ -42,10 +43,22 @@ class ro_wap_vector {
   friend std::size_t detail::size_in_bytes(const ro_wap_vector &);
 
 public:
+  ro_wap_vector() =default;
   ro_wap_vector(const wo_wap_vector &v);
   ro_wap_vector(wo_wap_vector &&v);
   uint64_t operator[](std::size_t i) const;
   std::size_t size() const;
+
+  template <class Archive> void save(Archive &ar) const {
+    ar(is_u8, is_u16, is_u32, is_u64, rs_u8, rs_u16, rs_u32, rs_u64, u8, u16,
+       u32, u64);
+  }
+
+  template <class Archive> void load(Archive &ar) {
+    ar(is_u8, is_u16, is_u32, is_u64, rs_u8, rs_u16, rs_u32, rs_u64, u8, u16,
+       u32, u64);
+    stabilize_support();
+  }
 
 protected:
   sdsl::rrr_vector<> is_u8, is_u16, is_u32, is_u64;
@@ -56,4 +69,5 @@ protected:
   std::vector<uint64_t> u64;
 
   void init_support();
+  void stabilize_support();
 };

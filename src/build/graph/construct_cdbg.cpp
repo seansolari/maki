@@ -15,140 +15,76 @@
 namespace cdbg {
 
 // -----------------------------------------------------------------------------
-// Intermediate data
-// -----------------------------------------------------------------------------
-
-Buffers::Buffers(std::size_t length, std::size_t width, std::size_t k,
-                 std::size_t keff)
-    : kmers(length, width, k, keff), temp(length, width, k, keff), terminals(),
-      b(), t() {}
-
-void Buffers::collectKmers(const std::vector<const SequenceContainer *> &seqs_,
-                           const std::vector<SuffixTable> &blocks_,
-                           ShortSuffix s_) {
-  std::size_t size = blocks_.back()[s_];
-
-  LOG_DEBUG() << "Collecting k-mers for suffix " << s_.toString()
-              << " ; count = " << size;
-
-  kmers.resize(size);
-  temp.resize(size);
-
-  kmers.fill(seqs_, blocks_, s_);
-
-  if (size > 1) {
-    kmers.sort(&temp);
-  }
-
-  adjacentDifference(kmers, b);
-}
-
-void Buffers::setTerminals(TerminalRange &&data_) {
-  const std::size_t n = data_.size();
-
-  if (n == 0) {
-    LOG_DEBUG() << "No terminal nodes for this suffix";
-  }
-
-  terminals = std::move(data_);
-  adjacentDifference(terminals, t);
-}
-
-// -----------------------------------------------------------------------------
 // Pipeline
 // -----------------------------------------------------------------------------
 
 SuffixwiseKmers::SuffixwiseKmers(
     const std::vector<const SequenceContainer *> &seqs,
-    const TerminalRange &terminals, std::size_t k, std::size_t s,
-    MetaColours *cmap, push_summary *str)
-    : s_(s), cmap_(cmap), str_(str), seqs_(seqs), terminals_(terminals),
-      blocks_(std::make_shared<std::vector<SuffixTable>>(
-          createSuffixPlan(seqs, k, s))),
-      buffers_(std::make_shared<BufferMaker>(blocks_->back().maxValue(),
-                                             value_size(cmap->colourWidth()), k,
-                                             k - s)),
-      pool_() {
-
-  LOG_INFO() << "Initialised suffix-wise k-mer extractor"
-             << " (k=" << k << ", suffix=" << s << ")";
-
-  LOG_INFO() << "Suffix plan maximum value = " << blocks_->back().maxValue();
-
-  LOG_INFO() << "Terminal ranges total = " << terminals.size();
-}
-
-void SuffixwiseKmers::setPool(std::shared_ptr<BundlePool> &p) { pool_ = p; }
-
-void SuffixwiseKmers::_count(push_summary &tkn) const {
-  for (std::size_t i = 0; i < 5; ++i)
-    std::atomic_ref(str_->F[i]) += tkn.F[i];
-  for (std::size_t i = 0; i < 5; ++i)
-    std::atomic_ref(str_->C[i]) += tkn.C[i];
-}
-
-std::unique_ptr<Bundle> SuffixwiseKmers::_getbundle(uint64_t id) const {
-  auto bnd = pool_->acquire();
-  bnd->id = id;
-  return bnd;
-}
+    const TerminalRange &terms, std::size_t k, std::size_t s, MetaColours *cmap,
+    push_summary *str)
+    : dbg::Suffixwise<KmerBuffer, CDBG_SINK_SET>(
+          seqs, terms,
+          std::make_shared<std::vector<SuffixTable>>(
+              createSuffixPlan(seqs, k, s)),
+          value_size(cmap->colourWidth()), k, s, str),
+      colourMap(cmap) {}
 
 std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t idx) const {
-  auto sfx = ShortSuffix::fromIndex(idx, s_);
+  auto sfx = ShortSuffix::fromIndex(idx, suffixSize);
 
   LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
               << ")";
 
-  if (sfx.size() < s_) {
-    return _extractPartialKmers(idx, sfx);
+  if (sfx.size() < suffixSize) {
+    return extractPartialKmers(idx, sfx);
   } else {
-    return _extractKmers(idx, sfx);
+    return extractKmers(idx, sfx);
   }
 }
 
 std::unique_ptr<Bundle>
-SuffixwiseKmers::_extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
+SuffixwiseKmers::extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
 
-  auto bfr = buffers_->obtain();
-  bfr->setTerminals(terminals_.retrieve(sfx));
+  auto bfr = kmerBuffers->obtain();
+  bfr->setTerminals(terminals.retrieve(sfx));
 
   const std::size_t n = bfr->terminals.size();
 
   LOG_DEBUG() << "Extracted " << n << " terminal (partial) k-mers for suffix "
               << sfx.toString();
 
-  auto bnd = _getbundle(idx);
+  auto bnd = getBundle(idx);
   auto &[edges, succ, carch] = bnd->payloads;
 
   auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ,
-                          sfx.msb(), carch, *cmap_);
+                          sfx.msb(), carch, *colourMap);
 
-  _count(counts);
+  pushRegionStructure(counts);
 
-  buffers_->release(bfr);
+  kmerBuffers->release(bfr);
   return bnd;
 }
 
-std::unique_ptr<Bundle> SuffixwiseKmers::_extractKmers(uint64_t idx,
-                                                       ShortSuffix sfx) const {
+std::unique_ptr<Bundle> SuffixwiseKmers::extractKmers(uint64_t idx,
+                                                      ShortSuffix sfx) const {
 
-  auto bfr = buffers_->obtain();
-  bfr->collectKmers(seqs_, *blocks_, sfx);
-  bfr->setTerminals(terminals_.endsWith(sfx));
+  auto bfr = kmerBuffers->obtain();
+  bfr->collectKmers(sequences, *suffixCounts, sfx);
+  bfr->setTerminals(terminals.endsWith(sfx));
 
   LOG_DEBUG() << "Interleaving " << bfr->kmers.size() << " k-mers and "
               << bfr->terminals.size() << " terminals";
 
-  auto bnd = _getbundle(idx);
+  auto bnd = getBundle(idx);
   auto &[edges, succ, carch] = bnd->payloads;
 
   auto counts =
       interleave(bfr->kmers, bfr->b.begin(), bfr->terminals, bfr->t.begin(),
-                 edges, succ, sfx.msb(), carch, *cmap_);
+                 edges, succ, sfx.msb(), carch, *colourMap);
 
-  _count(counts);
+  pushRegionStructure(counts);
 
-  buffers_->release(bfr);
+  kmerBuffers->release(bfr);
   return bnd;
 }
 
