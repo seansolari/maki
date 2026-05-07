@@ -8,8 +8,9 @@
 
 namespace fs = std::filesystem;
 
-struct ColouredGraphFiles {
-  fs::path l, lR, lS, W, archive, meta;
+struct ColouredGraphFiles : public DeBruijnGraphFiles {
+  ColouredGraphFiles(fs::path base_);
+  fs::path archive;
 };
 
 struct ColouredGraph : public DeBruijnGraph {
@@ -18,7 +19,6 @@ struct ColouredGraph : public DeBruijnGraph {
   ColourRegistry cmap;
 
   // load from disk
-  static ColouredGraphFiles GraphFiles(fs::path base);
   static void FromDisk(ColouredGraph &g, const std::string &path);
 
 private:

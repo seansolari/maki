@@ -1,21 +1,22 @@
 
 #pragma once
 #include "base.hpp"
+#include "maki/core/graph/archive/counts.hpp"
 #include <cereal/types/array.hpp>
-#include <filesystem>
 
-namespace fs = std::filesystem;
-
-struct WeightedGraphFiles {
-  fs::path l, lR, lS, W, meta;
+struct WeightedGraphFiles : public DeBruijnGraphFiles {
+  WeightedGraphFiles(fs::path base_) : DeBruijnGraphFiles(base_) {}
 };
 
 struct WeightedGraph : public DeBruijnGraph {
-  static WeightedGraphFiles GraphFiles(fs::path base);
+  // k-mer counts array
+  CompressedCountBuffer occ;
+
+  // load from disk
   static void FromDisk(WeightedGraph &g, const std::string &path);
 
 private:
   // serialise to disk
   friend class cereal::access;
-  template <class Archive> void serialize(Archive &ar) { ar(k, F, C); }
+  template <class Archive> void serialize(Archive &ar) { ar(k, F, C, occ); }
 };

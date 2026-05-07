@@ -1,14 +1,25 @@
 
 #pragma once
 #include "maki/core/seq/io.hpp"
+#include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>
 #include <sdsl/wm_int.hpp>
 
+namespace fs = std::filesystem;
 using wavelet_matrix = sdsl::wm_int<>;
 
+struct DeBruijnGraphFiles {
+  DeBruijnGraphFiles(fs::path base_);
+  fs::path base, l, lR, lS, W, meta;
+};
+
 struct DeBruijnGraph {
+protected:
+  static void LoadBaseBuffers(DeBruijnGraph &g, DeBruijnGraphFiles &files);
+
+public:
   uint8_t k;
 
   // Structural data

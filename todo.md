@@ -22,9 +22,9 @@
       - **DONE** - Implement pushNode for terminals (interleave_buffers.[hc]pp)
       - **DONE** - Implement TerminalsGate (construct_terminals.[hc]pp)
       - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
-        - Implement TerminalwiseSuffix using SuffixWise (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
+        - **DONE** - Implement TerminalwiseSuffix using SuffixWise (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
         - Double check suffix plan for suffix-wise terminal buffer (constructSuffixPlan needs to start at s, not k-s?)
-        - Refactor graph finalisation into dbg (construct_common.hpp) and [cw]dbg (construct_[cw]dbg.[hc]pp)
+        - **DONE** - Refactor graph finalisation into dbg (construct_common.hpp) and [cw]dbg (construct_[cw]dbg.[hc]pp)
   - **DONE** - Migrate fastq parsing unit tests
   - Implement counting graph tests
     - **DONE** - wap_vector

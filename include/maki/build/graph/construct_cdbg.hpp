@@ -18,8 +18,6 @@
 #include <sdsl/int_vector.hpp>
 #include <vector>
 
-namespace cdbg {
-
 // -----------------------------------------------------------------------------
 // Construct coloured succinct de Bruijn graph
 // -----------------------------------------------------------------------------
@@ -33,6 +31,26 @@ namespace cdbg {
 //    3) Colour archive - Holds colour information in chunked format for
 //        disk-based traversal and lookup.
 // -----------------------------------------------------------------------------
+
+namespace dbg {
+
+template <>
+struct BufferMaker<KmerBuffer> : public Factory<Buffers<KmerBuffer>> {
+  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_,
+              std::size_t keff_)
+      : Factory<Buffers<KmerBuffer>>(), length(length_), width(width_), k(k_),
+        keff(keff_) {}
+
+  std::size_t length, width, k, keff;
+
+  inline std::unique_ptr<Buffers<KmerBuffer>> obtain() {
+    return Factory<Buffers<KmerBuffer>>::obtain(length, width, k, keff);
+  }
+};
+
+} // namespace dbg
+
+namespace cdbg {
 
 using Buffers = dbg::Buffers<KmerBuffer>;
 using BufferMaker = dbg::BufferMaker<KmerBuffer>;
@@ -69,8 +87,15 @@ struct TempBuffers {
 
 struct SuffixwiseKmers : public dbg::Suffixwise<KmerBuffer, CDBG_SINK_SET> {
   SuffixwiseKmers(const std::vector<const SequenceContainer *> &seqs,
-                  const TerminalRange &terminals, std::size_t k, std::size_t s,
-                  MetaColours *cmap, push_summary *);
+                  const TerminalRange &terms,
+                  std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
+                  std::shared_ptr<dbg::BufferMaker<KmerBuffer>> &&buffers,
+                  std::size_t s, MetaColours *cmap, push_summary *str);
+
+  static SuffixwiseKmers
+  FromSequences(const std::vector<const SequenceContainer *> &seqs,
+                const TerminalRange &terms, std::size_t k, std::size_t s,
+                MetaColours *cmap, push_summary *str);
 
   MetaColours *colourMap;
   std::unique_ptr<Bundle> operator()(uint64_t) const;

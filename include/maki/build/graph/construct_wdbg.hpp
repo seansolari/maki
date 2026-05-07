@@ -10,8 +10,6 @@
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
 
-namespace wdbg {
-
 // -----------------------------------------------------------------------------
 // Construct abundance-weighted succinct de Bruijn graph
 // -----------------------------------------------------------------------------
@@ -23,6 +21,26 @@ namespace wdbg {
 //    3) Weights array - in-memory array holding occurrence counts for each
 //        k-mer in the sample graph.
 // -----------------------------------------------------------------------------
+
+namespace dbg {
+
+template <>
+struct BufferMaker<TerminalBuffer> : public Factory<Buffers<TerminalBuffer>> {
+  BufferMaker(std::size_t length_, std::size_t k_, std::size_t keff_)
+      : Factory<Buffers<TerminalBuffer>>(), length(length_), k(k_),
+        keff(keff_) {}
+
+  std::size_t length, k, keff;
+
+  inline std::unique_ptr<Buffers<TerminalBuffer>> obtain() {
+    return Factory<Buffers<TerminalBuffer>>::obtain(
+        length, k, keff, TerminalBuffer::autofit_tag);
+  }
+};
+
+} // namespace dbg
+
+namespace wdbg {
 
 using Buffers = dbg::Buffers<TerminalBuffer>;
 using BufferMaker = dbg::BufferMaker<TerminalBuffer>;
@@ -58,14 +76,17 @@ struct TempBuffers {
 
 struct SuffixwiseTerminals
     : public dbg::Suffixwise<TerminalBuffer, WDBG_SINK_SET> {
-  SuffixwiseTerminals(const std::vector<const SequenceContainer *> &seqs,
-                      const TerminalRange &terminals, std::size_t k,
-                      std::size_t s, push_summary *);
+
+  using dbg::Suffixwise<TerminalBuffer, WDBG_SINK_SET>::Suffixwise;
+
+  static SuffixwiseTerminals
+  FromSequences(const std::vector<const SequenceContainer *> &seqs,
+                const TerminalRange &terminals, std::size_t k, std::size_t s,
+                push_summary *);
 
   std::unique_ptr<Bundle> operator()(uint64_t) const;
-  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t idx,
-                                               ShortSuffix sfx) const;
-  std::unique_ptr<Bundle> extractSuffix(uint64_t idx, ShortSuffix sfx) const;
+  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t, ShortSuffix) const;
+  std::unique_ptr<Bundle> extractSuffix(uint64_t, ShortSuffix) const;
 };
 
 // -----------------------------------------------------------------------------

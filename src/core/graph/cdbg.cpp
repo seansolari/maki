@@ -1,18 +1,13 @@
 
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/graph/base.hpp"
 #include <cereal/archives/binary.hpp>
 
-ColouredGraphFiles ColouredGraph::GraphFiles(fs::path base) {
-  return ColouredGraphFiles{.l = base / "1.dat",
-                            .lR = base / "2.dat",
-                            .lS = base / "3.dat",
-                            .W = base / "4.dat",
-                            .archive = base / "5.dat",
-                            .meta = base / "6.dat"};
-}
+ColouredGraphFiles::ColouredGraphFiles(fs::path base_)
+    : DeBruijnGraphFiles(base_), archive(base / "6.dat") {}
 
 void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
-  auto files = GraphFiles(path);
+  ColouredGraphFiles files(path);
 
   // Load metadata
   {
@@ -21,17 +16,7 @@ void ColouredGraph::FromDisk(ColouredGraph &g, const std::string &path) {
     iarchive(g);
   }
 
-  // Load `l` arrays
-  sdsl::load_from_file(g.l, files.l);
-
-  sdsl::load_from_file(g.lR, files.lR);
-  g.lR.set_vector(&g.l);
-
-  sdsl::load_from_file(g.lS, files.lS);
-  g.lS.set_vector(&g.l);
-
-  // Load `W` matrix
-  sdsl::load_from_file(g.W, files.W);
+  LoadBaseBuffers(g, files);
 
   // Initialise colour archive reader
   g.carch = std::make_unique<ArchiveReader>(files.archive);

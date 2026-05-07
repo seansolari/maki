@@ -73,6 +73,18 @@ void pushNodes(packet &pkt, It it, It end, sdsl::int_vector<2>::iterator b,
 }
 
 /**
+ * Push terminals to output.
+ */
+template <class Buffer, class... Args>
+push_summary pushRange(Buffer &data, sdsl::int_vector<2>::iterator to,
+                       sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+                       uint8_t msb_dna4, Args &...args) {
+  packet pkt;
+  pushNodes(pkt, data.begin(), data.end(), to, edges, succ, msb_dna4, args...);
+  return pkt.str;
+}
+
+/**
  * Interleave k-mers and terminals (sized k-mers), pushing co-lex ordered
  * nodes into the graph buffers, encoding colour information with basic
  * bit-packing and encoding colour tuples.
@@ -80,8 +92,8 @@ void pushNodes(packet &pkt, It it, It end, sdsl::int_vector<2>::iterator b,
  * Returns counts for the number of nodes and edges pushed, for each
  * edge label.
  */
-template <class Buffer, class... Args>
-push_summary interleave(Buffer &kmers, sdsl::int_vector<2>::iterator ko,
+template <class... Args>
+push_summary interleave(KmerBuffer &kmers, sdsl::int_vector<2>::iterator ko,
                         TerminalRange &terminals,
                         sdsl::int_vector<2>::iterator to,
                         sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
@@ -143,19 +155,5 @@ push_summary interleave(Buffer &kmers, sdsl::int_vector<2>::iterator ko,
     }
   }
 
-  return pkt.str;
-}
-
-/**
- * Push terminals to output.
- */
-template <class... Args>
-push_summary pushRange(TerminalRange &terminals,
-                       sdsl::int_vector<2>::iterator to,
-                       sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
-                       uint8_t msb_dna4, Args &...args) {
-  packet pkt;
-  pushNodes(pkt, terminals.begin(), terminals.end(), to, edges, succ, msb_dna4,
-            args...);
   return pkt.str;
 }

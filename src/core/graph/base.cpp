@@ -2,6 +2,24 @@
 #include "maki/core/graph/base.hpp"
 #include <optional>
 
+DeBruijnGraphFiles::DeBruijnGraphFiles(fs::path base_)
+    : base(base_), l(base / "1.dat"), lR(base / "2.dat"), lS(base / "3.dat"),
+      W(base / "4.dat"), meta(base / "5.dat") {}
+
+void DeBruijnGraph::LoadBaseBuffers(DeBruijnGraph &g, DeBruijnGraphFiles &files) {
+  // Load `l` arrays
+  sdsl::load_from_file(g.l, files.l);
+
+  sdsl::load_from_file(g.lR, files.lR);
+  g.lR.set_vector(&g.l);
+
+  sdsl::load_from_file(g.lS, files.lS);
+  g.lS.set_vector(&g.l);
+
+  // Load `W` matrix
+  sdsl::load_from_file(g.W, files.W);
+}
+
 uint8_t DeBruijnGraph::block(std::size_t i) const {
   if (F[1] > i)
     return 0u | 0b1000u;

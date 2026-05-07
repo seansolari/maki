@@ -4,8 +4,10 @@
 #include "maki/build/graph/interleave_buffers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/core/graph/base.hpp"
 #include "maki/core/seq/concepts.hpp"
 #include "maki/core/utils/logging.hpp"
+#include <cereal/archives/binary.hpp>
 #include <cstddef>
 #include <filesystem>
 
@@ -28,10 +30,9 @@ struct BuildOptions {
 // -----------------------------------------------------------------------------
 
 template <class MainBufferType> struct Buffers {
-  Buffers(std::size_t length, std::size_t width, std::size_t k,
-          std::size_t keff)
-      : kmers(length, width, k, keff), temp(length, width, k, keff),
-        terminals(), b(), t() {}
+  template <class... Args>
+  Buffers(Args &...args)
+      : kmers(args...), temp(args...), terminals(), b(), t() {}
 
   /**
    * Collect k-mers with given suffix `s_` from input sequences.
@@ -74,22 +75,7 @@ template <class MainBufferType> struct Buffers {
   sdsl::int_vector<2> b, t;
 };
 
-template <class MainBufferType>
-struct BufferMaker : public Factory<Buffers<MainBufferType>> {
-  BufferMaker(std::size_t length_, std::size_t width_, std::size_t k_,
-              std::size_t keff_)
-      : Factory<Buffers<MainBufferType>>(), length(length_), width(width_),
-        k(k_), keff(keff_) {}
-
-  std::size_t length;
-  std::size_t width;
-  std::size_t k;
-  std::size_t keff;
-
-  inline std::unique_ptr<Buffers<MainBufferType>> obtain() {
-    return Factory<Buffers<MainBufferType>>::obtain(length, width, k, keff);
-  }
-};
+template <class MainBufferType> struct BufferMaker {};
 
 // -----------------------------------------------------------------------------
 // Pipeline
@@ -99,15 +85,13 @@ template <class MainBufferType, class... Sinks> struct Suffixwise {
   Suffixwise(const std::vector<const SequenceContainer *> &seqs,
              const TerminalRange &terms,
              std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
-             uint8_t bufferValueSize, std::size_t k, std::size_t s,
-             push_summary *str)
+             std::shared_ptr<BufferMaker<MainBufferType>> &&buffers,
+             std::size_t s, push_summary *str)
       : suffixSize(s), graphStructure(str), sequences(seqs), terminals(terms),
-        suffixCounts(std::move(suffixPlan)),
-        kmerBuffers(std::make_shared<BufferMaker<MainBufferType>>(
-            suffixCounts->back().maxValue(), bufferValueSize, k, k - s)),
+        suffixCounts(std::move(suffixPlan)), kmerBuffers(std::move(buffers)),
         bundles() {
-    LOG_INFO() << "Initialised suffix-wise k-mer extractor"
-               << " (k=" << k << ", suffix=" << s << ")";
+    LOG_INFO() << "Initialised suffix-wise k-mer extractor (suffix=" << s
+               << ")";
 
     LOG_INFO() << "Suffix plan maximum value = "
                << suffixCounts->back().maxValue();
@@ -152,5 +136,29 @@ template <class MainBufferType, class... Sinks> struct Suffixwise {
       std::atomic_ref(graphStructure->C[i]) += tkn.C[i];
   }
 };
+
+// -----------------------------------------------------------------------------
+// Finalisation
+// -----------------------------------------------------------------------------
+
+namespace detail {
+
+void initSuccSupport(DeBruijnGraphFiles &outp);
+void finaliseGraphBuffers(const std::string &edges, const std::string &succ,
+                          DeBruijnGraphFiles &outp);
+void finaliseGraphStructure(DeBruijnGraph &g, push_summary &str);
+
+template <class Graph> void serialize(Graph &g, const std::string &file) {
+  LOG_INFO() << "Serialising graph metadata";
+  std::ofstream os(file, std::ios::binary);
+  if (!os) {
+    LOG_ERROR() << "Failed to open metadata file: " << file;
+  }
+
+  cereal::BinaryOutputArchive oarchive(os);
+  oarchive(g);
+}
+
+} // namespace detail
 
 } // namespace dbg

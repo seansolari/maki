@@ -1,13 +1,12 @@
 
 #include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/graph/build_colours.hpp"
-#include "maki/build/graph/wm/wm_construct.hpp"
+#include "maki/build/graph/construct_common.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/utils/logging.hpp"
-#include <cereal/archives/binary.hpp>
 #include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
@@ -20,14 +19,25 @@ namespace cdbg {
 
 SuffixwiseKmers::SuffixwiseKmers(
     const std::vector<const SequenceContainer *> &seqs,
-    const TerminalRange &terms, std::size_t k, std::size_t s, MetaColours *cmap,
-    push_summary *str)
+    const TerminalRange &terms,
+    std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
+    std::shared_ptr<dbg::BufferMaker<KmerBuffer>> &&buffers, std::size_t s,
+    MetaColours *cmap, push_summary *str)
     : dbg::Suffixwise<KmerBuffer, CDBG_SINK_SET>(
-          seqs, terms,
-          std::make_shared<std::vector<SuffixTable>>(
-              createSuffixPlan(seqs, k, s)),
-          value_size(cmap->colourWidth()), k, s, str),
+          seqs, terms, std::move(suffixPlan), std::move(buffers), s, str),
       colourMap(cmap) {}
+
+SuffixwiseKmers SuffixwiseKmers::FromSequences(
+    const std::vector<const SequenceContainer *> &seqs,
+    const TerminalRange &terms, std::size_t k, std::size_t s, MetaColours *cmap,
+    push_summary *str) {
+  auto suffixPlan =
+      std::make_shared<std::vector<SuffixTable>>(createSuffixPlan(seqs, k, s));
+  auto bufferFactory = std::make_shared<dbg::BufferMaker<KmerBuffer>>(
+      suffixPlan->back().maxValue(), value_size(cmap->colourWidth()), k, k - s);
+  return SuffixwiseKmers(seqs, terms, std::move(suffixPlan),
+                         std::move(bufferFactory), s, cmap, str);
+}
 
 std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t idx) const {
   auto sfx = ShortSuffix::fromIndex(idx, suffixSize);
@@ -44,7 +54,6 @@ std::unique_ptr<Bundle> SuffixwiseKmers::operator()(uint64_t idx) const {
 
 std::unique_ptr<Bundle>
 SuffixwiseKmers::extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
-
   auto bfr = kmerBuffers->obtain();
   bfr->setTerminals(terminals.retrieve(sfx));
 
@@ -92,72 +101,24 @@ std::unique_ptr<Bundle> SuffixwiseKmers::extractKmers(uint64_t idx,
 // Finalisation
 // -----------------------------------------------------------------------------
 
-void initSuccSupport(ColouredGraphFiles &outp) {
-  LOG_INFO() << "Initialising rank/select support for successor bitvector";
-
-  sdsl::bit_vector succ;
-  sdsl::load_from_file(succ, outp.l);
-
-  LOG_INFO() << "Successor bitvector length = " << succ.size();
-
-  {
-    sdsl::rank_support_v5<1, 1> lRnk;
-    sdsl::util::init_support(lRnk, &succ);
-    sdsl::store_to_file(std::move(lRnk), outp.lR);
-  }
-
-  {
-    sdsl::select_support_mcl<1, 1> lSel;
-    sdsl::util::init_support(lSel, &succ);
-    sdsl::store_to_file(std::move(lSel), outp.lS);
-  }
-}
 
 ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
                             const std::string &out) {
 
   LOG_INFO() << "Finalising coloured de Bruijn graph (k=" << k << ")";
 
-  ColouredGraphFiles outp = ColouredGraph::GraphFiles(out);
-
-  LOG_INFO() << "Constructing edge wavelet matrix";
-  initW(inp.files.edges, outp.W, out);
-
-  LOG_INFO() << "Removing temporary edge file: " << inp.files.edges;
-  std::filesystem::remove(inp.files.edges);
-
-  LOG_INFO() << "Moving successor array to final location";
-  std::filesystem::rename(inp.files.succ, outp.l);
-
-  initSuccSupport(outp);
+  ColouredGraphFiles outp(out);
+  dbg::detail::finaliseGraphBuffers(inp.files.edges, inp.files.succ, outp);
 
   LOG_INFO() << "Moving colour archive";
   std::filesystem::rename(inp.files.colours, outp.archive);
 
   ColouredGraph g;
   g.k = k;
+  dbg::detail::finaliseGraphStructure(g, inp.str);
   g.cmap = toRegistry(std::move(cols));
-
-  g.F[0] = 0u;
-  g.F[1] = inp.str.F[0];
-  g.F[2] = inp.str.F[0] + inp.str.F[1];
-  g.F[3] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2];
-  g.F[4] = inp.str.F[0] + inp.str.F[1] + inp.str.F[2] + inp.str.F[3];
-
-  g.C[0] = 0u;
-  g.C[1] = inp.str.C[0];
-  g.C[2] = inp.str.C[0] + inp.str.C[1];
-  g.C[3] = inp.str.C[0] + inp.str.C[1] + inp.str.C[2];
-  g.C[4] = inp.str.C[0] + inp.str.C[1] + inp.str.C[2] + inp.str.C[3];
-
-  LOG_INFO() << "Serialising graph metadata";
-  std::ofstream os(outp.meta, std::ios::binary);
-  if (!os) {
-    LOG_ERROR() << "Failed to open metadata file: " << outp.meta;
-  }
-
-  cereal::BinaryOutputArchive oarchive(os);
-  oarchive(g);
+  
+  dbg::detail::serialize(g, outp.meta);
 
   LOG_INFO() << "Graph construction complete";
   return outp;
@@ -186,8 +147,9 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
               ColourSink(outp.files.colours)};
 
-  ProcessChunks(SuffixwiseKmers(data, terminals.asRange(), params.kmer_size,
-                                params.suffix_size, &cmap, &outp.str),
+  ProcessChunks(SuffixwiseKmers::FromSequences(
+                    data, terminals.asRange(), params.kmer_size,
+                    params.suffix_size, &cmap, &outp.str),
                 sinks, params.pool_size, params.reserve_per_chunk,
                 params.chunks());
 
