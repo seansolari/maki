@@ -15,3 +15,7 @@ void WeightedGraph::FromDisk(WeightedGraph &g, const std::string &path) {
   LoadBaseBuffers(g, files);
 }
 
+uint64_t WeightedGraph::edge_count(std::size_t i) const {
+  std::size_t n = lR(i), r = i - (lS(n) + 1);
+  return occ.edge_count(n, r);
+}

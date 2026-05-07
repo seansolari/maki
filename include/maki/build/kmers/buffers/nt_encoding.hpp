@@ -295,4 +295,5 @@ private:
  */
 std::vector<SuffixTable>
 createSuffixPlan(const std::vector<const SequenceContainer *> &data,
-                 std::size_t k, std::size_t s, bool accumulate = true);
+                 std::size_t k, std::size_t s, std::size_t offset = 0,
+                 bool accumulate = true);

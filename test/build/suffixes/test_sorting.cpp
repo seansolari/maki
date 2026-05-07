@@ -57,7 +57,7 @@ TEST(TwoGenomesTests, Buffer_LSDRadixSort) {
   KmerBuffer buffer_a(num_kmers, 1, k, k - 2), buffer_b(num_kmers, 1, k, k - 2);
 
   ShortSuffix soi(2, 0b1010);
-  auto blocks = createSuffixPlan(view, k, 2);
+  auto blocks = createSuffixPlan(view, k, 2, k - 2);
   buffer_a.fill(view, blocks, soi);
 
   // Sort and Test

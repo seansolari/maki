@@ -15,6 +15,9 @@ struct WeightedGraph : public DeBruijnGraph {
   // load from disk
   static void FromDisk(WeightedGraph &g, const std::string &path);
 
+  // count of an edge
+  uint64_t edge_count(std::size_t i) const;
+
 private:
   // serialise to disk
   friend class cereal::access;

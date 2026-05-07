@@ -57,10 +57,7 @@ ADD_TEST ("classify/interleave/test_merge.cpp")
 
 ADD_TEST ("core/utils/test_wap_vector.cpp")
 ADD_TEST ("core/graph/archive/test_counts.cpp")
-
-## trees
-
-#ADD_TEST ("tree/test_newick.cpp")
+ADD_TEST ("build/graph/test_counting_construct.cpp")
 
 # append executables in parent scope
 set (MAKI_EXECUTABLES ${MAKI_EXECUTABLES} PARENT_SCOPE)

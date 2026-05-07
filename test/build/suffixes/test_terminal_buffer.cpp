@@ -3,6 +3,7 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
+#include "maki/classify/io/fastq.hpp"
 #include "test_common.hpp"
 #include <cstdint>
 #include <filesystem>
@@ -993,6 +994,67 @@ TEST_F(SuffixGateExtract, Parallel5) {
   auto view = localView();
   auto terminals = extractTerminalsDense(view, s);
   CheckTerminals(terminals);
+}
+
+class ExtractChunkedReadsTests : public testing::Test {
+protected:
+  ExtractChunkedReadsTests() : k(4), _data(5) {
+    _data[0]
+        .data.emplace_back()
+        .emplace_back("NC_000913.3-61888-1")
+        .push("GCAACGTGTTCCTA"_dna5, k);
+    _data[0]
+        .data[0]
+        .emplace_back("NC_000913.3-61888-2")
+        .push("GTCGCTTCGCGAAT"_dna5, k);
+    _data[1]
+        .data.emplace_back()
+        .emplace_back("NC_000913.3-61886")
+        .push("GGAACTGGATGTGG"_dna5, k);
+    _data[2]
+        .data.emplace_back()
+        .emplace_back("NC_000913.3-61884")
+        .push("GCTTCACTGAAACG"_dna5, k);
+    _data[3]
+        .data.emplace_back()
+        .emplace_back("NC_000913.3-61882")
+        .push("TGTCCTGAAAACGG"_dna5, k);
+    _data[4]
+        .data.emplace_back()
+        .emplace_back("NC_000913.3-61880")
+        .push("TAAAAGACAAACGC"_dna5, k);
+  }
+
+  uint8_t k;
+  std::vector<ReadChunks> _data;
+
+  std::vector<const SequenceContainer *> localView() {
+    std::vector<const SequenceContainer *> res;
+    for (const auto &chunk : _data) {
+      res.push_back(&chunk);
+    }
+    return res;
+  }
+};
+
+TEST_F(ExtractChunkedReadsTests, ExtractKmersS2) {
+  auto seqs = localView();
+  const std::size_t s = 2;
+  auto suffixPlan = createSuffixPlan(seqs, k, s);
+  const ShortSuffix sfx(s, 0b1000);
+
+  TerminalBuffer buffer(suffixPlan.back()[sfx], k, k - s,
+                        TerminalBuffer::autofit_tag);
+  buffer.fill(seqs, suffixPlan, sfx);
+
+  auto expected = ndim::Matrix({{/*3*/ 1, /*1000*/ 0b1100, 0b010},
+                                {/*4*/ 2, /*1000*/ 0b0010, 0b001},
+                                {/*4*/ 2, /*1000*/ 0b0101, 0b011},
+                                {/*4*/ 2, /*1000*/ 0b0111, 0b011},
+                                {/*4*/ 2, /*1000*/ 0b0010, 0b001},
+                                {/*4*/ 2, /*1000*/ 0b0111, 0b010},
+                                {/*4*/ 2, /*1000*/ 0b0000, 0b000}});
+  ASSERT_THAT(buffer.memoryview(), MatrixEq(std::cref(expected)));
 }
 
 class TerminalBufferSortSubroutinesTests : public testing::Test {};

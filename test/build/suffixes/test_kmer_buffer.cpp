@@ -63,7 +63,7 @@ TEST(BasicInsertSuffix, MultipleSequences) {
 
   // insert specific suffix
   ShortSuffix sfx(2, 0b1010);
-  auto blocks = createSuffixPlan(view, k, s);
+  auto blocks = createSuffixPlan(view, k, s, k - s);
 
   KmerBuffer buffer(blocks.back()[sfx], 1, k, k - s);
   buffer.fill(view, blocks, sfx);

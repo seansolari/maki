@@ -1,13 +1,115 @@
+#include "maki/build/graph/construct_wdbg.hpp"
 #include "maki/build/io/fasta.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/graph/wdbg.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <random>
 #include <sdsl/construct.hpp>
 #include <type_traits>
+#include <unordered_map>
 
 using ::testing::ContainerEq;
 using ::testing::ElementsAreArray;
+
+static char complement(char c) {
+  switch (c) {
+  case 'A':
+    return 'T';
+  case 'T':
+    return 'A';
+  case 'C':
+    return 'G';
+  case 'G':
+    return 'C';
+  default:
+    return 'N';
+  }
+}
+
+static inline std::string reverse_complement(const std::string &s) {
+  std::string rc(s.rbegin(), s.rend());
+  for (auto &c : rc)
+    c = complement(c);
+  return rc;
+}
+
+inline std::string random_dna(size_t length, double repeat_prob,
+                              std::mt19937 &rng) {
+  static const char bases[] = {'A', 'C', 'G', 'T'};
+  std::uniform_int_distribution<int> base_dist(0, 3);
+  std::uniform_real_distribution<double> prob(0.0, 1.0);
+
+  std::string seq;
+  seq.reserve(length);
+
+  for (size_t i = 0; i < length; ++i) {
+    // Introduce repetition: copy previous base
+    if (i > 0 && prob(rng) < repeat_prob) {
+      seq.push_back(seq[i - 1]);
+    } else {
+      seq.push_back(bases[base_dist(rng)]);
+    }
+  }
+  return seq;
+}
+
+inline std::string motif_repeat(const std::string &motif, size_t length) {
+  std::string seq;
+  while (seq.size() < length) {
+    seq += motif;
+  }
+  seq.resize(length);
+  return seq;
+}
+
+inline std::vector<std::string> generate_sequences(size_t n_seqs, size_t length,
+                                                   double repeatness,
+                                                   std::mt19937 &rng) {
+  std::vector<std::string> seqs;
+  for (size_t i = 0; i < n_seqs; ++i) {
+    seqs.push_back(random_dna(length, repeatness, rng));
+  }
+  return seqs;
+}
+
+inline std::unordered_map<std::string, int>
+OracleKmerCount(const std::vector<std::string> &seqs, size_t k) {
+  std::unordered_map<std::string, int> counts;
+
+  for (const auto &seq : seqs) {
+    if (seq.size() < k)
+      continue;
+
+    for (size_t i = 0; i <= seq.size() - k; ++i) {
+      std::string kmer = seq.substr(i, k);
+      std::string rc = reverse_complement(kmer);
+
+      counts[kmer]++;
+      counts[rc]++;
+    }
+  }
+
+  return counts;
+}
+
+inline void BuildGraph(const std::vector<std::string> &seqs, size_t k, size_t s,
+                       const fs::path &bufferPath) {
+  std::string fasta = ">seqA\n";
+  for (const auto &seq : seqs)
+    fasta += seq + 'N';
+
+  std::vector<Dna4Genome> genomes(1);
+  {
+    std::istringstream datastream(fasta);
+    Colours c;
+    parseFastaStream(genomes[0], datastream, c, k);
+  }
+
+  wdbg::construct(toView(genomes),
+                  {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+}
 
 inline void ParseFastaToGenome(Dna4Genome &genome, const std::string &file,
                                Colours &c, std::size_t k) {
@@ -56,4 +158,36 @@ UnpackColours(const ColouredGraph &g) {
   }
 
   return ca;
+}
+
+inline std::unordered_map<std::string, int> ExtractKmers(const WeightedGraph &g) {
+  std::unordered_map<std::string, int> counts;
+  for (std::size_t e = 0; e < g.edges(); ++e) {
+    auto kmer = g.kmer(e);
+    if (kmer.size() == static_cast<std::size_t>(g.k + 1)) {
+      counts[toString(kmer)] = static_cast<int>(g.edge_count(e));
+    }
+  }
+  return counts;
+}
+
+inline void VerifyGraph(const std::vector<std::string> &seqs, size_t k,
+                        const fs::path &bufferPath) {
+  ASSERT_TRUE(k > 3);
+
+  BuildGraph(seqs, k - 1, 1, bufferPath);
+
+  WeightedGraph g;
+  WeightedGraph::FromDisk(g, bufferPath);
+
+  auto graph_kmers = ExtractKmers(g);
+  auto oracle_map = OracleKmerCount(seqs, k);
+
+  EXPECT_EQ(graph_kmers.size(), oracle_map.size());
+
+  for (const auto &[kmer, expected_count] : oracle_map) {
+    ASSERT_TRUE(graph_kmers.count(kmer)) << "Missing k-mer: " << kmer;
+    EXPECT_EQ(graph_kmers[kmer], expected_count)
+        << "Mismatch for k-mer: " << kmer;
+  }
 }

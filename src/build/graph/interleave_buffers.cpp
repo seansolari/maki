@@ -93,4 +93,5 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
   // finalise node
   succ.back() = 1;
   ++pkt.str.C[msb_dna5];
+  pkt.data.clear();
 }

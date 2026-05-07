@@ -31,8 +31,9 @@ SuffixwiseKmers SuffixwiseKmers::FromSequences(
     const std::vector<const SequenceContainer *> &seqs,
     const TerminalRange &terms, std::size_t k, std::size_t s, MetaColours *cmap,
     push_summary *str) {
-  auto suffixPlan =
-      std::make_shared<std::vector<SuffixTable>>(createSuffixPlan(seqs, k, s));
+  assert(k > s);
+  auto suffixPlan = std::make_shared<std::vector<SuffixTable>>(
+      createSuffixPlan(seqs, k, s, k - s));
   auto bufferFactory = std::make_shared<dbg::BufferMaker<KmerBuffer>>(
       suffixPlan->back().maxValue(), value_size(cmap->colourWidth()), k, k - s);
   return SuffixwiseKmers(seqs, terms, std::move(suffixPlan),
@@ -101,7 +102,6 @@ std::unique_ptr<Bundle> SuffixwiseKmers::extractKmers(uint64_t idx,
 // Finalisation
 // -----------------------------------------------------------------------------
 
-
 ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
                             const std::string &out) {
 
@@ -117,7 +117,7 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
   g.k = k;
   dbg::detail::finaliseGraphStructure(g, inp.str);
   g.cmap = toRegistry(std::move(cols));
-  
+
   dbg::detail::serialize(g, outp.meta);
 
   LOG_INFO() << "Graph construction complete";

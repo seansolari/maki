@@ -220,7 +220,7 @@ TEST_F(ChunkedGenomeSuffixTests, CountChunkedGenome) {
     view.push_back(&chunk);
   }
 
-  auto counts = createSuffixPlan(view, k, s);
+  auto counts = createSuffixPlan(view, k, s, k - s);
   ASSERT_THAT(counts.back().cdata(), ElementsAre(12, 18, 20, 10));
 }
 
@@ -259,7 +259,7 @@ protected:
 TEST_F(ChunkedGenomeChunkTests, CountChunks) {
   constexpr uint8_t s = 2;
   auto view = getView();
-  auto counts = createSuffixPlan(view, k, s, false);
+  auto counts = createSuffixPlan(view, k, s, k - s, false);
   ASSERT_EQ(counts.size(), 18);
 
   ASSERT_THAT(counts[0].cdata(),
@@ -303,7 +303,7 @@ TEST_F(ChunkedGenomeChunkTests, CountChunks) {
 TEST_F(ChunkedGenomeChunkTests, CountTotal) {
   constexpr uint8_t s = 2;
   auto view = getView();
-  auto counts = createSuffixPlan(view, k, s);
+  auto counts = createSuffixPlan(view, k, s, k - s);
   ASSERT_THAT(counts.back().cdata(), ElementsAre(2, 8, 14, 48, 31, 0, 18, 15,
                                                  22, 34, 0, 8, 17, 23, 33, 1));
 }

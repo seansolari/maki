@@ -142,12 +142,13 @@ SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs) {
 
 std::vector<SuffixTable>
 createSuffixPlan(const std::vector<const SequenceContainer *> &data,
-                 std::size_t k, std::size_t s, bool accumulate) {
+                 std::size_t k, std::size_t s, std::size_t offset,
+                 bool accumulate) {
   std::vector<SuffixTable> tables(data.size());
 
   // count suffixes
   oneapi::tbb::parallel_for((std::size_t)0, data.size(), (std::size_t)1,
-                            [&](std::size_t i) {
+                            [&, k, s](std::size_t i) {
                               tables[i].resize(s);
                               for (auto fmt : data[i]->fragments(k)) {
                                 auto it = fmt.begin(), end = fmt.end();
@@ -155,7 +156,7 @@ createSuffixPlan(const std::vector<const SequenceContainer *> &data,
                                   --end;
                                 std::size_t size = end - it;
                                 if (size >= k)
-                                  tables[i].count(it + (k - s), end);
+                                  tables[i].count(it + offset, end);
                               }
                             });
 

@@ -5,25 +5,27 @@
 ## High priority
 
   - Counting graph creation from FastQ.
+  - Python bindings for graph creation and querying.
 
 ## Low priority
 
   - Compress metacolour representation.
   - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
+  - Add Newick support.
 
 ## Planned updates
 
 ### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
 
-  - Migrate source code
+  - **DONE** - Migrate source code
     - **DONE** - Migrate read parsing code
-    - Implement competitive terminal extraction from read data and counting graph construction in build module
+    - **DONE** - Implement competitive terminal extraction from read data and counting graph construction in build module
       - **DONE** - Implement CountsBuffer
       - **DONE** - Implement pushNode for terminals (interleave_buffers.[hc]pp)
       - **DONE** - Implement TerminalsGate (construct_terminals.[hc]pp)
-      - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
+      - **DONE** - Implement SuffixwiseTerminals (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
         - **DONE** - Implement TerminalwiseSuffix using SuffixWise (construct_wdbg.[hc]pp, compare to construct_cdbg.[hc]pp)
-        - Double check suffix plan for suffix-wise terminal buffer (constructSuffixPlan needs to start at s, not k-s?)
+        - **DONE** - Double check suffix plan for suffix-wise terminal buffer (constructSuffixPlan needs to start at s, not k-s?)
         - **DONE** - Refactor graph finalisation into dbg (construct_common.hpp) and [cw]dbg (construct_[cw]dbg.[hc]pp)
   - **DONE** - Migrate fastq parsing unit tests
   - Implement counting graph tests
@@ -32,7 +34,9 @@
     - **DONE** - TerminalsGate tests
       - **DONE** - LongSuffixGate tests
       - **DONE** - extractTerminalsDense tests
-    - pushNode tests
+    - **DONE** - Terminal buffer suffix-specific k-mer extraction
+    - **DONE** - PushNode tests
+    - Graph k-mer counts test
 
 ### Wed 22 Apr. 2026 - Migrate merge algorithm
 

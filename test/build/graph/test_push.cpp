@@ -1,33 +1,34 @@
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/interleave_buffers.hpp"
 
+#include "maki/core/graph/archive/counts.hpp"
 #include "test_common.hpp"
+#include <gtest/gtest.h>
 
-class GraphInsertTests : public testing::Test {
+class PushNodeTests : public testing::Test {
 protected:
-  GraphInsertTests() : k(7), num_colours(11) {}
+  PushNodeTests() : pkt() { FillPacket(); }
 
-  uint8_t k, num_colours;
+  void FillPacket() {
+    ++pkt.block;
+    pkt.emplace(BufferValue((size_t)8ull, 3ull));
+    pkt.emplace(BufferValue((size_t)1ull, 0ull));
+    pkt.emplace(BufferValue((size_t)7ull, 3ull));
+    pkt.emplace(BufferValue((size_t)3ull, 1ull));
+    pkt.emplace(BufferValue((size_t)2ull, 0ull));
+    pkt.emplace(BufferValue((size_t)0ull,
+                            KmerBuffer::terminalEdge)); // should be ignored
+    pkt.emplace(BufferValue((size_t)5ull, 2ull));
+    pkt.emplace(BufferValue((size_t)4ull, 1ull));
+    pkt.emplace(BufferValue((size_t)6ull, 3ull));
+    pkt.emplace(BufferValue((size_t)0ull,
+                            KmerBuffer::terminalEdge)); // should be ignored
+  }
+
+  packet pkt;
 };
 
-TEST_F(GraphInsertTests, WriteColouredEdges) {
-  // Prepare data
-  packet pkt{};
-  ++pkt.block;
-
-  pkt.emplace(BufferValue((size_t)8ull, 3ull));
-  pkt.emplace(BufferValue((size_t)1ull, 0ull));
-  pkt.emplace(BufferValue((size_t)7ull, 3ull));
-  pkt.emplace(BufferValue((size_t)3ull, 1ull));
-  pkt.emplace(BufferValue((size_t)2ull, 0ull));
-  pkt.emplace(BufferValue((size_t)0ull,
-                          KmerBuffer::terminalEdge)); // should be ignored
-  pkt.emplace(BufferValue((size_t)5ull, 2ull));
-  pkt.emplace(BufferValue((size_t)4ull, 1ull));
-  pkt.emplace(BufferValue((size_t)6ull, 3ull));
-  pkt.emplace(BufferValue((size_t)0ull,
-                          KmerBuffer::terminalEdge)); // should be ignored
-
+TEST_F(PushNodeTests, WriteColouredEdges) {
   // Push to graph
   sdsl::int_vector<4> edges;
   sdsl::bit_vector succ;
@@ -53,33 +54,71 @@ TEST_F(GraphInsertTests, WriteColouredEdges) {
   EXPECT_EQ(cmap.id({6, 7, 8}), 11);
 }
 
-TEST_F(GraphInsertTests, InsertColouredKmers) {
-  // Create k-mers to insert
-  KmerBuffer buffer(value_size(ceil_log2(num_colours)), k, k,
-                    {
-                        {0b01111011, 0b00110010, 0b00000001}, // TGTCGAT -> C
-                        {0b01111011, 0b00110010, 0b00001001}, // TGTCGAT -> C
-                        {0b10010000, 0b00111000, 0b00000011}, // AACGAGT -> T
-                        {0b10010000, 0b00111000, 0b00011011}, // AACGAGT -> T
-                        {0b10010001, 0b00111000, 0b00000000}, // CACGAGT -> A
-                        {0b10010001, 0b00111000, 0b00111000}, // CACGAGT -> A
-                        {0b10010011, 0b00111000, 0b00001000}, // TACGAGT -> A
-                        {0b10010011, 0b00111000, 0b00101000}, // TACGAGT -> A
-                        {0b01110000, 0b00111010, 0b00000001}, // AATCGGT -> C
-                        {0b01110011, 0b00111010, 0b00000001}, // TATCGGT -> C
-                    });
-  sdsl::int_vector<2> B = {BW_0_K, IS_0, BW_0_K, IS_0,   IS_K,
-                           IS_0,   IS_K, IS_0,   BW_0_K, IS_K};
+TEST_F(PushNodeTests, WriteCountingEdges) {
+  // Push to graph
+  sdsl::int_vector<4> edges;
+  sdsl::bit_vector succ;
+  CountBuffer rawEdgeCounts;
 
+  pushNode(pkt, edges, succ, 1u /* A */, rawEdgeCounts);
+  // Check graph structure
+  EXPECT_EQ(pkt.block, 0);
+
+  sdsl::int_vector<4> Xedges = {0b1001, 0b1010, 0b1011, 0b1100};
+  sdsl::bit_vector Xwplus = {0, 0, 0, 1};
+
+  EXPECT_THAT(edges, ContainerEq(Xedges));
+  EXPECT_THAT(succ, ContainerEq(Xwplus));
+
+  // Check counts
+  CompressedCountBuffer counts(std::move(rawEdgeCounts));
+  EXPECT_EQ(counts.node_count(), 1);
+  EXPECT_EQ(counts.edge_count(0, 0), 2);
+  EXPECT_EQ(counts.edge_count(0, 1), 2);
+  EXPECT_EQ(counts.edge_count(0, 2), 1);
+  EXPECT_EQ(counts.edge_count(0, 3), 3);
+}
+
+class PushNodesTests : public testing::Test {
+protected:
+  PushNodesTests() : k(7), num_colours(11), pkt() {}
+
+  template <class... Args>
+  void FillPacket(sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+                  Args &&...args) {
+    // Create k-mers to insert
+    KmerBuffer buffer(value_size(ceil_log2(num_colours)), k, k,
+                      {
+                          {0b01111011, 0b00110010, 0b00000001}, // TGTCGAT -> C
+                          {0b01111011, 0b00110010, 0b00001001}, // TGTCGAT -> C
+                          {0b10010000, 0b00111000, 0b00000011}, // AACGAGT -> T
+                          {0b10010000, 0b00111000, 0b00011011}, // AACGAGT -> T
+                          {0b10010001, 0b00111000, 0b00000000}, // CACGAGT -> A
+                          {0b10010001, 0b00111000, 0b00111000}, // CACGAGT -> A
+                          {0b10010011, 0b00111000, 0b00001000}, // TACGAGT -> A
+                          {0b10010011, 0b00111000, 0b00101000}, // TACGAGT -> A
+                          {0b01110000, 0b00111010, 0b00000001}, // AATCGGT -> C
+                          {0b01110011, 0b00111010, 0b00000001}, // TATCGGT -> C
+                      });
+    sdsl::int_vector<2> B = {BW_0_K, IS_0, BW_0_K, IS_0,   IS_K,
+                             IS_0,   IS_K, IS_0,   BW_0_K, IS_K};
+
+    pushNodes(pkt, buffer.begin(), buffer.end(), B.begin(), edges, succ,
+              3u /* T */, std::forward<Args>(args)...);
+  }
+
+  uint8_t k, num_colours;
+  packet pkt;
+};
+
+TEST_F(PushNodesTests, InsertColouredKmers) {
   // Push to graph
   sdsl::int_vector<4> edges;
   sdsl::bit_vector succ;
   ArchivePayload carch;
   MetaColours cmap(7);
 
-  packet pkt{};
-  pushNodes(pkt, buffer.begin(), buffer.end(), B.begin(), edges, succ,
-            3u /* T */, carch, cmap);
+  FillPacket(edges, succ, carch, cmap);
 
   // Check graph structure
   sdsl::int_vector<4> Xedges = {0b1010, 0b1100, 0b1001, 0b0001, 0b1010, 0b0010};
@@ -100,6 +139,71 @@ TEST_F(GraphInsertTests, InsertColouredKmers) {
   EXPECT_THAT(pkt.str.F, ElementsAreArray({0, 0, 0, 0, 6}));
 }
 
+TEST_F(PushNodesTests, InsertCountedKmers) {
+  // Push to graph
+  sdsl::int_vector<4> edges;
+  sdsl::bit_vector succ;
+  CountBuffer rawEdgeCounts;
+
+  FillPacket(edges, succ, rawEdgeCounts);
+
+  // Check graph structure
+  sdsl::int_vector<4> Xedges = {0b1010, 0b1100, 0b1001, 0b0001, 0b1010, 0b0010};
+  sdsl::bit_vector Xwplus = {1, 1, 1, 1, 1, 1};
+  EXPECT_THAT(edges, ContainerEq(Xedges));
+  EXPECT_THAT(succ, ContainerEq(Xwplus));
+
+  // Check counts
+  CompressedCountBuffer counts(std::move(rawEdgeCounts));
+  EXPECT_EQ(counts.node_count(), 6);
+  EXPECT_EQ(counts.edge_count(0, 0), 2);
+  EXPECT_EQ(counts.edge_count(1, 0), 2);
+  EXPECT_EQ(counts.edge_count(2, 0), 2);
+  EXPECT_EQ(counts.edge_count(3, 0), 2);
+  EXPECT_EQ(counts.edge_count(4, 0), 1);
+  EXPECT_EQ(counts.edge_count(5, 0), 1);
+
+  // Check blocks
+  EXPECT_THAT(pkt.str.C, ElementsAreArray({0, 0, 0, 0, 6}));
+  EXPECT_THAT(pkt.str.F, ElementsAreArray({0, 0, 0, 0, 6}));
+}
+
+class PushRangeTests : public testing::Test {
+protected:
+  PushRangeTests() : k(7), num_colours(11) {}
+
+  template <class... Args>
+  push_summary FillTestBuffers(sdsl::int_vector<4> &edges,
+                               sdsl::bit_vector &succ, Args &&...args) {
+    TerminalBuffer terminals(k,
+                             {{/* size */ 0b00000000, /* kmer */ 0b00000000,
+                               0b00000000, /* edge */ 0b00000000},
+                              {/* size */ 0b00000000, /* kmer */ 0b00000000,
+                               0b00000000, /* edge */ 0b00000001},
+                              {/* size */ 0b00000011, /* kmer */ 0b00000000,
+                               0b00000000, /* edge */ 0b00000010},
+                              {/* size */ 0b00000110, /* kmer */ 0b00000000,
+                               0b00000000, /* edge */ 0b00000010},
+                              {/* size */ 0b00000110, /* kmer */ 0b00000100,
+                               0b00000000, /* edge */ 0b00000011},
+                              {/* size */ 0b00000011, /* kmer */ 0b00000000,
+                               0b00110000, /* edge */ 0b00000000},
+                              {/* size */ 0b00000011, /* kmer */ 0b00000000,
+                               0b00110000, /* edge */ 0b00000001},
+                              {/* size */ 0b00000011, /* kmer */ 0b00000000,
+                               0b00110000, /* edge */ 0b00000001}},
+                             TerminalBuffer::autofit_tag);
+    sdsl::int_vector<2> B = {BW_0_K, IS_0,   BW_0_K, BW_0_K,
+                             BW_0_K, BW_0_K, IS_0,   IS_0};
+
+    auto view = terminals.asRange();
+    return pushRange(view, B.begin(), edges, succ, 3u /*T*/,
+                     std::forward<Args>(args)...);
+  }
+
+  uint8_t k, num_colours;
+};
+
 /**
  * $$$$ -$$$ -> A
  * $$$$ -$$$ -> C
@@ -108,35 +212,17 @@ TEST_F(GraphInsertTests, InsertColouredKmers) {
  * AAC$ -AAA -> T
  * $$$$ -TAA -> A
  * $$$$ -TAA -> C
+ * $$$$ -TAA -> C
  *
  */
-TEST_F(GraphInsertTests, InsertTerminals) {
-  TerminalBuffer terminals(k,
-                           {{/* size */ 0b00000000, /* kmer */ 0b00000000,
-                             0b00000000, /* edge */ 0b00000000},
-                            {/* size */ 0b00000000, /* kmer */ 0b00000000,
-                             0b00000000, /* edge */ 0b00000001},
-                            {/* size */ 0b00000011, /* kmer */ 0b00000000,
-                             0b00000000, /* edge */ 0b00000010},
-                            {/* size */ 0b00000110, /* kmer */ 0b00000000,
-                             0b00000000, /* edge */ 0b00000010},
-                            {/* size */ 0b00000110, /* kmer */ 0b00000100,
-                             0b00000000, /* edge */ 0b00000011},
-                            {/* size */ 0b00000011, /* kmer */ 0b00000000,
-                             0b00110000, /* edge */ 0b00000000},
-                            {/* size */ 0b00000011, /* kmer */ 0b00000000,
-                             0b00110000, /* edge */ 0b00000001}},
-                           TerminalBuffer::autofit_tag);
-  sdsl::int_vector<2> B = {BW_0_K, IS_0, BW_0_K, BW_0_K, BW_0_K, BW_0_K, IS_0};
-
+TEST_F(PushRangeTests, InsertTerminals) {
   // Push to graph
   sdsl::int_vector<4> edges;
   sdsl::bit_vector succ;
   ArchivePayload carch;
   MetaColours cmap(7);
 
-  auto view = terminals.asRange();
-  auto ps = pushRange(view, B.begin(), edges, succ, 3u /* T */, carch, cmap);
+  auto ps = FillTestBuffers(edges, succ, carch, cmap);
 
   // Check graph structure
   sdsl::int_vector<4> Xedges = {0b1001, 0b1010, 0b1011, 0b1011,
@@ -148,6 +234,37 @@ TEST_F(GraphInsertTests, InsertTerminals) {
   // Check colours
   std::vector<uint64_t> cols(7, 0);
   EXPECT_THAT(carch.raw.view(), ElementsAreArray(cols));
+
+  // Check blocks
+  EXPECT_THAT(ps.C, ElementsAreArray({0, 0, 0, 0, 5}));
+  EXPECT_THAT(ps.F, ElementsAreArray({0, 0, 0, 0, 7}));
+}
+
+TEST_F(PushRangeTests, CountTerminals) {
+  // Push to graph
+  sdsl::int_vector<4> edges;
+  sdsl::bit_vector succ;
+  CountBuffer rawCounts;
+
+  auto ps = FillTestBuffers(edges, succ, rawCounts);
+
+  // Check graph structure
+  sdsl::int_vector<4> Xedges = {0b1001, 0b1010, 0b1011, 0b1011,
+                                0b1100, 0b1001, 0b1010};
+  sdsl::bit_vector Xwplus = {0, 1, 1, 1, 1, 0, 1};
+  EXPECT_THAT(edges, ContainerEq(Xedges));
+  EXPECT_THAT(succ, ContainerEq(Xwplus));
+
+  // Check counts
+  CompressedCountBuffer counts(std::move(rawCounts));
+  EXPECT_EQ(counts.node_count(), 5);
+  EXPECT_EQ(counts.edge_count(0, 0), 1);
+  EXPECT_EQ(counts.edge_count(0, 1), 1);
+  EXPECT_EQ(counts.edge_count(1, 0), 1);
+  EXPECT_EQ(counts.edge_count(2, 0), 1);
+  EXPECT_EQ(counts.edge_count(3, 0), 1);
+  EXPECT_EQ(counts.edge_count(4, 0), 1);
+  EXPECT_EQ(counts.edge_count(4, 1), 2);
 
   // Check blocks
   EXPECT_THAT(ps.C, ElementsAreArray({0, 0, 0, 0, 5}));
