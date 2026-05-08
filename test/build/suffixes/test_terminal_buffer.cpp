@@ -533,8 +533,15 @@ TEST_F(TerminalDiffTests, BigTermSeq) {
 
 TEST_F(TerminalDiffTests, BigTermSize) {
   std::vector<uint8_t> t1 = {10, 0b00000000, 0b00000000, 0b00001100},
-                       t2 = {1, 0b00000000, 0b00000000, 0b00001100};
+                       t2 = {01, 0b00000000, 0b00000000, 0b00001100};
   auto res = TerminalDiff{1, 10}(t1.data(), t2.data());
+  ASSERT_EQ(res, BW_0_K);
+}
+
+TEST_F(TerminalDiffTests, BigTermSeeminglyKm1) {
+  std::vector<uint8_t> t1 = {3, 0b01100000, 0b00000011},
+                       t2 = {5, 0b01100001, 0b00000011};
+  auto res = TerminalDiff{1, 5}(t1.data(), t2.data());
   ASSERT_EQ(res, BW_0_K);
 }
 

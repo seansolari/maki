@@ -1,5 +1,6 @@
 
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/build/kmers/buffers/base_buffer.hpp"
 #include "maki/build/kmers/buffers/sort.hpp"
 #include "maki/maki.h"
 #include <execution>
@@ -310,21 +311,37 @@ KmerDiffClass TerminalDiff::operator()(const uint8_t *_lhs,
                                        const uint8_t *_rhs) const {
   KmerDiffClass dseq =
       KmerDiff::operator()(_lhs + _lengthBytes, _rhs + _lengthBytes);
-  if (dseq == IS_0) {
-    size_t minSize = deser(_lhs, _lengthBytes);
-    size_t maxSize = deser(_rhs, _lengthBytes);
-
-    if (minSize > maxSize)
-      std::swap(minSize, maxSize);
-
-    if (minSize == maxSize)
-      return IS_0;
-    else if ((maxSize - minSize == 1u) && (maxSize == _k_eff))
-      return IS_K;
-    else
-      return BW_0_K;
-  } else
+  if (dseq == BW_0_K) {
     return dseq;
+  } else {
+    // Here, `dseq` is either `IS_0` or `IS_K`. We need the size of each k-mer.
+    size_t small = deser(_lhs, _lengthBytes), big = deser(_rhs, _lengthBytes);
+    if (small > big)
+      std::swap(small, big);
+
+    // If it's `IS_0`, we need to compare the sizes.
+    //    - If they're the same size, it's fine.
+    //    - If they differ by 1, and the larger sequence is length `k_eff`, then
+    //    it's actually `IS_K`.
+    //    - Otherwise, its `BW_0_K`.
+    // If its `IS_K`, we need to compare the sizes.
+    //    - If they're the same size, or they differ by 1, it's fine.
+    //    - If they differ by more than 1, it's actually `BW_0_K`.
+    //
+    if (dseq == IS_0) {
+      if (small == big)
+        return dseq;
+      else if ((big - small == 1u) && (big == _k_eff))
+        return IS_K;
+      else
+        return BW_0_K;
+    } else { // dseq == IS_K
+      if (big - small > 1u)
+        return BW_0_K;
+      else
+        return IS_K;
+    }
+  }
 }
 
 void adjacentDifference(TerminalBuffer &buffer, sdsl::int_vector<2> &arr) {

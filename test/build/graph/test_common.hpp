@@ -1,8 +1,11 @@
+#include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/graph/construct_wdbg.hpp"
 #include "maki/build/io/fasta.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/graph/wdbg.hpp"
 
+#include "gmock/gmock.h"
+#include <filesystem>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <random>
@@ -12,6 +15,8 @@
 
 using ::testing::ContainerEq;
 using ::testing::ElementsAreArray;
+using ::testing::Pointwise;
+using ::testing::Eq;
 
 static char complement(char c) {
   switch (c) {
@@ -95,20 +100,23 @@ OracleKmerCount(const std::vector<std::string> &seqs, size_t k) {
 }
 
 inline void BuildGraph(const std::vector<std::string> &seqs, size_t k, size_t s,
-                       const fs::path &bufferPath) {
+                       const fs::path &bufferPath, bool coloured = false) {
   std::string fasta = ">seqA\n";
   for (const auto &seq : seqs)
     fasta += seq + 'N';
 
   std::vector<Dna4Genome> genomes(1);
-  {
-    std::istringstream datastream(fasta);
-    Colours c;
-    parseFastaStream(genomes[0], datastream, c, k);
-  }
+  std::istringstream datastream(fasta);
+  Colours c;
+  parseFastaStream(genomes[0], datastream, c, k);
 
-  wdbg::construct(toView(genomes),
-                  {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+  if (coloured) {
+    cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
+                    {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+  } else {
+    wdbg::construct(toView(genomes),
+                    {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+  }
 }
 
 inline void ParseFastaToGenome(Dna4Genome &genome, const std::string &file,
@@ -160,7 +168,15 @@ UnpackColours(const ColouredGraph &g) {
   return ca;
 }
 
-inline std::unordered_map<std::string, int> ExtractKmers(const WeightedGraph &g) {
+inline bool CheckKmers(const ColouredGraph &g) {
+  for (std::size_t e = 0; e < g.edges(); ++e) {
+    g.kmer(e);
+  }
+  return true;
+}
+
+inline std::unordered_map<std::string, int>
+ExtractKmers(const WeightedGraph &g) {
   std::unordered_map<std::string, int> counts;
   for (std::size_t e = 0; e < g.edges(); ++e) {
     auto kmer = g.kmer(e);
@@ -175,12 +191,38 @@ inline void VerifyGraph(const std::vector<std::string> &seqs, size_t k,
                         const fs::path &bufferPath) {
   ASSERT_TRUE(k > 3);
 
-  BuildGraph(seqs, k - 1, 1, bufferPath);
+  auto cpath = bufferPath / "coloured";
+  auto rpath = bufferPath / "counted";
 
-  WeightedGraph g;
-  WeightedGraph::FromDisk(g, bufferPath);
+  fs::create_directories(cpath);
+  fs::create_directories(rpath);
+  
+  // create and check coloured graph
 
-  auto graph_kmers = ExtractKmers(g);
+  BuildGraph(seqs, k - 1, 1, cpath, true);
+
+  ColouredGraph g1;
+  ColouredGraph::FromDisk(g1, cpath);
+  CheckKmers(g1);
+  
+  // create and check counting graph
+
+  BuildGraph(seqs, k - 1, 1, rpath, false);
+
+  WeightedGraph g2;
+  WeightedGraph::FromDisk(g2, rpath);
+
+  // compare graph structures
+
+  EXPECT_EQ(g1.l.size(), g2.l.size());
+  EXPECT_THAT(g1.l, Pointwise(Eq(), g2.l));
+
+  EXPECT_EQ(g1.W.size(), g2.W.size());
+  EXPECT_THAT(g1.W, Pointwise(Eq(), g2.W));
+
+  // compare k-mers to oracle
+
+  auto graph_kmers = ExtractKmers(g2);
   auto oracle_map = OracleKmerCount(seqs, k);
 
   EXPECT_EQ(graph_kmers.size(), oracle_map.size());

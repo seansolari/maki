@@ -115,7 +115,7 @@ WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
 WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                              dbg::BuildOptions params) {
 
-  LOG_INFO() << "Starting WDBG construction";
+  LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
   LOG_INFO() << "Input chunks: " << data.size();
   LOG_INFO() << "Output directory: " << params.out;
 

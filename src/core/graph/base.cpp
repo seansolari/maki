@@ -6,7 +6,8 @@ DeBruijnGraphFiles::DeBruijnGraphFiles(fs::path base_)
     : base(base_), l(base / "1.dat"), lR(base / "2.dat"), lS(base / "3.dat"),
       W(base / "4.dat"), meta(base / "5.dat") {}
 
-void DeBruijnGraph::LoadBaseBuffers(DeBruijnGraph &g, DeBruijnGraphFiles &files) {
+void DeBruijnGraph::LoadBaseBuffers(DeBruijnGraph &g,
+                                    DeBruijnGraphFiles &files) {
   // Load `l` arrays
   sdsl::load_from_file(g.l, files.l);
 
@@ -21,16 +22,11 @@ void DeBruijnGraph::LoadBaseBuffers(DeBruijnGraph &g, DeBruijnGraphFiles &files)
 }
 
 uint8_t DeBruijnGraph::block(std::size_t i) const {
-  if (F[1] > i)
-    return 0u | 0b1000u;
-  else if (F[2] > i)
-    return 1u | 0b1000u;
-  else if (F[3] > i)
-    return 2u | 0b1000u;
-  else if (F[4] > i)
-    return 3u | 0b1000u;
-  else
-    return 4u | 0b1000u;
+  for (uint8_t c = 0; c < 4u; ++c) {
+    if (F[c] <= i && F[c + 1] > i)
+      return c | uint8_t(0b1000u);
+  }
+  return uint8_t(4u | 0b1000u);
 }
 
 uint8_t DeBruijnGraph::edge(std::size_t i) const { return W[i] & 0b0111; }
@@ -67,9 +63,9 @@ std::optional<std::size_t> DeBruijnGraph::fwd(std::size_t i) const {
 // WARNING: no bounds check on input
 std::optional<std::size_t> DeBruijnGraph::bwd(std::size_t i) const {
   uint8_t c = block(i);
-  if ((c ^ 0b1000u) == 0u)
+  if (c == 0b1000u)
     return std::nullopt;
-  std::size_t r1 = (lR(i) + 1u), r2 = lR(F[c ^ 0b1000u]);
+  std::size_t r1 = lR(i) + 1u, r2 = lR(F[c ^ 0b1000u]);
   return W.select(r1 - r2, c);
 }
 
