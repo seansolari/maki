@@ -56,10 +56,9 @@ pybind11_add_module (_maki ${MAKI_CLASSIFY_SOURCES} "${MAKI_CLONE_DIR}/bindings/
 target_link_libraries (_maki PRIVATE maki::maki)
 
 set_target_properties(_maki PROPERTIES
-  BUILD_RPATH "$ORIGIN/libs"
-  INSTALL_RPATH "$ORIGIN/libs"
+    INSTALL_RPATH "$ORIGIN/libs"
 )
 
-install(TARGETS _maki
-    LIBRARY DESTINATION maki
+install (TARGETS _maki
+         LIBRARY DESTINATION maki
 )
