@@ -2,14 +2,17 @@
 #include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/graph/build_colours.hpp"
 #include "maki/build/graph/construct_common.hpp"
+#include "maki/build/io/fasta.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
 #include "maki/core/graph/cdbg.hpp"
+#include "maki/core/seq/io.hpp"
 #include "maki/core/utils/logging.hpp"
 #include <filesystem>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
+#include <stdexcept>
 
 namespace cdbg {
 
@@ -157,6 +160,30 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   sinks.finalize();
 
   return finalise(outp, params.kmer_size, std::move(cmap), params.out);
+}
+
+ColouredGraphFiles construct(const GenomeManifest &im,
+                             dbg::BuildOptions params) {
+  switch (im.type) {
+  case InputFileType::Gff3FileType: {
+    Colours colours;
+    auto genomes =
+        parse(im.files, parseGFF, colours, (std::size_t)params.kmer_size);
+    auto view = toView(genomes);
+    return construct(view, std::move(colours.ids), params);
+  }
+  case InputFileType::FastaFileType: {
+    Colours colours;
+    auto genomes =
+        parse(im.files, parseFilterFNA, colours, (std::size_t)params.threads,
+              (std::size_t)params.kmer_size);
+    auto view = toView(genomes);
+    return construct(view, std::move(colours.ids), params);
+  }
+  default:
+    throw std::runtime_error(
+        "Coloured graph construction only supported for FASTA or GFF3 files.");
+  }
 }
 
 } // namespace cdbg

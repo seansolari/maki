@@ -23,6 +23,8 @@ struct BuildOptions {
   std::size_t pool_size = 16;
   std::size_t reserve_per_chunk = 0;
   std::size_t chunks() const;
+  // System paramers
+  std::size_t threads;
 };
 
 // -----------------------------------------------------------------------------

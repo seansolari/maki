@@ -7,21 +7,15 @@
 These steps ensure an up-to-date version of `cmake`, and `gxx` compiler (at least g++ 10 is required to support C++ Concepts).
 
 ```{console}
-$ mamba create -n cmake -c anaconda -c conda-forge cmake gcc gxx zlib hdf5 libunwind
+$ mamba create -n cmake -c anaconda -c conda-forge cmake gcc gxx zlib pybind11
 $ mamba activate cmake
-```
-
-Additional dependencies if building as a static library:
-
-```{console}
-$ mamba install conda-forge::hdf5-static hcc::szip
 ```
 
 ### Build using cmake
 
 ```{console}
 $ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build --config Release --target maki-build -j $(nproc --all) --
+$ cmake --build build --config Release --target maki-build-targets -j $(nproc --all) --
 ```
 
 #### Note - conda-packaged compilers (VSCode)

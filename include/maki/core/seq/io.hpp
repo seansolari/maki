@@ -30,52 +30,45 @@ using Dna4Sequence = seqan3::bitpacked_sequence<seqan3::dna4>;
 using Dna4SequenceConstIter = Dna4Sequence::const_iterator;
 
 /**
-  * writeMerTo
-  * ------------
-  *
-  * Encode base-pairs from input iterator into values pointed
-  * at by output iterator. E.g. encodes 10-mer into bytes of
-  * the following orientation:
-  *
-  *      `| 4 3 2 1 | 8 7 6 5 | _ _ 10 9 |`
-  *
-  */
-template <
-    typename OutputPtr,
-    typename O = std::remove_pointer_t<OutputPtr>>
-inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out, uint8_t k)
-{
-    constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
+ * writeMerTo
+ * ------------
+ *
+ * Encode base-pairs from input iterator into values pointed
+ * at by output iterator. E.g. encodes 10-mer into bytes of
+ * the following orientation:
+ *
+ *      `| 4 3 2 1 | 8 7 6 5 | _ _ 10 9 |`
+ *
+ */
+template <typename OutputPtr, typename O = std::remove_pointer_t<OutputPtr>>
+inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out,
+                            uint8_t k) {
+  constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
 
-    // write complete cells
-    for (size_t i = 0; i < k / bpPerRecord; ++i)
-    {
-        O &val = *out++;
-        for (size_t j = 0; j < bpPerRecord; ++j)
-        {
-            val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
-        }
+  // write complete cells
+  for (size_t i = 0; i < k / bpPerRecord; ++i) {
+    O &val = *out++;
+    for (size_t j = 0; j < bpPerRecord; ++j) {
+      val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
     }
+  }
 
-    // write partial cell
-    O &val = *out;
-    for (size_t j = 0; j < k % bpPerRecord; ++j)
-    {
-        val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
-    }
-    return out;
+  // write partial cell
+  O &val = *out;
+  for (size_t j = 0; j < k % bpPerRecord; ++j) {
+    val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
+  }
+  return out;
 }
 
-template <typename OutputPtr,
-          typename O = std::remove_pointer_t<OutputPtr>>
-    requires std::random_access_iterator<OutputPtr>
-inline void reverseWriteMerTo(Dna4SequenceConstIter it, OutputPtr out, uint8_t k, uint8_t n)
-{
-    constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
-    for (long i = k-1, end = k-1-n;
-          i > end;
-          --i)
-        *(out + (i / bpPerRecord)) |= parsing::dna4ToRank<O>(*it--) << (2 * (i % bpPerRecord));
+template <typename OutputPtr, typename O = std::remove_pointer_t<OutputPtr>>
+  requires std::random_access_iterator<OutputPtr>
+inline void reverseWriteMerTo(Dna4SequenceConstIter it, OutputPtr out,
+                              uint8_t k, uint8_t n) {
+  constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
+  for (long i = k - 1, end = k - 1 - n; i > end; --i)
+    *(out + (i / bpPerRecord)) |= parsing::dna4ToRank<O>(*it--)
+                                  << (2 * (i % bpPerRecord));
 }
 
 std::string toString(const Dna4Sequence &);
@@ -96,7 +89,12 @@ constexpr std::string_view FQ_EXTENSIONS[2] = {".fq", ".fastq"};
 std::string_view removeCompressedExtensions(std::string_view filePath);
 
 InputFileType detectFileType(std::string_view inputFile);
-std::vector<std::string> readFilePaths(const char *manifest_file,
-                                       InputFileType filter);
-
 std::string_view extractSequenceName(std::string_view path);
+
+struct GenomeManifest {
+  std::vector<std::string> files;
+  InputFileType type;
+};
+
+GenomeManifest readFilePaths(const char *manifest_file, std::size_t col,
+                             const char sep, InputFileType filter);

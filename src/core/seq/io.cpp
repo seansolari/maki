@@ -1,4 +1,5 @@
 #include "maki/core/seq/io.hpp"
+#include "maki/core/utils/logging.hpp"
 
 #include <filesystem>
 
@@ -65,33 +66,66 @@ InputFileType detectFileType(std::string_view inputFile) {
   return UnknownFileType;
 }
 
-std::vector<std::string> readFilePaths(const char *manifest_file,
-                                       InputFileType filter) {
-  std::ifstream manifest(manifest_file);
+namespace detail {
+
+std::size_t sepFind(const std::string &s, std::size_t t, const char sep) {
+  std::size_t pos = 0;
+  for (std::size_t occs = 0; pos < s.size() && occs < t; ++pos)
+    if (s[pos] == sep)
+      ++occs;
+  if (pos == s.size())
+    throw std::runtime_error(std::string{"Index out of range: "} +
+                             std::to_string(t));
+  return pos;
+}
+
+std::pair<std::size_t, std::size_t> sepSelect(std::string const &s,
+                                              std::size_t t, const char sep) {
+  std::size_t begin = sepFind(s, t, sep), end = s.find(sep, begin + 1);
+  if (end == std::string::npos)
+    end = s.size();
+  return std::make_pair(begin, end);
+}
+
+} // namespace detail
+
+GenomeManifest readFilePaths(const char *manifest_file, std::size_t col,
+                             const char sep, InputFileType filter) {
+  GenomeManifest manifest{.files = {}, .type = filter};
+  std::ifstream ifh(manifest_file);
+
   // read lines from file
-  std::vector<std::string> files;
-  std::copy(std::istream_iterator<std::string>(manifest),
-            std::istream_iterator<std::string>(), std::back_inserter(files));
+  std::string line;
+  if (ifh.is_open()) {
+    while (std::getline(ifh, line)) {
+      auto [l, r] = detail::sepSelect(line, col, sep);
+      manifest.files.emplace_back(line.substr(l, r - l));
+    }
+  } else {
+    LOG_ERROR() << "Unable to open file" << manifest_file;
+  }
+
   // validate all these files exist
   std::size_t missing = 0;
-  for (const std::string &file : files) {
+  for (const std::string &file : manifest.files) {
     if (!std::filesystem::exists(file)) {
       ++missing;
-      std::cerr << file << " not found\n";
+      LOG_ERROR() << file << " not found";
     }
     InputFileType ftype = detectFileType(file);
+
     if (ftype != filter) {
       ++missing;
-      std::cerr << "invalid file type: " << file << '\n';
+      LOG_ERROR() << "invalid file type: " << file;
     }
   }
   if (missing) {
-    std::cerr << missing << " files not found\n";
+    LOG_ERROR() << missing << " files not found";
     throw "errors during parsing";
   } else {
-    std::cout << "parsed " << files.size() << " files\n";
+    LOG_INFO() << "parsed " << manifest.files.size() << " files";
   }
-  return files;
+  return manifest;
 }
 
 std::string_view extractSequenceName(std::string_view path) {

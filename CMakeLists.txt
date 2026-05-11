@@ -38,17 +38,6 @@ add_subdirectory ("src")
 message (STATUS "`Build` sources: ${MAKI_BUILD_SOURCES}")
 message (STATUS "`Classify` sources: ${MAKI_CLASSIFY_SOURCES}")
 
-# two executables
-# 1) maki-build
-add_executable(maki-build ${MAKI_BUILD_SOURCES} "${MAKI_CLONE_DIR}/src/build.cpp")
-target_link_libraries (maki-build maki::maki)
-
-# 2) maki-clsasify
-add_executable(maki-classify ${MAKI_CLASSIFY_SOURCES} "${MAKI_CLONE_DIR}/src/classify.cpp")
-target_link_libraries (maki-classify maki::maki)
-
-list (APPEND MAKI_EXECUTABLES maki-build maki-classify)
-
 # custom test targets
 if (ENABLE_MAKI_TESTING)
     add_subdirectory ("test")
@@ -56,4 +45,21 @@ endif ()
 
 # custom build target to build maki-related targets
 add_custom_target (maki_build_targets)
-add_dependencies (maki_build_targets ${MAKI_EXECUTABLES})
+add_dependencies (maki_build_targets ${MAKI_EXECUTABLES} )
+
+# Python bindings
+
+set (PYBIND11_FINDPYTHON ON)
+find_package (pybind11 REQUIRED)
+
+pybind11_add_module (_maki ${MAKI_CLASSIFY_SOURCES} "${MAKI_CLONE_DIR}/bindings/python/maki.cpp")
+target_link_libraries (_maki PRIVATE maki::maki)
+
+set_target_properties(_maki PROPERTIES
+  BUILD_RPATH "$ORIGIN/libs"
+  INSTALL_RPATH "$ORIGIN/libs"
+)
+
+install(TARGETS _maki
+    LIBRARY DESTINATION maki
+)
