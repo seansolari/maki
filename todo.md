@@ -5,9 +5,14 @@
 ## High priority
 
   - Python bindings for graph creation and querying.
+  - AllTheBacteria helpers.
+  - Index construction benchmarking plan.
+  - Profiling algorithm.
+  - Profiling benchmarking plan.
 
 ## Low priority
 
+  - Singularity recipe.
   - Compress metacolour representation.
   - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
   - Add Newick support if necessary.
@@ -18,6 +23,9 @@
 
   - Coloured graph bindings
   - Weighted graph bindings
+  - Writing classify results at annotation level to parquet file
+  - Classify graph bindings
+  - Implement maki algorithms using bindings
 
 ### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
 

@@ -51,7 +51,7 @@ def build(
     manifest = Manifest.from_csv(manifest_path)
     db = MetaGenomicDatabase(db_path, kmer_size, mode = mode)
     db.build(manifest, rank, threads, force)
-    typer.echo("✔ Database build complete.")
+    typer.echo("Database build complete.")
 
 
 @app.command(help="""

@@ -26,7 +26,7 @@ def init(db_path: Path = DEFAULT_DB):
     Download and prepare metadata database.
     """
     ensure_db(db_path)
-    typer.echo(f"✅ Database ready at {db_path}")
+    typer.echo(f"Database ready at {db_path}")
 
 
 @app.command()
