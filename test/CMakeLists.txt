@@ -13,7 +13,7 @@ macro (ADD_TEST test_file)
     
     # create test target
     add_executable (${test_name} ${MAKI_CLASSIFY_SOURCES} "${CMAKE_CURRENT_LIST_DIR}/${test_file}")
-    target_link_libraries (${test_name} maki::maki)
+    target_link_libraries (${test_name} maki::maki ${MAKI_TEST_LIBRARIES})
     gtest_discover_tests (${test_name})
     list (APPEND MAKI_EXECUTABLES ${test_name})
 endmacro ()

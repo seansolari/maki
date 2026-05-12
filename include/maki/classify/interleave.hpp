@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <vector>
 
-#include <gtest/gtest.h>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_for.h>
 #include <oneapi/tbb/parallel_invoke.h>
@@ -12,7 +11,7 @@
 #include <sdsl/rank_support.hpp>
 #include <sdsl/select_support_mcl.hpp>
 
-#include "maki/core/graph/cdbg.hpp"
+#include "maki/core/graph/base.hpp"
 #include "maki/core/utils/locks.hpp"
 
 struct InterleavingOpts {
@@ -45,8 +44,7 @@ std::size_t interleavingSize(const InterleavingOpts &) noexcept;
 // ELM merge base class
 // ========================================================
 
-template <typename T, typename X> class ELMMergeBase {
-public:
+template <typename T, typename X> struct ELMMergeBase {
   ELMMergeBase(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                std::size_t grainsize_)
       : qry(qry_), ref(ref_), opts({.grainSize = grainsize_,
@@ -91,7 +89,7 @@ protected:
   LockedRegionManager locks;
   uint8_t h;
 
-protected:
+public:
   // get index corresponding to first edge of node at index `nodeIndex` in query
   // graph
   inline int64_t qryEdge(int64_t nodeIndex) const {
@@ -142,22 +140,10 @@ protected:
 // Small-query interleaving
 // ========================================================
 
-class ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>, ELMMergeSmall> {
-  FRIEND_TEST(SmallMergeSequences, H1InterleavingStructure);
-  FRIEND_TEST(SmallMergeSequences, H1InterleavingStructureGsize5);
-  FRIEND_TEST(SmallMergeSequences, LastRefEdge);
-  FRIEND_TEST(SmallMergeSequences, H2InterleavingStructure);
-  FRIEND_TEST(SmallMergeSequences, H2InterleavingStructureGsize5);
-  FRIEND_TEST(SmallMergeSequences, H3InterleavingStructure);
-  FRIEND_TEST(SmallMergeSequences, FullInterleavingBiggerGrainsize);
-  friend class IdenticalSequences;
-  friend class DisjointSequences;
-
-public:
+struct ELMMergeSmall : public ELMMergeBase<std::vector<int64_t>, ELMMergeSmall> {
   ELMMergeSmall(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
 
-private:
   detail::Overlap qo, ro;
   std::vector<int64_t> refBPos, refBpPos;
   std::array<int64_t, 6> rC;
@@ -205,22 +191,10 @@ struct GraphCursor {
 
 } // namespace detail
 
-class ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector, ELMMergeLarge> {
-  FRIEND_TEST(LargeMergeSequences, H1InterleavingStructure);
-  FRIEND_TEST(LargeMergeSequences, H1InterleavingStructureGsize5);
-  FRIEND_TEST(LargeMergeSequences, LastRefEdge);
-  FRIEND_TEST(LargeMergeSequences, H2InterleavingStructure);
-  FRIEND_TEST(LargeMergeSequences, H2InterleavingStructureGsize5);
-  FRIEND_TEST(LargeMergeSequences, H3InterleavingStructure);
-  FRIEND_TEST(LargeMergeSequences, FullInterleavingBiggerGrainsize);
-  friend class IdenticalSequences;
-  friend class DisjointSequences;
-
-public:
+struct ELMMergeLarge : public ELMMergeBase<sdsl::bit_vector, ELMMergeLarge> {
   ELMMergeLarge(const DeBruijnGraph *qry_, const DeBruijnGraph *ref_,
                 std::size_t grainsize_);
 
-private:
   sdsl::bit_vector::rank_1_type ZpRank;
   detail::Overlap b;
 

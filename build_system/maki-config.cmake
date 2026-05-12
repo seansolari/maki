@@ -1,6 +1,3 @@
-# Sean Solari - sean.solari@monash.edu
-# Microbiota and Systems Biology Lab, CIIID, Hudson Institute of Medical Research
-#
 # This CMake module will try to find maki and its dependencies.
 #
 # Usage:
@@ -30,6 +27,7 @@
 #
 #   MAKI_INCLUDE_DIRS
 #   MAKI_LIBRARIES
+#   MAKI_TEST_LIBRARIES
 #   MAKI_DEFINITIONS
 #   MAKI_CXX_FLAGS
 #
@@ -211,15 +209,15 @@ FetchContent_Declare (
 
 # TBB --
 
-FetchContent_Declare (
-    onetbb
-    GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
-    GIT_TAG        45587e94dfb6dfe00220c5f520020a5bc745e92f # release-2022.1.0
-    FIND_PACKAGE_ARGS NAMES TBB
-    UPDATE_COMMAND ""
-    )
+# FetchContent_Declare (
+#     onetbb
+#     GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
+#     GIT_TAG        45587e94dfb6dfe00220c5f520020a5bc745e92f # release-2022.1.0
+#     FIND_PACKAGE_ARGS NAMES TBB
+#     UPDATE_COMMAND ""
+#     )
 
-set (TBB_STRICT OFF)
+# set (TBB_STRICT OFF)
 
 ##
 
@@ -228,7 +226,7 @@ FetchContent_MakeAvailable (
     gtl
     ZStrGitRepo
     googletest
-    onetbb
+    # onetbb
     )
 
 # ----------------------------------------------------------------------------
@@ -339,7 +337,7 @@ endif ()
 # ----------------------------------------------------------------------------
 
 if (TARGET GTest::gtest_main)
-    set (MAKI_LIBRARIES ${MAKI_LIBRARIES} GTest::gtest_main GTest::gmock_main)
+    set (MAKI_TEST_LIBRARIES GTest::gtest_main GTest::gmock_main)
     # collect desired attributes
     get_target_property (GTest_VERSION GTest::gtest_main VERSION)
     maki_config_print ("Required dependency:        googletest-${GTest_VERSION} found.")
@@ -364,6 +362,8 @@ endif()
 # ----------------------------------------------------------------------------
 # Require TBB - Intel Threading Building Blocks
 # ----------------------------------------------------------------------------
+
+find_package(TBB REQUIRED)
 
 if (TARGET TBB::tbb)
     set (MAKI_LIBRARIES ${MAKI_LIBRARIES} TBB::tbb)
@@ -544,6 +544,7 @@ if (MAKI_FIND_DEBUG)
     message ("")
     message ("  MAKI_INCLUDE_DIRS         ${MAKI_INCLUDE_DIRS}")
     message ("  MAKI_LIBRARIES            ${MAKI_LIBRARIES}")
+    message ("  MAKI_TEST_LIBRARIES       ${MAKI_TEST_LIBRARIES}")
     message ("  MAKI_DEFINITIONS          ${MAKI_DEFINITIONS}")
     message ("  MAKI_CXX_FLAGS            ${MAKI_CXX_FLAGS}")
     message ("")

@@ -2,13 +2,13 @@
 
 ## Build using `cmake`
 
-### Prepare mamba environment
+### Prepare conda environment
 
 These steps ensure an up-to-date version of `cmake`, and `gxx` compiler (at least g++ 10 is required to support C++ Concepts).
 
 ```{console}
-$ mamba create -n cmake -c anaconda -c conda-forge cmake gcc gxx zlib pybind11
-$ mamba activate cmake
+$ mamba create -n [NAME] -c anaconda -c conda-forge cmake gcc gxx zlib tbb tbb-devel pybind11
+$ mamba activate [NAME]
 ```
 
 ### Build using cmake
