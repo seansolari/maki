@@ -12,3 +12,7 @@ authors = [{name="Sean Solari"}]
 wheel.packages = ["python/maki"]
 cmake.build-type = "Release"
 logging.level = "INFO"
+
+[project.scripts]
+maki = "maki.cli:main"
+"maki.atb" = "maki.atb.cli:main"

@@ -1,5 +1,4 @@
 import typer
-from pathlib import Path
 from maki.models.manifest import Manifest
 from maki.models.database import MetaGenomicDatabase
 from maki.classify.sample_manifest import SampleManifest
@@ -23,11 +22,11 @@ def download_taxonomy(
     source: str = typer.Option(..., help="ncbi or gtdb"),
     output: str = typer.Option("./taxonomy", help="Output directory")
 ):
-    from utils.taxonomy_download import download_taxonomy
+    from maki.utils.taxonomy_download import download_taxonomy
 
     download_taxonomy(source, output)
 
-    typer.echo(f"✔ Downloaded {source} taxonomy to {output}")
+    typer.echo(f"Downloaded {source} taxonomy to {output}")
 
 
 @app.command(help="""
@@ -50,7 +49,7 @@ def build(
     force: bool = False
 ):
     manifest = Manifest.from_csv(manifest_path)
-    db = MetaGenomicDatabase(db_path, kmer_size)
+    db = MetaGenomicDatabase(db_path, kmer_size, mode = mode)
     db.build(manifest, rank, threads, force)
     typer.echo("✔ Database build complete.")
 
@@ -104,6 +103,10 @@ def classify(
     classifier.run(samples, output)
 
 
-if __name__ == "__main__":
+def main():
     app()
+    
+
+if __name__ == "__main__":
+    main()
     
