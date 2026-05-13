@@ -44,11 +44,13 @@ class QueryOptions:
         
         if self.has_annotation:
             join_table(qb, BAKTA_SCHEMA)
+            qb.where(f"{BAKTA_SCHEMA.name}.{BAKTA_SCHEMA.status} = 'PASS'")
             
         return qb
 
 
 def count_taxon(conn: sqlite3.Connection, opts: QueryOptions):
+    assert opts.taxon
     qb = QueryBuilder(ASSEMBLY_SCHEMA)
     
     opts.enforce(qb)
@@ -81,28 +83,23 @@ def list_sample_rows(conn: sqlite3.Connection, opts: QueryOptions, limit: int = 
     opts.enforce(qb)
     qb.set_limit(limit)
 
-    query, params = qb.build(f"*")
+    columns = qb.colnames()
+    query, params = qb.build(qb.autocols())
 
     cur = conn.cursor()
     cur.execute(query, params)
-    return cur.fetchall()
+    return columns, cur.fetchall()
 
 
-# def plan_download(conn: sqlite3.Connection, opts: QueryOptions):
-#     qb = QueryBuilder(ASSEMBLY_SCHEMA)
-# 
-#     opts.enforce(qb)
-# 
-#     query, params = qb.build(
-#         f"{FILE_LIST.name}.{FILE_LIST.archive_col}, COUNT(*)"
-#     )
-# 
-#     query += f"""
-#     GROUP BY {FILE_LIST.name}.{FILE_LIST.archive_col}
-#     ORDER BY COUNT(*) DESC
-#     """
-# 
-#     cur = conn.cursor()
-#     cur.execute(query, params)
-# 
-#     return cur.fetchall()
+def plan_download(conn: sqlite3.Connection, opts: QueryOptions):
+    qb = QueryBuilder(ASSEMBLY_SCHEMA)
+
+    opts.enforce(qb)
+    join_table(qb, ASSEMBLY_STATS_SCHEMA)
+
+    columns = qb.colnames()
+    query, params = qb.build(qb.autocols())
+
+    cur = conn.cursor()
+    cur.execute(query, params)
+    return columns, cur.fetchall()

@@ -17,6 +17,10 @@ class AssemblyTable(Table):
     def default(cls):
         return cls(name="assembly", sample="sample_accession", species="sylph_species", hq="hq_filter", assembly_exists="asm_fasta_on_osf")
 
+    def take_cols(self):
+        for c in ("sample_accession", "assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments"):
+            yield (self.name, c)
+
 
 @dataclass(frozen=True)
 class AssemblyStatsTable(Table):
@@ -33,7 +37,11 @@ class AssemblyStatsTable(Table):
     
     @classmethod
     def default(cls):
-        return cls(name="assembly_stats", sample="sample_accession", total_length="total_length", contigs="contigs", mean_length="mean_length", longest="longest", shortest="shortest", N_count="N_count", Gaps="Gaps", N50="N50", N70="N70", N90="N90")
+        return cls(name="assembly_stats", sample="sample_accession", total_length="total_length", contigs="number", mean_length="mean_length", longest="longest", shortest="shortest", N_count="N_count", Gaps="Gaps", N50="N50", N70="N70", N90="N90")
+
+    def take_cols(self):
+        for c in ("sample_accession", "total_length", "number", "mean_length", "longest", "shortest", "N_count", "Gaps", "N50", "N70", "N90"):
+            yield (self.name, c)
 
 
 @dataclass(frozen=True)
@@ -44,6 +52,10 @@ class CheckM2Table(Table):
     @classmethod
     def default(cls):
         return cls(name="checkm2", sample="sample_accession", completeness="Completeness_General", contamination="Contamination")
+
+    def take_cols(self):
+        for c in ("sample_accession", "Completeness_General", "Contamination"):
+            yield (self.name, c)
 
 
 @dataclass(frozen=True)
@@ -59,6 +71,10 @@ class BaktaTable(Table):
     def default(cls):
         return cls(name="bakta", sample="sample", status="status", file_name="file_name", file_md5="file_md5", tar_xz="tar_xz", tar_xz_md5="tar_xz_md5", tar_xz_size_MB="tar_xz_size_MB")
 
+    def take_cols(self):
+        for c in ("sample", "status", "file_name", "file_md5", "tar_xz", "tar_xz_md5", "tar_xz_size_MB"):
+            yield (self.name, c)
+  
 
 ASSEMBLY_SCHEMA = AssemblyTable.default()
 ASSEMBLY_STATS_SCHEMA = AssemblyStatsTable.default()

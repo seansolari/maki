@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import List, Tuple
 
 
 class QueryBuilder:
@@ -10,11 +11,13 @@ class QueryBuilder:
         self.group_cols = []
         self.order_clause = None
         self.limit = None
+        self.columns: List[Tuple[str, str]] = list(self.core.take_cols())
 
-    def join(self, table, on_left, on_right):
+    def join(self, table, on_left: str, on_right: str):
         self.joins.append(
             f"JOIN {table.name} ON {on_left} = {on_right}"
         )
+        self.columns.extend(list(table.take_cols())[1:])
         return self
 
     def where(self, condition, *params):
@@ -33,7 +36,7 @@ class QueryBuilder:
     def set_limit(self, n: int):
         self.limit = n
 
-    def build(self, select_clause):
+    def build(self, select_clause: str):
         query = f"SELECT {select_clause} FROM {self.core.name}"
         params = deepcopy(self.params)
 
@@ -54,4 +57,10 @@ class QueryBuilder:
             params.append(self.limit)
 
         return query, params
+      
+    def colnames(self):
+        return [col for _, col in self.columns]
+      
+    def autocols(self):
+        return ",".join(".".join(kp) for kp in self.columns)
       

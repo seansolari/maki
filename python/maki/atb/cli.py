@@ -1,3 +1,5 @@
+import csv
+import gzip
 from typing import Optional
 
 import typer
@@ -8,7 +10,7 @@ from .config import DEFAULT_DB
 from .db import connect, ensure_db
 from .importer import import_csv_to_sqlite
 from .schema import inspect_schema
-from .queries import QueryOptions, count_taxon, count_all, list_sample_rows
+from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
 
 
 console = Console()
@@ -93,30 +95,42 @@ def head(
 ):
     conn = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
-    rows = list_sample_rows(conn, opts, limit)
+    cols, rows = list_sample_rows(conn, opts, limit)
+    
+    table = Table(*cols)
     for row in rows:
-      console.print(row)
+      table.add_row(*(str(v) for v in row))
+    
+    console.print(table)
 
 
-# @app.command()
-# def plan_download(
-#     taxon: Optional[str] = None,
-#     high_quality: bool = True,
-#     has_assembly: bool = True,
-#     max_contamination: Optional[float] = 5.0,
-#     min_completeness: Optional[float] = 95.0,
-#     has_annotation: bool = True,
-#     db_path: Path = DEFAULT_DB,
-# ):
-#     conn = connect(db_path)
-#     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
-# 
-#     results = plan_download(
-#         conn, opts
-#     )
-# 
-#     for archive, count in results:
-#         typer.echo(f"{archive} ({count} samples)")
+@app.command()
+def plan_download(
+    taxon: Optional[str] = None,
+    high_quality: bool = True,
+    has_assembly: bool = True,
+    max_contamination: Optional[float] = 5.0,
+    min_completeness: Optional[float] = 95.0,
+    has_annotation: bool = True,
+    outfile: Optional[str] = None,
+    db_path: Path = DEFAULT_DB,
+):
+    conn = connect(db_path)
+    opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
+    
+    cols, rows = plan_download_impl(conn, opts)
+    
+    if not outfile:
+        outfile = db_path.with_suffix(".manifest.csv.gz").name
+    elif not outfile.endswith(".gz"):
+        outfile += ".gz"
+    
+    typer.echo(f"Writing plan to {outfile}")
+    
+    with gzip.open(outfile, 'wt', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(cols)
+        writer.writerows(rows)
 
 
 def main():
