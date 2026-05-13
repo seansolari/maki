@@ -1,35 +1,31 @@
-def resolve_columns(schema):
-    sample_table = None
 
-    for t, cols in schema.items():
-        if "sample" in cols:
-            sample_table = t
-            break
+from dataclasses import dataclass
 
-    if not sample_table:
-        raise RuntimeError("Could not find sample table")
 
-    cols = schema[sample_table]
+@dataclass
+class SampleColumns:
+    table: str
+    sample: str
+    species: str
+    hq: str
+    assembly: str
 
-    def find(name):
-        for c in cols:
-            if name in c.lower():
-                return c
-        return None
 
-    mapping = {
-        "table": sample_table,
-        "sample": "sample",
-        "species": find("species"),
-        "hq": find("hq"),
-        "assembly": find("assembly_on_osf"),
-        "lineage": find("lineage"),
-    }
+@dataclass
+class BaktaColumns:
+    table: str
+    sample: str
+    status: str
+    file_name: str
+    file_md5: str
+    tar_xz: str
+    tar_xz_md5: str
+    tar_xz_size_MB: str
 
-    # detect rank columns if present
-    mapping["ranks"] = {
-        r: r for r in ["phylum", "class", "order", "family", "genus"]
-        if r in cols
-    }
 
-    return mapping
+def resolve_columns(schema) -> SampleColumns:
+    return SampleColumns("assembly", "sample_accession", "sylph_species", "hq_filter", "asm_fasta_on_osf")
+
+
+def resolve_bakta_columns(schema) -> BaktaColumns:
+    return BaktaColumns("bakta", "sample", "status", "file_name", "file_md5", "tar_xz", "tar_xz_md5", "tar_xz_size_MB")

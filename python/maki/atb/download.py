@@ -1,11 +1,5 @@
-def find_file_table(schema):
-    for t in schema:
-        if "file" in t.lower():
-            return t
-    return None
 
-
-def plan_download(conn, schema, mapping, taxon, rank, high_quality, assemblies):
+def plan_download(conn, schema, mapping, taxon, high_quality, assemblies):
     file_table = find_file_table(schema)
 
     if not file_table:
@@ -16,7 +10,7 @@ def plan_download(conn, schema, mapping, taxon, rank, high_quality, assemblies):
 
     from .queries import build_taxon_filter
 
-    where, p = build_taxon_filter(mapping, taxon, rank)
+    where, p = build_taxon_filter(mapping, taxon)
     conditions.append(where)
     params.extend(p)
 

@@ -1,49 +1,52 @@
-def build_taxon_filter(mapping, taxon, rank):
-    if rank == "species" and mapping["species"]:
-        return f"{mapping['species']} = ?", [taxon]
+import sqlite3
 
-    if rank in mapping["ranks"]:
-        return f"{mapping['ranks'][rank]} = ?", [taxon]
-
-    if mapping["lineage"]:
-        prefix = rank[0] + "__"
-        return f"{mapping['lineage']} LIKE ?", [f"%{prefix}{taxon}%"]
-
-    # fallback
-    return f"{mapping['species']} LIKE ?", [f"%{taxon}%"]
+from .columns import SampleColumns
 
 
-def count(conn, mapping, taxon, rank):
-    where, params = build_taxon_filter(mapping, taxon, rank)
+def build_taxon_filter(mapping: SampleColumns, taxon):
+    return f"{mapping.species} = ?", [taxon]
+
+
+def count_taxon(conn: sqlite3.Connection, mapping: SampleColumns, taxon: str) -> int:
+    where, params = build_taxon_filter(mapping, taxon)
 
     query = f"""
-    SELECT COUNT(*) FROM {mapping['table']}
+    SELECT COUNT(*)
+    FROM {mapping.table}
     WHERE {where}
     """
 
     cur = conn.cursor()
     cur.execute(query, params)
-    return cur.fetchone()[0]
+    return int(cur.fetchone()[0])
 
 
-def list_samples(conn, mapping, taxon, rank, high_quality, assemblies, limit):
+def count_all(conn: sqlite3.Connection, mapping: SampleColumns):
+    query = f"""
+    SELECT {mapping.species}, COUNT(*)
+    FROM {mapping.table}
+    GROUP BY {mapping.species}
+    """
+
+    cur = conn.cursor()
+    cur.execute(query)
+    return cur.fetchall()
+
+
+def list_sample_rows(conn: sqlite3.Connection, mapping: SampleColumns, high_quality: bool, assemblies: bool, limit: int):
     conditions = []
     params = []
 
-    where, p = build_taxon_filter(mapping, taxon, rank)
-    conditions.append(where)
-    params.extend(p)
+    if high_quality and mapping.hq:
+        conditions.append(f"{mapping.hq} = 'PASS'")
 
-    if high_quality and mapping["hq"]:
-        conditions.append(f"{mapping['hq']} = 'PASS'")
-
-    if assemblies and mapping["assembly"]:
-        conditions.append(f"{mapping['assembly']} = 1")
+    if assemblies and mapping.assembly:
+        conditions.append(f"{mapping.assembly} = 1")
 
     query = f"""
-    SELECT {mapping['sample']}
-    FROM {mapping['table']}
-    WHERE {" AND ".join(conditions)}
+    SELECT *
+    FROM {mapping.table}
+    {("WHERE " + " AND ".join(conditions)) if conditions else ""}
     LIMIT ?
     """
 
@@ -52,5 +55,5 @@ def list_samples(conn, mapping, taxon, rank, high_quality, assemblies, limit):
     cur = conn.cursor()
     cur.execute(query, params)
 
-    return [r[0] for r in cur.fetchall()]
+    return cur.fetchall()
   
