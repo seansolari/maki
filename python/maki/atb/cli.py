@@ -1,5 +1,4 @@
-import sqlite3
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 
 import typer
 from rich.console import Console
@@ -9,23 +8,11 @@ from .config import DEFAULT_DB
 from .db import connect, ensure_db
 from .importer import import_csv_to_sqlite
 from .schema import inspect_schema
-from .columns import SampleColumns, resolve_columns
-from .queries import count_taxon, count_all, list_sample_rows
-from .download import plan_download as plan_download_impl
+from .queries import QueryOptions, count_taxon, count_all, list_sample_rows
 
 
 console = Console()
 app = typer.Typer()
-
-
-def load(db_path: Path) -> Tuple[sqlite3.Connection, Dict[str, List[str]], SampleColumns]:
-    db_path = ensure_db(db_path)
-    conn = connect(db_path)
-
-    schema = inspect_schema(conn)
-    mapping = resolve_columns(schema)
-
-    return conn, schema, mapping
 
 
 @app.command()
@@ -66,49 +53,70 @@ def insert(
 
 @app.command()
 def count(
-    taxon: Optional[str] = typer.Option(None, help="Species name to count, otherwise count all unique species"),
+    taxon: Optional[str] = None,
+    high_quality: bool = False,
+    has_assembly: bool = False,
+    max_contamination: Optional[float] = None,
+    min_completeness: Optional[float] = None,
+    has_annotation: bool = False,
+    limit: Optional[int] = None,
     db_path: Path = DEFAULT_DB,
 ):
-    conn, schema, mapping = load(db_path)
+    conn = connect(db_path)
+    opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
 
     if taxon:
-        typer.echo(count_taxon(conn, mapping, taxon))
+        typer.echo(count_taxon(conn, opts))
     else:
-        typer.echo(count_all(conn, mapping))
+        table = Table("Species", "Count")
+        
+        rows = count_all(conn, opts)
+        if limit:
+          rows = rows[:limit]
+        
+        for sp, count in rows:
+            table.add_row(sp, str(count))
+      
+        console.print(table)
 
 
 @app.command()
 def head(
+    taxon: Optional[str] = None,
     high_quality: bool = False,
-    assemblies: bool = False,
+    has_assembly: bool = False,
+    max_contamination: Optional[float] = None,
+    min_completeness: Optional[float] = None,
+    has_annotation: bool = False,
     limit: int = 20,
     db_path: Path = DEFAULT_DB,
 ):
-    conn, schema, mapping = load(db_path)
-    rows = list_sample_rows(conn, mapping, high_quality, assemblies, limit)
-
-    table = Table(*schema[mapping.table])
-    for r in rows:
-        table.add_row(*(str(v) for v in r))
-        
-    console.print(table)
+    conn = connect(db_path)
+    opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
+    rows = list_sample_rows(conn, opts, limit)
+    for row in rows:
+      console.print(row)
 
 
-@app.command()
-def plan_download(
-    taxon: str,
-    high_quality: bool = True,
-    assemblies: bool = True,
-    db_path: Path = DEFAULT_DB,
-):
-    conn, schema, mapping = load(db_path)
-
-    results = plan_download_impl(
-        conn, schema, mapping, taxon, high_quality, assemblies
-    )
-
-    for archive, count in results:
-        typer.echo(f"{archive} ({count} samples)")
+# @app.command()
+# def plan_download(
+#     taxon: Optional[str] = None,
+#     high_quality: bool = True,
+#     has_assembly: bool = True,
+#     max_contamination: Optional[float] = 5.0,
+#     min_completeness: Optional[float] = 95.0,
+#     has_annotation: bool = True,
+#     db_path: Path = DEFAULT_DB,
+# ):
+#     conn = connect(db_path)
+#     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
+# 
+#     results = plan_download(
+#         conn, opts
+#     )
+# 
+#     for archive, count in results:
+#         typer.echo(f"{archive} ({count} samples)")
 
 
 def main():
