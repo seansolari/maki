@@ -1,4 +1,6 @@
+import asyncio
 import csv
+from datetime import datetime
 import gzip
 from typing import Optional
 
@@ -11,10 +13,16 @@ from .db import connect, ensure_db
 from .importer import import_csv_to_sqlite
 from .schema import inspect_schema
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
+from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
+from .extern.lists import AssemblyFileLists, BaktaFileLists
 
 
 console = Console()
-app = typer.Typer()
+app = typer.Typer(
+    help="Helper scripts to interface with AllTheBacteria.\n\n"
+         "Provides user-friendly interface to download genomes and "
+         "annotation data."
+)
 
 
 @app.command()
@@ -46,7 +54,7 @@ def insert(
     db_path: Path = DEFAULT_DB,
 ):
     """
-    Import a CSV/TSV (.gz supported) into SQLite with deduplication.
+    Import a CSV/TSV (.gz supported) into SQLite.
     """
     conn = connect(db_path)
     table = import_csv_to_sqlite(conn, file_path, table_name)
@@ -64,6 +72,9 @@ def count(
     limit: Optional[int] = None,
     db_path: Path = DEFAULT_DB,
 ):
+    """
+    Count assembly records matching search criteria.
+    """
     conn = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
 
@@ -93,6 +104,9 @@ def head(
     limit: int = 20,
     db_path: Path = DEFAULT_DB,
 ):
+    """
+    View the assembly table.
+    """
     conn = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
     cols, rows = list_sample_rows(conn, opts, limit)
@@ -115,6 +129,9 @@ def plan_download(
     outfile: Optional[str] = None,
     db_path: Path = DEFAULT_DB,
 ):
+    """
+    Create a download manifest.
+    """
     conn = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
     
@@ -128,13 +145,61 @@ def plan_download(
     typer.echo(f"Writing plan to {outfile}")
     
     with gzip.open(outfile, 'wt', newline='') as f:
+        # Write metadata
+        f.write(f"# {datetime.now()}\n")
+        f.write(f"# database: {db_path}\n")
+        if opts.taxon:
+            f.write(f"# taxon: {opts.taxon}\n")
+        f.write(f"# high quality filter: {opts.high_quality}\n")
+        f.write(f"# assembly filter: {opts.has_assembly}\n")
+        if opts.max_contamination:
+            f.write(f"# max contamination: {opts.max_contamination}\n")
+        if opts.min_completeness:
+            f.write(f"# min completeness: {opts.min_completeness}\n")
+        f.write(f"# annotation filter: {opts.has_annotation}\n")
+        
+        # Write data
         writer = csv.writer(f)
         writer.writerow(cols)
         writer.writerows(rows)
 
 
+@app.command()
+def download(
+    manifest: Path,
+    output_dir: Path = Path("downloads"),
+    concurrency: int = 6,
+    override_file_lists: bool = False
+):
+    """
+    Download assembly and annotation data according to a download manifest created with `plan-download`.
+    """    
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    async def main():
+        mani = Manifest.from_csv(manifest)
+        
+        # assemblies
+        typer.echo("Preparing assembly batches...")
+        assembly_list = AssemblyFileLists(output_dir / "atb.assembly.list.csv.gz", override_file_lists)
+        batches = mani.batch(AssemblyItem.from_row, assembly_list)
+    
+        total = await run_jobs_async(batches, output_dir, concurrency)
+        typer.echo(f"Extracted {total} assemblies")
+    
+        if mani.has_annotations():
+            typer.echo("Preparing annotation batches...")
+            bakta_list = BaktaFileLists(output_dir / "atb.bakta.list.csv.gz", override_file_lists)
+            batches = mani.batch(BaktaItem.from_row, bakta_list)
+        
+            total = await run_jobs_async(batches, output_dir, concurrency)
+            typer.echo(f"Extracted {total} annotations")
+    
+    asyncio.run(main())
+
+
 def main():
-  app()
+    app()
   
 
 if __name__ == "__main__":

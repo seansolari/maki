@@ -4,10 +4,6 @@
 
 ## High priority
 
-  - AllTheBacteria helpers.
-    - Fix querying and filtering.
-    - Implement download in batches, including annotations.
-      - Use filters to construct manifest with all required file links and evidence, and then download.
   - Python bindings for graph creation and querying.
   - Index construction benchmarking plan.
   - Profiling algorithm.
@@ -22,8 +18,12 @@
 
 ## Planned updates
 
-### Mon 11 May, 2026 - Python bindings
+### Mon 11 May, 2026 - Python bindings and ATB
 
+  - ATB helpers
+    - Implement download in batches, including annotations.
+      - **DONE** - Use filters to construct manifest with all required file links.
+      - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
   - Coloured graph bindings
   - Weighted graph bindings
   - Writing classify results at annotation level to parquet file
