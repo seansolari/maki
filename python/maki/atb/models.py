@@ -1,26 +1,62 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+from typing import Tuple
 
 
 @dataclass(frozen=True)
 class Table:
     name: str
+
+    @classmethod
+    def columns(cls) -> Tuple[str, ...]: ...
+    
+    @staticmethod
+    def table_name() -> str: ...
+    
+    @classmethod
+    def default(cls):
+        return cls(cls.table_name(), *cls.columns())
+      
+    def take_cols(self):
+        for c in self.columns():
+          yield (self.name, c)
+    
+
+@dataclass(frozen=True)
+class SampleTable(Table):
     sample: str
 
 
 @dataclass(frozen=True)
-class AssemblyTable(Table):
+class AssemblyTable(SampleTable):
     species: str
     hq: str
     assembly_exists: str
     
     @classmethod
-    def default(cls):
-        return cls(name="assembly", sample="sample_accession", species="sylph_species", hq="hq_filter", assembly_exists="asm_fasta_on_osf")
+    def columns(cls) -> Tuple[str, ...]:
+        return ("assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments")
+    
+    @staticmethod
+    def table_name() -> str:
+        return "assembly"
 
-    def take_cols(self):
-        for c in ("sample_accession", "assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments"):
-            yield (self.name, c)
 
+@dataclass(frozen=True)
+class AssemblyBatchTable(Table):
+    name: str
+    tar_xz: str
+    tar_xz_url: str
+    tar_xz_md5: str
+    tar_xz_size_MB: str
+    
+    @classmethod
+    def columns(cls) -> Tuple[str, ...]:
+        return ("asm_tar_xz", "asm_tar_xz_url", "asm_tar_xz_md5", "asm_tar_xz_size_MB")
+    
+    @staticmethod
+    def table_name() -> str:
+        return "asm_batches"
+    
 
 @dataclass(frozen=True)
 class AssemblyStatsTable(Table):

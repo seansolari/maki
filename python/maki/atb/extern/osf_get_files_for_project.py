@@ -174,11 +174,3 @@ def get_all_data(project_id: str):
         get_files_from_folders(proj_id, results)
         data[proj_id]["files"] = results
     return data
-
-
-def get_assembly_files():
-    return to_table(get_all_data("zxfmy"))
-
-
-def get_bakta_files():
-    return to_table(get_all_data("zt57s"))

@@ -8,13 +8,14 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from pathlib import Path
-from .config import DEFAULT_DB
+from .config import DEFAULT_DB, SQLITE_URL
 from .db import connect, ensure_db
+from .lists import prepare_assembly_files
 from .importer import import_csv_to_sqlite
 from .schema import inspect_schema
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
 from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
-from .extern.lists import AssemblyFileLists, BaktaFileLists
+from .lists import AssemblyFileLists, BaktaFileLists
 
 
 console = Console()
@@ -26,12 +27,39 @@ app = typer.Typer(
 
 
 @app.command()
-def init(db_path: Path = DEFAULT_DB):
+def init(
+    remote_src: str = SQLITE_URL,
+    db_path: Path = DEFAULT_DB,
+    update_lists: bool = False
+):
     """
     Download and prepare metadata database.
     """
-    ensure_db(db_path)
-    typer.echo(f"Database ready at {db_path}")
+    ensure_db(remote_src, db_path)
+    typer.echo(f"SQLite database ready at {db_path}")
+    
+    conn = connect(db_path)
+    schema = inspect_schema(conn)
+
+    prepare_assembly_files(conn, db_path.parent)
+
+    # add assembly file lists
+    # if update_lists and :
+    #     typer.echo("Clearing old assembly file lists")
+    #     remove_assembly_files(conn)
+        
+    #if X not in schema:
+    #    add_assembly_files()
+        
+    # add annotation file lists
+    #if update_lists and X in schema:
+    #    typer.echo("Clearing old annotation file lists")
+    #    remove_annotation_files()
+        
+    #if X not in schema:
+    #    add_annotation_files()
+    
+    typer.echo("Database initialisation complete")
 
 
 @app.command()
