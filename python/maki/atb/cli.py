@@ -9,10 +9,8 @@ from rich.console import Console
 from rich.table import Table
 from pathlib import Path
 from .config import DEFAULT_DB, SQLITE_URL
-from .db import connect, ensure_db
-from .lists import prepare_assembly_files
-from .importer import import_csv_to_sqlite
-from .schema import inspect_schema
+from .db import connect, ensure_db, inspect_schema
+from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
 from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
 from .lists import AssemblyFileLists, BaktaFileLists
@@ -28,9 +26,9 @@ app = typer.Typer(
 
 @app.command()
 def init(
-    remote_src: str = SQLITE_URL,
     db_path: Path = DEFAULT_DB,
-    update_lists: bool = False
+    remote_src: str = SQLITE_URL,
+    force: bool = False
 ):
     """
     Download and prepare metadata database.
@@ -40,24 +38,9 @@ def init(
     
     conn = connect(db_path)
     schema = inspect_schema(conn)
-
-    prepare_assembly_files(conn, db_path.parent)
-
-    # add assembly file lists
-    # if update_lists and :
-    #     typer.echo("Clearing old assembly file lists")
-    #     remove_assembly_files(conn)
-        
-    #if X not in schema:
-    #    add_assembly_files()
-        
-    # add annotation file lists
-    #if update_lists and X in schema:
-    #    typer.echo("Clearing old annotation file lists")
-    #    remove_annotation_files()
-        
-    #if X not in schema:
-    #    add_annotation_files()
+    
+    import_assembly_batches(conn, schema, force=force)
+    import_annotation_batches(conn, schema, force=force)
     
     typer.echo("Database initialisation complete")
 
@@ -73,20 +56,6 @@ def inspect(db_path: Path = DEFAULT_DB):
     for table, cols in schema.items():
       typer.echo(f"Table: {table}")
       typer.echo(f"Columns: {", ".join(cols)}\n")
-
-
-@app.command()
-def insert(
-    file_path: Path,
-    table_name: str,
-    db_path: Path = DEFAULT_DB,
-):
-    """
-    Import a CSV/TSV (.gz supported) into SQLite.
-    """
-    conn = connect(db_path)
-    table = import_csv_to_sqlite(conn, file_path, table_name)
-    typer.echo(f"Imported into table: {table}")
 
 
 @app.command()

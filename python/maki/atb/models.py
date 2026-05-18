@@ -1,4 +1,4 @@
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Tuple
 
 
@@ -6,11 +6,11 @@ from typing import Tuple
 class Table:
     name: str
 
-    @classmethod
-    def columns(cls) -> Tuple[str, ...]: ...
-    
     @staticmethod
     def table_name() -> str: ...
+
+    @staticmethod
+    def columns() -> Tuple[str, ...]: ...
     
     @classmethod
     def default(cls):
@@ -19,7 +19,7 @@ class Table:
     def take_cols(self):
         for c in self.columns():
           yield (self.name, c)
-    
+
 
 @dataclass(frozen=True)
 class SampleTable(Table):
@@ -32,34 +32,33 @@ class AssemblyTable(SampleTable):
     hq: str
     assembly_exists: str
     
-    @classmethod
-    def columns(cls) -> Tuple[str, ...]:
-        return ("assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments")
-    
     @staticmethod
     def table_name() -> str:
         return "assembly"
+    
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments")
 
 
 @dataclass(frozen=True)
 class AssemblyBatchTable(Table):
-    name: str
     tar_xz: str
     tar_xz_url: str
     tar_xz_md5: str
     tar_xz_size_MB: str
     
-    @classmethod
-    def columns(cls) -> Tuple[str, ...]:
-        return ("asm_tar_xz", "asm_tar_xz_url", "asm_tar_xz_md5", "asm_tar_xz_size_MB")
-    
     @staticmethod
     def table_name() -> str:
         return "asm_batches"
     
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("asm_tar_xz", "asm_tar_xz_url", "asm_tar_xz_md5", "asm_tar_xz_size_MB")
+
 
 @dataclass(frozen=True)
-class AssemblyStatsTable(Table):
+class AssemblyStatsTable(SampleTable):
     total_length: str
     contigs: str
     mean_length: str
@@ -71,48 +70,66 @@ class AssemblyStatsTable(Table):
     N70: str
     N90: str
     
-    @classmethod
-    def default(cls):
-        return cls(name="assembly_stats", sample="sample_accession", total_length="total_length", contigs="number", mean_length="mean_length", longest="longest", shortest="shortest", N_count="N_count", Gaps="Gaps", N50="N50", N70="N70", N90="N90")
-
-    def take_cols(self):
-        for c in ("sample_accession", "total_length", "number", "mean_length", "longest", "shortest", "N_count", "Gaps", "N50", "N70", "N90"):
-            yield (self.name, c)
+    @staticmethod
+    def table_name() -> str:
+        return "assembly_stats"
+      
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("sample_accession", "total_length", "number", "mean_length", "longest", "shortest", "N_count", "Gaps", "N50", "N70", "N90")
 
 
 @dataclass(frozen=True)
-class CheckM2Table(Table):
+class CheckM2Table(SampleTable):
     completeness: str
     contamination: str
     
-    @classmethod
-    def default(cls):
-        return cls(name="checkm2", sample="sample_accession", completeness="Completeness_General", contamination="Contamination")
-
-    def take_cols(self):
-        for c in ("sample_accession", "Completeness_General", "Contamination"):
-            yield (self.name, c)
+    @staticmethod
+    def table_name() -> str:
+        return "checkm2"
+      
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("sample_accession", "Completeness_General", "Contamination")
 
 
 @dataclass(frozen=True)
-class BaktaTable(Table):
+class BaktaTable(SampleTable):
     status: str
     file_name: str
     file_md5: str
     tar_xz: str
     tar_xz_md5: str
     tar_xz_size_MB: str
+    
+    @staticmethod
+    def table_name() -> str:
+        return "bakta"
+      
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("sample", "status", "file_name", "file_md5", "tar_xz", "tar_xz_md5", "tar_xz_size_MB")
 
-    @classmethod
-    def default(cls):
-        return cls(name="bakta", sample="sample", status="status", file_name="file_name", file_md5="file_md5", tar_xz="tar_xz", tar_xz_md5="tar_xz_md5", tar_xz_size_MB="tar_xz_size_MB")
 
-    def take_cols(self):
-        for c in ("sample", "status", "file_name", "file_md5", "tar_xz", "tar_xz_md5", "tar_xz_size_MB"):
-            yield (self.name, c)
-  
+@dataclass(frozen=True)
+class BaktaBatchTable(Table):
+    tar_xz: str
+    tar_xz_url: str
+    tar_xz_md5: str
+    tar_xz_size_MB: str
+    
+    @staticmethod
+    def table_name() -> str:
+        return "ann_batches"
+    
+    @staticmethod
+    def columns() -> Tuple[str, ...]:
+        return ("ann_tar_xz", "ann_tar_xz_url", "ann_tar_xz_md5", "ann_tar_xz_size_MB")
+
 
 ASSEMBLY_SCHEMA = AssemblyTable.default()
+ASSEMBLY_BATCH_SCHEMA = AssemblyBatchTable.default()
 ASSEMBLY_STATS_SCHEMA = AssemblyStatsTable.default()
 CHECKM2_SCHEMA = CheckM2Table.default()
 BAKTA_SCHEMA = BaktaTable.default()
+BAKTA_BATCH_SCHEMA = BaktaBatchTable.default()

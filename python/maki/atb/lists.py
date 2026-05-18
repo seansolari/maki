@@ -5,15 +5,20 @@ from dataclasses import astuple, dataclass
 import os
 from pathlib import Path
 import requests
-import sqlite3
-from typing import List
+from typing import List, Tuple
 
 from .utils import infer_delimiter
 from .extern.osf_get_files_for_project import to_table, get_all_data
 
 
 @dataclass(frozen=True)
-class RemoteBatchFile:
+class _StringDataClass:
+    def astuple(self) -> Tuple[str, ...]:
+      return astuple(self)
+
+
+@dataclass(frozen=True)
+class RemoteBatchFile(_StringDataClass):
     tar_xz: str
     tar_xz_url: str
     tar_xz_md5: str
@@ -61,7 +66,7 @@ class AssemblyFileLists(_FileLists):
 
 
 @dataclass(frozen=True)
-class BaktaFile:
+class BaktaFile(_StringDataClass):
     sample: str
     status: str
     file_name: str
@@ -101,8 +106,3 @@ class BaktaFileLists(_FileLists):
         for fl in self.file_lists:
             yield BaktaManifest(self.path.parent / "bakta_lists", fl)
 
-
-def prepare_assembly_files(conn: sqlite3.Connection, base: Path):
-    
-    bakta_list = BaktaFileLists(base / "atb.bakta.list.csv.gz")
-    print(bakta_list.file_lists)

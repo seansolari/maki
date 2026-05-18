@@ -3,7 +3,7 @@ import lzma
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Tuple
 
 
 def connect(db_path: Path):
@@ -34,8 +34,23 @@ def ensure_db(remote_src: str, db_path: Path):
 
     return db_path
 
-  
-def create_table(conn: sqlite3.Connection, table_name: str, columns: List[str], unique_col: str = "sample"):
+
+def inspect_schema(conn: sqlite3.Connection) -> Dict[str, List[str]]:
+    cur = conn.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+    tables = [r[0] for r in cur.fetchall()]
+
+    schema: Dict[str, List[str]] = {}
+
+    for t in tables:
+        cur.execute(f"PRAGMA table_info({t});")
+        schema[t] = [row[1] for row in cur.fetchall()]
+
+    return schema
+
+
+def create_table(conn: sqlite3.Connection, table_name: str, columns: Tuple[str, ...], unique_col: str = "sample"):
     cur = conn.cursor()
 
     col_defs = []
@@ -50,9 +65,15 @@ def create_table(conn: sqlite3.Connection, table_name: str, columns: List[str], 
 
     query = f"CREATE TABLE IF NOT EXISTS {table_name} ({schema})"
     cur.execute(query)
+    
+    
+def delete_table(conn: sqlite3.Connection, table_name: str):
+    cur = conn.cursor()
+    query = f"DROP TABLE IF EXISTS {table_name}"
+    cur.execute(query)
 
 
-def insert_rows(conn: sqlite3.Connection, table_name: str, columns: List[str], rows: List[List[str]]):
+def insert_rows(conn: sqlite3.Connection, table_name: str, columns: Tuple[str, ...], rows: List[Tuple[str, ...]]):
     cur = conn.cursor()
 
     placeholders = ",".join(["?"] * len(columns))

@@ -1,49 +1,65 @@
-import csv
 from pathlib import Path
 import sqlite3
+from typing import Dict, Iterable, List, Tuple
 
-from .db import create_table, insert_rows
-from .lists import AssemblyFileLists
-from .utils import infer_delimiter, open_maybe_gzip
+from .db import create_table, delete_table, insert_rows
+from .lists import _StringDataClass, AssemblyFileLists, BaktaFileLists
+from .models import ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA, Table
 
 
-def import_assembly_batch_files(conn: sqlite3.Connection):
-    axl = AssemblyFileLists(Path.cwd() / "atb.assembly.list.csv.gz")
+def insert_file_list(conn: sqlite3.Connection, schema: Dict[str, List[str]], file_list: Iterable[_StringDataClass], table_def: Table):
+    columns = table_def.columns()
     
-    # column definition and sanitize
-    columns = 
+    if table_def.name not in schema:
+        create_table(conn, table_def.name, columns)
+    
+    batch: List[Tuple[str, ...]] = []
+    batch_size = 10000
+
+    for row in file_list:
+        batch.append(row.astuple())
+
+        if len(batch) >= batch_size:
+            insert_rows(conn, table_def.name, columns, batch)
+            batch = []
+
+    if batch:
+        insert_rows(conn, table_def.name, columns, batch)
+        
+    return table_def.name
 
 
-def import_csv_to_sqlite(conn: sqlite3.Connection, file_path: Path, table_name: str):
-    delimiter = infer_delimiter(file_path)
+def import_assembly_batches(conn: sqlite3.Connection, schema: Dict[str, List[str]], force: bool = False):
+    mani = AssemblyFileLists(Path.cwd() / "atb.assembly.list.csv.gz")
+    
+    if ASSEMBLY_BATCH_SCHEMA.name in schema:
+        if force:
+            delete_table(conn, ASSEMBLY_BATCH_SCHEMA.name)
+        else:
+            return
+    
+    insert_file_list(conn, schema, mani.batch_files, ASSEMBLY_BATCH_SCHEMA)
 
-    with open_maybe_gzip(file_path) as f:
-        reader = csv.reader(f, delimiter=delimiter)
 
-        # header
-        columns = next(reader)
+def import_annotation_batches(conn: sqlite3.Connection, schema: Dict[str, List[str]], force: bool = False):
+    mani = BaktaFileLists(Path.cwd() / "atb.bakta.list.csv.gz")
+    
+    if BAKTA_BATCH_SCHEMA.name in schema:
+        if force:
+            delete_table(conn, BAKTA_BATCH_SCHEMA.name)
+        else:
+            return _import_annotation_file_lists(conn, schema, mani, force=force)
+    
+    insert_file_list(conn, schema, mani.batch_files, BAKTA_BATCH_SCHEMA)
+    _import_annotation_file_lists(conn, schema, mani, force=force)
 
-        # sanitize column names
-        columns = [c.strip().replace(" ", "_") for c in columns]
 
-        # ensure "sample" exists for deduplication
-        if "sample" not in columns:
-            raise ValueError("Input file must contain a 'sample' column")
+def _import_annotation_file_lists(conn: sqlite3.Connection, schema: Dict[str, List[str]], mani: BaktaFileLists, force: bool = False):
+    if BAKTA_SCHEMA.name in schema:
+        if force:
+            delete_table(conn, BAKTA_SCHEMA.name)
+        else:
+            return
 
-        create_table(conn, table_name, columns)
-
-        batch = []
-        batch_size = 10000
-
-        for row in reader:
-            batch.append(row)
-
-            if len(batch) >= batch_size:
-                insert_rows(conn, table_name, columns, batch)
-                batch = []
-
-        if batch:
-            insert_rows(conn, table_name, columns, batch)
-
-    return table_name
-  
+    for lst in mani.lists():
+        insert_file_list(conn, schema, lst.data, BAKTA_SCHEMA)
