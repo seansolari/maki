@@ -31,6 +31,7 @@ class AssemblyTable(SampleTable):
     species: str
     hq: str
     assembly_exists: str
+    tar_xz: str
     
     @staticmethod
     def table_name() -> str:
@@ -38,7 +39,7 @@ class AssemblyTable(SampleTable):
     
     @staticmethod
     def columns() -> Tuple[str, ...]:
-        return ("assembly_accession", "asm_fasta_on_osf", "dataset", "scientific_name", "sylph_species", "hq_filter", "osf_tarball_filename", "osf_tarball_url", "comments")
+        return ("sample_accession", "sylph_species", "hq_filter", "asm_fasta_on_osf", "osf_tarball_filename")
 
 
 @dataclass(frozen=True)

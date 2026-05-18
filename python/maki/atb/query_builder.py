@@ -1,6 +1,8 @@
 from copy import deepcopy
 from typing import List, Tuple
 
+from .models import Table
+
 
 class QueryBuilder:
     def __init__(self, core_table):
@@ -13,11 +15,13 @@ class QueryBuilder:
         self.limit = None
         self.columns: List[Tuple[str, str]] = list(self.core.take_cols())
 
-    def join(self, table, on_left: str, on_right: str):
+    def join(self, table: Table, on_left: str, on_right: str):
         self.joins.append(
             f"JOIN {table.name} ON {on_left} = {on_right}"
         )
-        self.columns.extend(list(table.take_cols())[1:])
+        for cname in table.take_cols():
+            if f"{cname[0]}.{cname[1]}" != on_right:
+                self.columns.append(cname)
         return self
 
     def where(self, condition, *params):

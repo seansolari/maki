@@ -12,7 +12,7 @@ from .config import DEFAULT_DB, SQLITE_URL
 from .db import connect, ensure_db, inspect_schema
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
-from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
+# from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
 from .lists import AssemblyFileLists, BaktaFileLists
 
 
@@ -170,7 +170,8 @@ def download(
 ):
     """
     Download assembly and annotation data according to a download manifest created with `plan-download`.
-    """    
+    """
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     async def main():
@@ -193,6 +194,8 @@ def download(
             typer.echo(f"Extracted {total} annotations")
     
     asyncio.run(main())
+    """
+    pass
 
 
 def main():

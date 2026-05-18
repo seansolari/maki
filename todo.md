@@ -22,7 +22,8 @@
 
   - ATB helpers
     - Implement download in batches, including annotations.
-      - **DONE** - Use filters to construct manifest with all required file links.
+      - Use filters to construct manifest with all required file links.
+        - Fix column names to include e.g. asm_
       - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
   - Coloured graph bindings
   - Weighted graph bindings

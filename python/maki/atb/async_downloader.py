@@ -11,8 +11,8 @@ from pathlib import Path
 from collections import defaultdict
 from tqdm.asyncio import tqdm_asyncio
 
-from .importer import open_maybe_gzip
-from .extern.lists import RemoteBatchFile, _FileLists
+from .utils import open_maybe_gzip
+from .lists import RemoteBatchFile, _FileLists
 
 
 class Manifest:
