@@ -20,11 +20,11 @@
 
 ### Mon 11 May, 2026 - Python bindings and ATB
 
-  - ATB helpers
-    - Implement download in batches, including annotations.
-      - Use filters to construct manifest with all required file links.
-        - Fix column names to include e.g. asm_
-      - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
+  - **DONE** - ATB helpers
+    - **DONE** - Implement download in batches, including annotations.
+      - **DONE** - Use filters to construct manifest with all required file links.
+        - **DONE** - Fix column names to include e.g. asm_
+      - **DONE** - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
   - Coloured graph bindings
   - Weighted graph bindings
   - Writing classify results at annotation level to parquet file

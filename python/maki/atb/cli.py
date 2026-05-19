@@ -8,12 +8,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from pathlib import Path
-from .config import DEFAULT_DB, SQLITE_URL
+from .config import SQLITE_URL
 from .db import connect, ensure_db, inspect_schema
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
-# from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
-from .lists import AssemblyFileLists, BaktaFileLists
+from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
+from .gff import pjson_to_gff
 
 
 console = Console()
@@ -26,7 +26,7 @@ app = typer.Typer(
 
 @app.command()
 def init(
-    db_path: Path = DEFAULT_DB,
+    db_path: Path,
     remote_src: str = SQLITE_URL,
     force: bool = False
 ):
@@ -36,22 +36,22 @@ def init(
     ensure_db(remote_src, db_path)
     typer.echo(f"SQLite database ready at {db_path}")
     
-    conn = connect(db_path)
-    schema = inspect_schema(conn)
+    db = connect(db_path)
+    schema = inspect_schema(db.conn)
     
-    import_assembly_batches(conn, schema, force=force)
-    import_annotation_batches(conn, schema, force=force)
+    import_assembly_batches(db, schema, force=force)
+    import_annotation_batches(db, schema, force=force)
     
     typer.echo("Database initialisation complete")
 
 
 @app.command()
-def inspect(db_path: Path = DEFAULT_DB):
+def inspect(db_path: Path):
     """
     Inspect schema.
     """
-    conn = connect(db_path)
-    schema = inspect_schema(conn)
+    db = connect(db_path)
+    schema = inspect_schema(db.conn)
 
     for table, cols in schema.items():
       typer.echo(f"Table: {table}")
@@ -60,27 +60,27 @@ def inspect(db_path: Path = DEFAULT_DB):
 
 @app.command()
 def count(
+    db_path: Path,
     taxon: Optional[str] = None,
     high_quality: bool = False,
     has_assembly: bool = False,
     max_contamination: Optional[float] = None,
     min_completeness: Optional[float] = None,
     has_annotation: bool = False,
-    limit: Optional[int] = None,
-    db_path: Path = DEFAULT_DB,
+    limit: Optional[int] = None
 ):
     """
     Count assembly records matching search criteria.
     """
-    conn = connect(db_path)
+    db = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
 
     if taxon:
-        typer.echo(count_taxon(conn, opts))
+        typer.echo(count_taxon(db.conn, opts))
     else:
         table = Table("Species", "Count")
         
-        rows = count_all(conn, opts)
+        rows = count_all(db.conn, opts)
         if limit:
           rows = rows[:limit]
         
@@ -92,21 +92,21 @@ def count(
 
 @app.command()
 def head(
+    db_path: Path,
     taxon: Optional[str] = None,
     high_quality: bool = False,
     has_assembly: bool = False,
     max_contamination: Optional[float] = None,
     min_completeness: Optional[float] = None,
     has_annotation: bool = False,
-    limit: int = 20,
-    db_path: Path = DEFAULT_DB,
+    limit: int = 20
 ):
     """
     View the assembly table.
     """
-    conn = connect(db_path)
+    db = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
-    cols, rows = list_sample_rows(conn, opts, limit)
+    cols, rows = list_sample_rows(db.conn, opts, limit)
     
     table = Table(*cols)
     for row in rows:
@@ -117,22 +117,22 @@ def head(
 
 @app.command()
 def plan_download(
+    db_path: Path,
     taxon: Optional[str] = None,
     high_quality: bool = True,
     has_assembly: bool = True,
     max_contamination: Optional[float] = 5.0,
     min_completeness: Optional[float] = 95.0,
     has_annotation: bool = True,
-    outfile: Optional[str] = None,
-    db_path: Path = DEFAULT_DB,
+    outfile: Optional[str] = None
 ):
     """
     Create a download manifest.
     """
-    conn = connect(db_path)
+    db = connect(db_path)
     opts = QueryOptions(taxon=taxon, high_quality=high_quality, has_assembly=has_assembly, max_contamination=max_contamination, min_completeness=min_completeness, has_annotation=has_annotation)
     
-    cols, rows = plan_download_impl(conn, opts)
+    cols, rows = plan_download_impl(db.conn, opts)
     
     if not outfile:
         outfile = db_path.with_suffix(".manifest.csv.gz").name
@@ -165,37 +165,37 @@ def plan_download(
 def download(
     manifest: Path,
     output_dir: Path = Path("downloads"),
-    concurrency: int = 6,
-    override_file_lists: bool = False
+    concurrency: int = 6
 ):
     """
     Download assembly and annotation data according to a download manifest created with `plan-download`.
     """
-    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    async def main():
-        mani = Manifest.from_csv(manifest)
-        
+    mani = Manifest.from_csv(manifest)
+  
+    async def main(mani: Manifest):
         # assemblies
+        assert mani.has_assemblies, "Missing assembly metadata"
         typer.echo("Preparing assembly batches...")
-        assembly_list = AssemblyFileLists(output_dir / "atb.assembly.list.csv.gz", override_file_lists)
-        batches = mani.batch(AssemblyItem.from_row, assembly_list)
+        batches = mani.batch(AssemblyItem.from_row)
     
-        total = await run_jobs_async(batches, output_dir, concurrency)
+        total = await run_jobs_async(batches, output_dir / "fa", concurrency)
         typer.echo(f"Extracted {total} assemblies")
     
-        if mani.has_annotations():
+        if mani.has_annotations:
             typer.echo("Preparing annotation batches...")
-            bakta_list = BaktaFileLists(output_dir / "atb.bakta.list.csv.gz", override_file_lists)
-            batches = mani.batch(BaktaItem.from_row, bakta_list)
+            batches = mani.batch(BaktaItem.from_row)
         
-            total = await run_jobs_async(batches, output_dir, concurrency)
+            total = await run_jobs_async(batches, output_dir / "bakta", concurrency)
             typer.echo(f"Extracted {total} annotations")
+            
+            pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, concurrency)            
     
-    asyncio.run(main())
-    """
-    pass
+    asyncio.run(main(mani))
+    
+    mani.write_csv(output_dir / "manifest.csv.gz")
+    typer.echo(f"Manifest exported to {output_dir / "manifest.csv.gz"}")
 
 
 def main():

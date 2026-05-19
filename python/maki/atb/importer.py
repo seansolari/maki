@@ -1,8 +1,7 @@
-from pathlib import Path
 import sqlite3
 from typing import Dict, Iterable, List, Tuple
 
-from .db import create_table, delete_table, insert_rows
+from .db import DbHandle, create_table, delete_table, insert_rows
 from .lists import _StringDataClass, AssemblyFileLists, BaktaFileLists
 from .models import ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA, Table
 
@@ -29,29 +28,29 @@ def insert_file_list(conn: sqlite3.Connection, schema: Dict[str, List[str]], fil
     return table_def.name
 
 
-def import_assembly_batches(conn: sqlite3.Connection, schema: Dict[str, List[str]], force: bool = False):
-    mani = AssemblyFileLists(Path.cwd() / "atb.assembly.list.csv.gz")
+def import_assembly_batches(db: DbHandle, schema: Dict[str, List[str]], force: bool = False):
+    mani = AssemblyFileLists(db.path.parent / "atb.assembly.list.csv.gz")
     
     if ASSEMBLY_BATCH_SCHEMA.name in schema:
         if force:
-            delete_table(conn, ASSEMBLY_BATCH_SCHEMA.name)
+            delete_table(db.conn, ASSEMBLY_BATCH_SCHEMA.name)
         else:
             return
     
-    insert_file_list(conn, schema, mani.batch_files, ASSEMBLY_BATCH_SCHEMA)
+    insert_file_list(db.conn, schema, mani.batch_files, ASSEMBLY_BATCH_SCHEMA)
 
 
-def import_annotation_batches(conn: sqlite3.Connection, schema: Dict[str, List[str]], force: bool = False):
-    mani = BaktaFileLists(Path.cwd() / "atb.bakta.list.csv.gz")
+def import_annotation_batches(db: DbHandle, schema: Dict[str, List[str]], force: bool = False):
+    mani = BaktaFileLists(db.path.parent / "atb.bakta.list.csv.gz")
     
     if BAKTA_BATCH_SCHEMA.name in schema:
         if force:
-            delete_table(conn, BAKTA_BATCH_SCHEMA.name)
+            delete_table(db.conn, BAKTA_BATCH_SCHEMA.name)
         else:
-            return _import_annotation_file_lists(conn, schema, mani, force=force)
+            return _import_annotation_file_lists(db.conn, schema, mani, force=force)
     
-    insert_file_list(conn, schema, mani.batch_files, BAKTA_BATCH_SCHEMA)
-    _import_annotation_file_lists(conn, schema, mani, force=force)
+    insert_file_list(db.conn, schema, mani.batch_files, BAKTA_BATCH_SCHEMA)
+    _import_annotation_file_lists(db.conn, schema, mani, force=force)
 
 
 def _import_annotation_file_lists(conn: sqlite3.Connection, schema: Dict[str, List[str]], mani: BaktaFileLists, force: bool = False):

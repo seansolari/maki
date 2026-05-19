@@ -1,4 +1,5 @@
 import gzip
+import hashlib
 import re
 from pathlib import Path
 
@@ -16,3 +17,17 @@ def open_maybe_gzip(file_path: Path):
     if file_path.suffix == ".gz":
         return gzip.open(file_path, "rt")
     return open(file_path, "r")
+
+
+def write_maybe_gzip(file_path: Path):
+    if file_path.suffix == ".gz":
+        return gzip.open(file_path, "wt")
+    return open(file_path, "w")
+
+
+def md5sum(path: Path, chunk_size=8192):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        while chunk := f.read(chunk_size):
+            h.update(chunk)
+    return h.hexdigest()

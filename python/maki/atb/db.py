@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import sqlite3
 import lzma
 import shutil
@@ -6,10 +7,16 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 
+@dataclass(frozen=False)
+class DbHandle:
+    conn: sqlite3.Connection
+    path: Path
+
+
 def connect(db_path: Path):
     if not db_path.exists():
         raise FileNotFoundError(f"Database not found: {db_path}")
-    return sqlite3.connect(db_path)
+    return DbHandle(sqlite3.connect(db_path), db_path)
 
 
 def ensure_db(remote_src: str, db_path: Path):
