@@ -1,48 +1,95 @@
+
 import csv
-from dataclasses import dataclass
-from typing import List, Dict
-from maki.utils.hashing import hash_strings
+from dataclasses import dataclass, fields
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+from maki.models.taxonomy.base import BaseTaxonomy
+from maki.utils.io import open_maybe_gzip
 
 
 @dataclass
 class GenomeRecord:
     accession: str
-    tax_id: int
     fasta: str
     gff: str
+    taxonomy: str
+    taxid: Optional[str] = None
+    
+    @classmethod
+    def from_dict(cls, r: Dict[str, str]):
+        return cls(accession=r["accession"], fasta=r["fasta"], gff=r["gff"], taxonomy=r["taxonomy"], taxid=r["taxid"] or None)
+      
+    def astuple(self) -> Tuple[str, ...]:
+        return (self.accession, self.fasta, self.gff, self.taxonomy, self.taxid or '')
 
 
 class Manifest:
-    def __init__(self, records: List[GenomeRecord]):
-        self.records = records
+    REQUIRED_COLUMNS = {"accession", "fasta", "gff"}
+
+    def __init__(self, records):
+        self.records: List[GenomeRecord] = records
 
     @classmethod
-    def from_csv(cls, path: str) -> "Manifest":
-        records = []
-        with open(path) as f:
+    def import_csv(cls, path: Path):
+        """Create a new manifest by inspecting a csv.
+        """
+        with open_maybe_gzip(path) as f:
             reader = csv.DictReader(f)
-            for row in reader:
-                records.append(
-                    GenomeRecord(
-                        accession=row["accession"],
-                        tax_id=int(row["tax_id"]),
-                        fasta=row["fasta"],
-                        gff=row["gff"]
-                    )
+            cols = reader.fieldnames
+            
+            if not cols:
+                raise RuntimeError(f"Could not detect column names in manifest: {path}")
+
+            # auto-detect taxonomy column
+            tax_column = None
+            for c in cols:
+                if c.lower() in ["taxid", "tax_id", "taxonomy", "organism", "name"]:
+                    tax_column = c
+                    break
+
+            if not tax_column:
+                raise ValueError(
+                    "Could not detect taxonomy column.\n"
+                    "Expected one of: taxid, tax_id, taxonomy, organism, name"
                 )
+
+            records = []
+            for row in reader:
+                records.append(GenomeRecord(accession=row["accession"], fasta=row["fasta"], gff=row["gff"], taxonomy=row[tax_column]))
+
+        print(f"Detected taxonomy column: '{tax_column}'")
+
         return cls(records)
-
-    def accessions(self):
-        return [r.accession for r in self.records]
-
-    def compute_hash(self) -> str:
-        return hash_strings(self.accessions())
-
-    def group_by_rank(self, taxonomy, rank: str) -> Dict[int, List[GenomeRecord]]:
+      
+    @classmethod
+    def load(cls, path: Path):
+        with open_maybe_gzip(path) as f:
+            reader = csv.DictReader(f)
+            cols = reader.fieldnames
+            
+            if not cols:
+                raise RuntimeError(f"Corrupted manifest: {path}")
+              
+            records = []
+            for row in reader:
+                records.append(GenomeRecord.from_dict(row))
+                
+            return cls(records)
+          
+    def save(self, path: Path):
+        with open_maybe_gzip(path) as f:
+            fh = csv.writer(f)
+            fh.writerow((f.name for f in fields(GenomeRecord)))
+            fh.writerows((r.astuple() for r in self.records))
+            
+    def group_by_rank(self, taxonomy: BaseTaxonomy, rank: str):
         grouped = {}
 
         for record in self.records:
-            ancestor = taxonomy.get_ancestor_at_rank(record.tax_id, rank)
+            taxid = record.taxid
+
+            ancestor = record.taxonomy if not taxid else taxonomy.get_ancestor_at_rank(taxid, rank)
             grouped.setdefault(ancestor, []).append(record)
 
         return grouped

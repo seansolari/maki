@@ -25,11 +25,11 @@
       - **DONE** - Use filters to construct manifest with all required file links.
         - **DONE** - Fix column names to include e.g. asm_
       - **DONE** - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
+  - Implement maki algorithms using bindings
   - Coloured graph bindings
   - Weighted graph bindings
   - Writing classify results at annotation level to parquet file
   - Classify graph bindings
-  - Implement maki algorithms using bindings
 
 ### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
 

@@ -12,7 +12,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
-from .utils import open_maybe_gzip, md5sum, write_maybe_gzip
+from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
 from .lists import RemoteBatchFile
 
 

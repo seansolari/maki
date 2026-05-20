@@ -1,26 +1,64 @@
+from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
 import json
 from pathlib import Path
-from maki.models.cluster import GenomeCluster
-from maki.models.taxonomy import TaxonomyDB
+from typing import Optional
 
-class MetaGenomicDatabase:
-    def __init__(self, root: str, kmer_size: int, mode="fixed"):
+from .cluster import GenomeCluster
+from .manifest import Manifest
+from .taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
+
+
+class TaxonomySource(Enum):
+    gtdb = 0
+    ncbi = 1
+    
+    @classmethod
+    def from_str(cls, val: str) -> TaxonomySource:
+        try:
+            return cls[val.lower()]
+        except KeyError:
+            raise ValueError(f"Unrecognised taxonomy source: {val}")
+
+
+class MetagenomicDatabase:
+    def __init__(self, root: Path, kmer_size: int, tax: TaxonomySource, mode: str = "fixed"):
         self.root = Path(root)
         self.kmer_size = kmer_size
         self.mode = mode
 
         self.clusters = {}
-        self.taxonomy = TaxonomyDB()
+        self.taxonomy = self._init_taxonomy(tax)
         self.metadata_file = self.root / "metadata.json"
         self.cluster_root = self.root / "clusters"
+        
+        self._rank: Optional[str] = None
+        self._manifest_hash: Optional[str] = None
+        
+    def _save_metadata(self, manifest, rank):
+        meta = {
+            "kmer_size": self.kmer_size,
+            "rank": rank,
+            "tax": "gtdb" if isinstance(self.taxonomy, GTDBTaxonomy) else "ncbi",
+            "mode": self.mode,
+            "manifest_hash": manifest.compute_hash(),
+            "clusters": {
+                cid: {
+                    "tax_id": c.tax_id,
+                    "rank": c.rank
+                } for cid, c in self.clusters.items()
+            }
+        }
+
+        with open(self.metadata_file, "w") as f:
+            json.dump(meta, f, indent=2)
 
     @classmethod
-    def load(cls, root: str):
-        root = Path(root)
+    def load(cls, root: Path):
         meta = json.loads((root / "metadata.json").read_text())
 
-        db = cls(root, meta["kmer_size"], meta["mode"])
+        db = cls(root, meta["kmer_size"], TaxonomySource.from_str(meta["tax"]), meta["mode"])
 
         for cid, info in meta["clusters"].items():
             db.clusters[cid] = GenomeCluster(
@@ -36,11 +74,20 @@ class MetaGenomicDatabase:
         db._manifest_hash = meta["manifest_hash"]
 
         return db
+    
+    def _init_taxonomy(self, source: TaxonomySource) -> BaseTaxonomy:
+        if source == TaxonomySource.ncbi:
+            taxonomy = NCBITaxonomy(self.root)
+        else:
+            taxonomy = GTDBTaxonomy(self.root)
+
+        taxonomy.ensure_downloaded()
+        return taxonomy
       
     # ====================
     # BUILD (Parallel)
     # ====================
-    def build(self, manifest, rank, threads, force):
+    def build(self, manifest: Manifest, rank: str, threads: int, force: bool = False):
         groups = manifest.group_by_rank(self.taxonomy, rank)
 
         with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -63,6 +110,23 @@ class MetaGenomicDatabase:
                 f.result()
 
         self._save_metadata(manifest, rank)
+        
+    def _resolve_taxids(self, manifest: Manifest):
+        print("Resolving genome taxonomy...")
+        mapping = resolve_accession_taxids(((r.accession, r.taxonomy) for r in manifest.records), self.taxonomy, self.root)
+
+        # attach taxids to records
+        for rec in manifest.records:
+            rec.taxid = mapping.get(rec.accession)
+
+        # remove unresolved
+        valid_records = sum(1 for r in manifest.records if r.taxid)
+
+        if valid_records < len(manifest.records):
+            print(f"[warning] {len(manifest.records) - valid_records} genomes could not be assigned taxonomy IDs")
+
+        print(f"{valid_records} genomes with valid taxonomy.")
+        return mapping
 
     # ====================
     # TRUE INCREMENTAL UPDATE
@@ -125,20 +189,3 @@ class MetaGenomicDatabase:
                 f.result()
 
         self._save_metadata(new_manifest, self._rank)
-
-    def _save_metadata(self, manifest, rank):
-        meta = {
-            "kmer_size": self.kmer_size,
-            "rank": rank,
-            "mode": self.mode,
-            "manifest_hash": manifest.compute_hash(),
-            "clusters": {
-                cid: {
-                    "tax_id": c.tax_id,
-                    "rank": c.rank
-                } for cid, c in self.clusters.items()
-            }
-        }
-
-        with open(self.metadata_file, "w") as f:
-            json.dump(meta, f, indent=2)

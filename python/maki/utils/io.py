@@ -25,7 +25,7 @@ def write_maybe_gzip(file_path: Path):
     return open(file_path, "w")
 
 
-def md5sum(path: Path, chunk_size=8192):
+def md5sum(path: Path, chunk_size: int = 8192):
     h = hashlib.md5()
     with open(path, "rb") as f:
         while chunk := f.read(chunk_size):

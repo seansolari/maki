@@ -7,7 +7,7 @@ from pathlib import Path
 import requests
 from typing import List, Tuple
 
-from .utils import infer_delimiter
+from ..utils.io import infer_delimiter
 from .extern.osf_get_files_for_project import to_table, get_all_data
 
 
