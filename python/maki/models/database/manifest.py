@@ -10,22 +10,20 @@ from maki.utils.io import open_maybe_gzip
 
 @dataclass
 class GenomeRecord:
-    accession: str
-    fasta: str
-    gff: str
-    taxonomy: str
-    taxid: Optional[str] = None
+    accession: str # unique sequence ID
+    taxonomy: str # user-supplied taxonomic group
+    taxid: Optional[str] = None # validated taxonomy ID calculated from `taxonomy`
     
     @classmethod
     def from_dict(cls, r: Dict[str, str]):
-        return cls(accession=r["accession"], fasta=r["fasta"], gff=r["gff"], taxonomy=r["taxonomy"], taxid=r["taxid"] or None)
+        return cls(accession=r["accession"], taxonomy=r["taxonomy"], taxid=r["taxid"] or None)
       
     def astuple(self) -> Tuple[str, ...]:
-        return (self.accession, self.fasta, self.gff, self.taxonomy, self.taxid or '')
+        return (self.accession, self.taxonomy, self.taxid or '')
 
 
 class Manifest:
-    REQUIRED_COLUMNS = {"accession", "fasta", "gff"}
+    REQUIRED_COLUMNS = {"accession"}
 
     def __init__(self, records):
         self.records: List[GenomeRecord] = records
@@ -56,7 +54,7 @@ class Manifest:
 
             records = []
             for row in reader:
-                records.append(GenomeRecord(accession=row["accession"], fasta=row["fasta"], gff=row["gff"], taxonomy=row[tax_column]))
+                records.append(GenomeRecord(accession=row["accession"], taxonomy=row[tax_column]))
 
         print(f"Detected taxonomy column: '{tax_column}'")
 
@@ -82,7 +80,7 @@ class Manifest:
             fh = csv.writer(f)
             fh.writerow((f.name for f in fields(GenomeRecord)))
             fh.writerows((r.astuple() for r in self.records))
-            
+    
     def group_by_rank(self, taxonomy: BaseTaxonomy, rank: str):
         grouped = {}
 

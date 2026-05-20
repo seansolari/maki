@@ -1,25 +1,32 @@
 # Database implementation plan
 
-A database is opened in read mode. If one doesn't exist, it is created. This means clusters are kept in archive format.
+A database consists of a manifest of sequence accessions and taxonomy IDs for each accession (TSV file), some
+metadata stored in a JSON file, and a cluster archive. These clusters are collections of sequences grouped at
+a specific taxonomic rank. Each cluster comprises a collection of files and metadata, e.g. sequence data,
+annotations, taxonomic data, binaries etc.
 
-The database is converted to edit mode. This means clusters are exported from the archive.
+A database can opened in read mode. If one doesn't exist, it is created. In read mode, clusters are kept in
+archive format, i.e. stored in a .tar.xz file. Specific clusters can be extracted and used for analysis as
+required. This approach means that not all clusters are extracted at once, which is important because there
+are a lot of clusters and they can be quite large in size.
 
-In edit mode, the database can be modified:
+The database can be converted to edit mode. This means all clusters are exported from the archive and kept on
+disk in raw format.
 
-  1. A `Database.plan_update` function accepts a manifest that outlines genome accessions and taxonomy data, and returns
-    a `JobSet` object, which has organised genome accessions into taxonomic clusters.
-      - Each cluster must either be new, or correpond to a cluster created in `updatable` mode.
-  2. To each `Job` within the `JobSet`, the user must provide a method to retrieve genome data for that set of
-    accessions.
-      - A simple method will be implemented for the CLI, which assumes files exist locally.
-      - In the `maki.atb` submodule, this enables data to be downloaded on-demand (per cluster), rather than
-        all at once.
-  3. The user submits the `JobSet` to `Database.fulfil`, which is free to execute jobs individually in parallel. When `fulfil`
-    completes, each cluster will have been updated.
-  4. The completed `JobSetResult` is ingested by the main database to update accessions and taxonomic data.
+In edit mode, the database (and its clusters) can be modified:
 
-The database is then coverted to read mode. This means clusters are archived into a `.tar.xz` file.
+  1. The updating process is abstracted through a `DatabasePackage` abstract class. This class provides:
+    - A list of sequence accessions and their taxonomy ID which are to be inserted into the database.
+    - A member function `retrieve_data(accessions) -> SequencePackage` which returns an object encompassing data
+      (e.g. sequence data, annotation data).
+      - One basic implementation of the `DatabasePackage -> SequencePackage` interface could use a csv to 
+        maintain lists of accessions, taxids, and locations on disk of all relevent data.
+      - However, this interface allows more complex workflows. Chiefly, the `retrieve_data` method can be called
+        to e.g. download specific data that is needed, so that large databases can be constructed piecewise,
+        without all data needing to be on disk at once.
+  2. The user calls `Database.update` supplying a `DatabasePackage`, the clusters are updated, and the database
+    manifest is updated to include these sequences.
 
-When classifying, each cluster is extracted from the archive and run against all samples. This means that only one
-cluster at a time needs to be decompressed, and makes moving/archiving databases easier. The database should be able
-to list the clusters is currently has in the archive.
+The database is then coverted to read mode. This means updated clusters are archived into a `.tar.xz` file. In read
+mode, the database should be able to list the clusters is currently has in the archive, as keys for clusters that
+can be extracted.

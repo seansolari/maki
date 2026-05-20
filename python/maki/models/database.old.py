@@ -25,12 +25,16 @@ class TaxonomySource(Enum):
 class MetagenomicDatabase:
     def __init__(self, root: Path, kmer_size: int, tax: TaxonomySource, mode: str = "fixed"):
         self.root = Path(root)
+        self.metadata_file = self.root / "metadata.json"
+        
+        
+        
         self.kmer_size = kmer_size
         self.mode = mode
 
         self.clusters = {}
         self.taxonomy = self._init_taxonomy(tax)
-        self.metadata_file = self.root / "metadata.json"
+        
         self.cluster_root = self.root / "clusters"
         
         self._rank: Optional[str] = None
