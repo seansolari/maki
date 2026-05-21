@@ -3,33 +3,39 @@ from __future__ import annotations
 from enum import Enum
 import json
 from pathlib import Path
+from typing import Dict, List
 
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from .archive import XzArchive, RawArchive
-from .manifest import Manifest
+from .manifest import DatabasePackage, Manifest
 
+
+class UpdateMode(Enum):
+    fixed = 0
+    updateable = 1
+    
 
 class TaxonomySource(Enum):
     gtdb = 0
     ncbi = 1
-    
-    @classmethod
-    def from_str(cls, val: str) -> TaxonomySource:
-        try:
-            return cls[val.lower()]
-        except KeyError:
-            raise ValueError(f"Unrecognised taxonomy source: {val}")
 
 
-class StaticDatabase:
-    def __init__(self, root: Path, kmer_size: int, rank: str, clusters: XzArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
+class _Database:
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode):
         self.root = root
-        self.metadata_file = root / "metadata.json"
         self.kmer_size = kmer_size
         self.rank = rank
+        self.update_mode = update_mode
+
+
+class StaticDatabase(_Database):
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: XzArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
+        super().__init__(root, kmer_size, rank, update_mode)
+        self.metadata_file = root / "metadata.json"
         self.clusters = clusters
         self.taxonomy = taxonomy
         self.manifest = manifest
+
   
     @classmethod
     def load(cls, root: Path):
@@ -37,10 +43,10 @@ class StaticDatabase:
         
         meta = json.loads((root / "metadata.json").read_text())
         
-        return StaticDatabase(root, meta["kmer_size"], meta["rank"], XzArchive(root / "clusters.tar.xz"), cls._init_taxonomy(root, TaxonomySource.from_str(meta["taxonomy_source"])), Manifest.load(root / "manifest.csv.gz"))
+        return StaticDatabase(root, meta["kmer_size"], meta["rank"], UpdateMode[meta["update_mode"]], XzArchive(root / "clusters.tar.xz"), cls._init_taxonomy(root, TaxonomySource[meta["taxonomy_source"]]), Manifest.load(root / "manifest.csv.gz"))
   
     @classmethod
-    def create(cls, root: Path, kmer_size: int, rank: str, tax: TaxonomySource, manifest_src: Path):
+    def create(cls, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, tax: TaxonomySource, manifest_src: Path):
         root = root
         root.mkdir(parents=True, exist_ok=True)
         
@@ -48,7 +54,7 @@ class StaticDatabase:
         taxonomy = cls._init_taxonomy(root, tax)
         manifest = Manifest.import_csv(manifest_src)
         
-        result = cls(root, kmer_size, rank, clusters, taxonomy, manifest)
+        result = cls(root, kmer_size, rank, update_mode, clusters, taxonomy, manifest)
         result.update_taxids()
         result.preserve()
         
@@ -86,6 +92,7 @@ class StaticDatabase:
         meta = {
             "kmer_size": self.kmer_size,
             "rank": self.rank,
+            "update_mode": self.update_mode.name,
             "taxonomy_source": "gtdb" if isinstance(self.taxonomy, GTDBTaxonomy) else "ncbi",
         }
 
@@ -95,17 +102,41 @@ class StaticDatabase:
         self.manifest.save(self.root / "manifest.csv.gz")
             
     def decompress(self) -> WriteableDatabase:
-        return WriteableDatabase(self.root, self.kmer_size, self.rank, self.clusters.decompress(), self.taxonomy, self.manifest)
+        return WriteableDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.decompress(), self.taxonomy, self.manifest)
     
 
-class WriteableDatabase:
-    def __init__(self, root: Path, kmer_size: int, rank: str, clusters: RawArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
-        self.root = root
-        self.kmer_size = kmer_size
-        self.rank = rank
+class WriteableDatabase(_Database):
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: RawArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
+        super().__init__(root, kmer_size, rank, update_mode)
         self.clusters = clusters
         self.taxonomy = taxonomy
         self.manifest = manifest
         
     def compress(self) -> StaticDatabase:
-        return StaticDatabase(self.root, self.kmer_size, self.rank, self.clusters.compress(), self.taxonomy, self.manifest)
+        return StaticDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.compress(), self.taxonomy, self.manifest)
+      
+    def insert(self, package: DatabasePackage):
+        groups = self._group_by_rank(package)
+        for cluster_id, accessions in groups:
+            # fix logix for updating/creating depending on self.update_mode
+            cluster = self.clusters.get_or_create(cluster_id)
+            
+            with package.retrieve_data(accessions) as data:
+                cluster.insert(data)
+                cluster.build(threads)
+                
+                if self.update_mode == UpdateMode.updateable:
+                    cluster.persist_sources()
+        
+    def _group_by_rank(self, package: DatabasePackage):
+        grouped: Dict[str, List[str]] = {}
+
+        for record in package.records():
+            taxid = record.taxid
+
+            ancestor = record.taxonomy if not taxid else self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
+            key = "/".join(self.taxonomy.get_lineage(ancestor))
+            
+            grouped.setdefault(key, []).append(record.accession)
+
+        return list(grouped.items())

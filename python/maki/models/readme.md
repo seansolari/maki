@@ -30,3 +30,9 @@ In edit mode, the database (and its clusters) can be modified:
 The database is then coverted to read mode. This means updated clusters are archived into a `.tar.xz` file. In read
 mode, the database should be able to list the clusters is currently has in the archive, as keys for clusters that
 can be extracted.
+
+## To do
+
+  - Fix cluster build logic
+  - Implement build using maki.core
+  - Implement DatabasePackage for CSV and ATB

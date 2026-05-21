@@ -1,10 +1,10 @@
 
+from abc import ABC, abstractmethod
 import csv
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
-from maki.models.taxonomy.base import BaseTaxonomy
 from maki.utils.io import open_maybe_gzip
 
 
@@ -12,7 +12,7 @@ from maki.utils.io import open_maybe_gzip
 class GenomeRecord:
     accession: str # unique sequence ID
     taxonomy: str # user-supplied taxonomic group
-    taxid: Optional[str] = None # validated taxonomy ID calculated from `taxonomy`
+    taxid: Optional[str] # validated taxonomy ID calculated from `taxonomy`
     
     @classmethod
     def from_dict(cls, r: Dict[str, str]):
@@ -20,6 +20,39 @@ class GenomeRecord:
       
     def astuple(self) -> Tuple[str, ...]:
         return (self.accession, self.taxonomy, self.taxid or '')
+
+
+@dataclass
+class GenomeData(GenomeRecord):
+    fasta: str
+    gff: Optional[str]
+
+
+class SequencePackage(ABC):
+    @abstractmethod
+    def records(self) -> Iterable[GenomeData]:
+        pass
+      
+    @abstractmethod
+    def cleanup(self) -> None:
+        pass
+      
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.cleanup()
+        return False
+
+
+class DatabasePackage(ABC):
+    @abstractmethod
+    def records(self) -> Iterable[GenomeRecord]:
+        pass
+  
+    @abstractmethod
+    def retrieve_data(self, accessions: Iterable[str]) -> SequencePackage:
+        pass
 
 
 class Manifest:
@@ -54,7 +87,7 @@ class Manifest:
 
             records = []
             for row in reader:
-                records.append(GenomeRecord(accession=row["accession"], taxonomy=row[tax_column]))
+                records.append(GenomeRecord(accession=row["accession"], taxonomy=row[tax_column], taxid=None))
 
         print(f"Detected taxonomy column: '{tax_column}'")
 
@@ -64,9 +97,8 @@ class Manifest:
     def load(cls, path: Path):
         with open_maybe_gzip(path) as f:
             reader = csv.DictReader(f)
-            cols = reader.fieldnames
             
-            if not cols:
+            if not reader.fieldnames:
                 raise RuntimeError(f"Corrupted manifest: {path}")
               
             records = []
@@ -80,14 +112,3 @@ class Manifest:
             fh = csv.writer(f)
             fh.writerow((f.name for f in fields(GenomeRecord)))
             fh.writerows((r.astuple() for r in self.records))
-    
-    def group_by_rank(self, taxonomy: BaseTaxonomy, rank: str):
-        grouped = {}
-
-        for record in self.records:
-            taxid = record.taxid
-
-            ancestor = record.taxonomy if not taxid else taxonomy.get_ancestor_at_rank(taxid, rank)
-            grouped.setdefault(ancestor, []).append(record)
-
-        return grouped
