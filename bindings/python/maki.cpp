@@ -4,8 +4,10 @@
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/io.hpp"
+#include <filesystem>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 
 namespace py = pybind11;
 
@@ -44,6 +46,13 @@ PYBIND11_MODULE(_maki, m) {
 
   py::class_<dbg::BuildOptions>(m, "build_opts")
       .def(py::init<>())
+      .def(
+        py::init<std::size_t,std::size_t,const fs::path&,std::size_t>(),
+        py::arg("k"),
+        py::arg("s"),
+        py::arg("out"),
+        py::arg("threads")
+      )
       .def_readwrite("kmer_size", &dbg::BuildOptions::kmer_size)
       .def_readwrite("suffix_size", &dbg::BuildOptions::suffix_size)
       .def_readwrite("out", &dbg::BuildOptions::out)

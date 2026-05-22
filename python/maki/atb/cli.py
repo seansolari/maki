@@ -8,12 +8,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from pathlib import Path
+from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
 from .config import SQLITE_URL
-from .db import connect, ensure_db, inspect_schema
+from .gff import pjson_to_gff
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
-from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
-from .gff import pjson_to_gff
+from .sql import connect, ensure_db, inspect_schema
 
 
 console = Console()

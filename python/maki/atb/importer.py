@@ -1,9 +1,9 @@
 import sqlite3
 from typing import Dict, Iterable, List, Tuple
 
-from .db import DbHandle, create_table, delete_table, insert_rows
 from .lists import _StringDataClass, AssemblyFileLists, BaktaFileLists
 from .models import ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA, Table
+from .sql import DbHandle, create_table, delete_table, insert_rows
 
 
 def insert_file_list(conn: sqlite3.Connection, schema: Dict[str, List[str]], file_list: Iterable[_StringDataClass], table_def: Table):

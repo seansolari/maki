@@ -1,4 +1,4 @@
-# Database implementation plan
+# Database design
 
 A database consists of a manifest of sequence accessions and taxonomy IDs for each accession (TSV file), some
 metadata stored in a JSON file, and a cluster archive. These clusters are collections of sequences grouped at
@@ -31,8 +31,8 @@ The database is then coverted to read mode. This means updated clusters are arch
 mode, the database should be able to list the clusters is currently has in the archive, as keys for clusters that
 can be extracted.
 
+
+
 ## To do
 
-  - Fix cluster build logic
-  - Implement build using maki.core
-  - Implement DatabasePackage for CSV and ATB
+  - Implement DatabasePackage for ATB

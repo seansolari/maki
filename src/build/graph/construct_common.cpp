@@ -6,6 +6,11 @@
 
 namespace dbg {
 
+BuildOptions::BuildOptions(std::size_t k, std::size_t s,
+                           const std::filesystem::path &out,
+                           std::size_t threads)
+    : kmer_size(k), suffix_size(s), out(out), threads(threads) {}
+
 std::size_t BuildOptions::chunks() const {
   auto n = ShortSuffix::numSuffixes(suffix_size);
   LOG_INFO() << "Configured build to use " << n

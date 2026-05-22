@@ -14,6 +14,10 @@
 namespace dbg {
 
 struct BuildOptions {
+  BuildOptions() = default;
+  BuildOptions(std::size_t k, std::size_t s, const std::filesystem::path &out,
+               std::size_t threads);
+
   // Algorithm parameters
   std::size_t kmer_size = 31;
   std::size_t suffix_size = 8;

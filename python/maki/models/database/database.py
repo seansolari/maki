@@ -1,13 +1,14 @@
 
 from __future__ import annotations
+from dataclasses import dataclass
 from enum import Enum
 import json
 from pathlib import Path
 from typing import Dict, List
 
-from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
+from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy
 from .archive import XzArchive, RawArchive
-from .manifest import DatabasePackage, Manifest
+from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, read_manifest
 
 
 class UpdateMode(Enum):
@@ -20,42 +21,57 @@ class TaxonomySource(Enum):
     ncbi = 1
 
 
+@dataclass(frozen=True)
+class DatabaseOptions:
+    root: Path
+    kmer_size: int
+    rank: str
+    update_mode: UpdateMode
+    tax: TaxonomySource
+
+
 class _Database:
-    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode):
+    _SCHEMA = ManifestSchema("accession", "taxonomy", "taxid")
+    
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, taxonomy: BaseTaxonomy, manifest: Manifest[GenomeRecord]):
         self.root = root
         self.kmer_size = kmer_size
         self.rank = rank
         self.update_mode = update_mode
+        self.taxonomy = taxonomy
+        self.manifest = manifest
+        
+    def save_manifest(self):
+        self.manifest.save(self.root / "manifest.csv.gz")
+        
+    @classmethod
+    def read_manifest(cls, root: Path):
+        return read_manifest(root / "manifest.csv.gz", cls._SCHEMA)
 
 
 class StaticDatabase(_Database):
-    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: XzArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
-        super().__init__(root, kmer_size, rank, update_mode)
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: XzArchive, taxonomy: BaseTaxonomy, manifest: Manifest[GenomeRecord]) -> None:
+        super().__init__(root, kmer_size, rank, update_mode, taxonomy, manifest)
         self.metadata_file = root / "metadata.json"
         self.clusters = clusters
-        self.taxonomy = taxonomy
-        self.manifest = manifest
 
-  
     @classmethod
     def load(cls, root: Path):
         assert root.exists()
         
         meta = json.loads((root / "metadata.json").read_text())
         
-        return StaticDatabase(root, meta["kmer_size"], meta["rank"], UpdateMode[meta["update_mode"]], XzArchive(root / "clusters.tar.xz"), cls._init_taxonomy(root, TaxonomySource[meta["taxonomy_source"]]), Manifest.load(root / "manifest.csv.gz"))
+        return StaticDatabase(root, meta["kmer_size"], meta["rank"], UpdateMode[meta["update_mode"]], XzArchive(root / "clusters.tar.xz"), cls._init_taxonomy(root, TaxonomySource[meta["taxonomy_source"]]), cls.read_manifest(root))
   
     @classmethod
-    def create(cls, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, tax: TaxonomySource, manifest_src: Path):
-        root = root
-        root.mkdir(parents=True, exist_ok=True)
+    def create(cls, db_otps: DatabaseOptions):
+        db_otps.root.mkdir(parents=True, exist_ok=True)
         
-        clusters = XzArchive(root / "clusters.tar.xz")
-        taxonomy = cls._init_taxonomy(root, tax)
-        manifest = Manifest.import_csv(manifest_src)
+        clusters = XzArchive(db_otps.root / "clusters.tar.xz")
+        taxonomy = cls._init_taxonomy(db_otps.root, db_otps.tax)
+        manifest = Manifest[GenomeRecord]()
         
-        result = cls(root, kmer_size, rank, update_mode, clusters, taxonomy, manifest)
-        result.update_taxids()
+        result = cls(db_otps.root, db_otps.kmer_size, db_otps.rank, db_otps.update_mode, clusters, taxonomy, manifest)
         result.preserve()
         
         return result
@@ -70,24 +86,6 @@ class StaticDatabase(_Database):
         taxonomy.ensure_downloaded()
         return taxonomy
       
-    def update_taxids(self):
-        print("Resolving genome taxonomy...")
-        mapping = resolve_accession_taxids(((r.accession, r.taxonomy) for r in self.manifest.records if not r.taxid), self.taxonomy)
-
-        # attach taxids to records
-        for rec in self.manifest.records:
-            if not rec.taxid:
-                rec.taxid = mapping.get(rec.accession)
-
-        # remove unresolved
-        valid_records = sum(1 for r in self.manifest.records if r.taxid)
-        missing_records = len(self.manifest.records) - valid_records
-
-        if missing_records:
-            print(f"[warning] {missing_records} genomes could not be assigned taxonomy IDs")
-
-        print(f"{valid_records} genomes with valid taxonomy.")
-      
     def preserve(self):
         meta = {
             "kmer_size": self.kmer_size,
@@ -99,39 +97,51 @@ class StaticDatabase(_Database):
         with self.metadata_file.open("w") as f:
             json.dump(meta, f, indent=2)
             
-        self.manifest.save(self.root / "manifest.csv.gz")
+        self.save_manifest()
             
     def decompress(self) -> WriteableDatabase:
         return WriteableDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.decompress(), self.taxonomy, self.manifest)
     
 
 class WriteableDatabase(_Database):
-    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: RawArchive, taxonomy: BaseTaxonomy, manifest: Manifest) -> None:
-        super().__init__(root, kmer_size, rank, update_mode)
+    def __init__(self, root: Path, kmer_size: int, rank: str, update_mode: UpdateMode, clusters: RawArchive, taxonomy: BaseTaxonomy, manifest: Manifest[GenomeRecord]) -> None:
+        super().__init__(root, kmer_size, rank, update_mode, taxonomy, manifest)
         self.clusters = clusters
-        self.taxonomy = taxonomy
-        self.manifest = manifest
         
     def compress(self) -> StaticDatabase:
         return StaticDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.compress(), self.taxonomy, self.manifest)
       
-    def insert(self, package: DatabasePackage):
+    def insert(self, package: DatabasePackage, concurrency: int):
         groups = self._group_by_rank(package)
         for cluster_id, accessions in groups:
-            # fix logix for updating/creating depending on self.update_mode
+            # fetch cluster
+            new_cluster = cluster_id not in self.clusters
             cluster = self.clusters.get_or_create(cluster_id)
             
+            if (not new_cluster) and (not cluster.updateable):
+                raise RuntimeError(f"Attempted insertion to non-updateable cluster: {cluster_id}")
+            
+            # build cluster
             with package.retrieve_data(accessions) as data:
                 cluster.insert(data)
-                cluster.build(threads)
+                cluster.build(self.kmer_size, concurrency)
                 
-                if self.update_mode == UpdateMode.updateable:
+                if cluster.updateable or self.update_mode == UpdateMode.updateable:
                     cluster.persist_sources()
+                else:
+                    cluster.remove_sources()
+                
+                # update manifest
+                for rec in data.genomes():
+                    self.manifest.insert(rec)
+        
+        # preserve manifest
+        self.save_manifest()
         
     def _group_by_rank(self, package: DatabasePackage):
         grouped: Dict[str, List[str]] = {}
 
-        for record in package.records():
+        for record in package:
             taxid = record.taxid
 
             ancestor = record.taxonomy if not taxid else self.taxonomy.get_ancestor_at_rank(taxid, self.rank)

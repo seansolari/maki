@@ -2,11 +2,12 @@
 from pathlib import Path
 import shutil
 import tarfile
-from tempfile import TemporaryDirectory
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Optional
 
 from maki.models.database.manifest import GenomeData, SequencePackage
 from maki.utils.io import open_maybe_gzip
+import maki.core as mx
 
 
 class Cluster:
@@ -62,6 +63,10 @@ class ReadWriteCluster(Cluster):
     @property
     def updateable(self) -> bool:
         return self.xz_file.exists()
+      
+    # ======================
+    # SOURCE MANAGEMENT
+    # ======================
         
     def insert(self, data: SequencePackage):
         for record in data.records():
@@ -71,7 +76,7 @@ class ReadWriteCluster(Cluster):
                 self._changed = True
             else:
                 print(f"[warning] skipping writing {trg} as it already exists")
-            
+    
     def persist_sources(self):
         with tarfile.open(self.xz_file, "w:xz") as tar:
             for file in filter(lambda p: p.is_file(), self.source_dir.iterdir()):
@@ -79,6 +84,24 @@ class ReadWriteCluster(Cluster):
           
         self._changed = False
         
+    def remove_sources(self):
+        self.xz_file.unlink(missing_ok=True)
+        
+    # ======================
+    # INDEX
+    # ======================
+        
+    def build(self, k: int, threads: int):
+        with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
+            for p in self.source_dir.iterdir():
+                fh.write(f"{p}\n".encode("utf-8"))
+            fh.flush()
+          
+            manifest = mx.read_manifest(fh.name, 0, ",", mx.FileType.GFF3)
+            opts = mx.build_opts(k, 7, self.index_dir, threads)
+            
+            mx.construct_cdbg(manifest, opts)
+    
     # ======================
     # DETAILS
     # ======================

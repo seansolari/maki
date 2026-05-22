@@ -1,8 +1,7 @@
 from pathlib import Path
 
 import typer
-from maki.models.manifest import Manifest
-from maki.models.database import MetagenomicDatabase
+import maki.models.database as mdb
 from maki.classify.sample_manifest import SampleManifest
 from maki.classify.classifier import Classifier
 
@@ -23,19 +22,37 @@ Modes:
 def build(
     manifest_path: Path = typer.Option(..., help="Genome manifest CSV"),
     db_path: Path = typer.Option(..., help="Database output path"),
-    rank: str = typer.Option(..., help="Taxonomic rank"),
     kmer_size: int = typer.Option(31),
+    rank: str = typer.Option(..., help="Taxonomic rank"),
     threads: int = typer.Option(4),
     mode: str = typer.Option(
         "fixed",
         help="Database mode: fixed or updatable"
     ),
+    taxonomy: str = typer.Option(
+        "gtdb",
+        help="Database mode: gtdb or ncbi"
+    ),
     force: bool = False
 ):
-    manifest = Manifest.import_csv(manifest_path)
-    db = MetagenomicDatabase(db_path, kmer_size, mode = mode)
-    db.build(manifest, rank, threads, force)
+    if db_path.exists() and not force:
+        print(f"[error] Build directory {db_path} already exists.")
+        return 1
+  
+    opts = mdb.DatabaseOptions(db_path, kmer_size, rank, mdb.UpdateMode[mode.lower()], mdb.TaxonomySource[taxonomy.lower()])
+    db = mdb.StaticDatabase.create(opts)
+    typer.echo(f"Database initialised at {db_path}.")
+    
+    manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
+    typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
+    
+    db = db.decompress()
+    db.insert(manifest, threads)
+    
+    db = db.compress()
     typer.echo("Database build complete.")
+    
+    return 0
 
 
 @app.command(help="""
@@ -48,20 +65,14 @@ Update an existing database with new genomes.
 def update(
     manifest_path: Path = typer.Option(..., help="New genome manifest"),
     db_path: Path = typer.Option(..., help="Existing database"),
-    threads: int = typer.Option(4, help="Parallel threads"),
-    strategy: str = typer.Option(
-        "lazy",
-        help="Rebuild strategy: lazy (default) or full"
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        help="Show changes without rebuilding"
-    )
-):
-    manifest = Manifest.from_csv(manifest_path)
-    db = MetagenomicDatabase.load(db_path)
-
-    db.update(manifest, threads, strategy, dry_run)
+    threads: int = typer.Option(4, help="Parallel threads")
+):  
+    manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
+    typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
+    
+    db = mdb.StaticDatabase.load(db_path).decompress()
+    db.insert(manifest, threads)
+    db.compress()
     typer.echo("Update complete.")
 
 
@@ -80,11 +91,11 @@ def classify(
     confidence: float = typer.Option(0.1, help="Confidence threshold"),
     min_hits: int = typer.Option(5, help="Minimum hits per assignment")
 ):
-    db = MetagenomicDatabase.load(db_path)
+    db = mdb.StaticDatabase.load(db_path)
     samples = SampleManifest.from_csv(samples_path)
 
-    classifier = Classifier(db, threads, confidence, min_hits)
-    classifier.run(samples, output)
+    # classifier = Classifier(db, threads, confidence, min_hits)
+    # classifier.run(samples, output)
 
 
 def main():
