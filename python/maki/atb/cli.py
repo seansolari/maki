@@ -8,12 +8,14 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from pathlib import Path
-from .async_downloader import AssemblyItem, BaktaItem, Manifest, run_jobs_async
+import maki.models.database as mdb
+
+from .async_downloader import MakiAtbManifest
 from .config import SQLITE_URL
-from .gff import pjson_to_gff
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
 from .sql import connect, ensure_db, inspect_schema
+from ..db import build as build_impl, update as update_impl
 
 
 console = Console()
@@ -172,30 +174,53 @@ def download(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    mani = Manifest.from_csv(manifest)
-  
-    async def main(mani: Manifest):
-        # assemblies
-        assert mani.has_assemblies, "Missing assembly metadata"
-        typer.echo("Preparing assembly batches...")
-        batches = mani.batch(AssemblyItem.from_row)
+    mani = MakiAtbManifest.from_csv(manifest, concurrency, output_dir)
     
-        total = await run_jobs_async(batches, output_dir / "fa", concurrency)
-        typer.echo(f"Extracted {total} assemblies")
-    
-        if mani.has_annotations:
-            typer.echo("Preparing annotation batches...")
-            batches = mani.batch(BaktaItem.from_row)
-        
-            total = await run_jobs_async(batches, output_dir / "bakta", concurrency)
-            typer.echo(f"Extracted {total} annotations")
-            
-            pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, concurrency)            
-    
-    asyncio.run(main(mani))
+    asyncio.run(mani.download_batches(output_dir))
     
     mani.write_csv(output_dir / "manifest.csv.gz")
     typer.echo(f"Manifest exported to {output_dir / "manifest.csv.gz"}")
+    
+    
+@app.command(help="""
+Build a new database using a download manifest.
+
+Modes:
+- fixed: minimal size, cannot be updated
+- updatable: stores compressed source data to allow updates
+""")
+def build(
+    manifest_path: Path = typer.Option(..., help="Download package manifest"),
+    db_path: Path = typer.Option(..., help="Database output path"),
+    kmer_size: int = typer.Option(31),
+    rank: str = typer.Option(..., help="Taxonomic rank"),
+    threads: int = typer.Option(4),
+    mode: str = typer.Option(
+        "fixed",
+        help="Database mode: fixed or updatable"
+    ),
+    force: bool = False
+):
+    manifest = MakiAtbManifest.from_csv(manifest_path, threads, db_path)
+    
+    return build_impl(manifest, db_path, kmer_size, rank, threads, mdb.UpdateMode[mode.lower()], mdb.TaxonomySource.gtdb, force)
+
+
+@app.command(help="""
+Update an existing database with new genomes from a download manifest.
+
+- Performs incremental diff vs current manifest
+- Only rebuilds affected clusters
+- Preserves unchanged indices
+""")
+def update(
+    manifest_path: Path = typer.Option(..., help="Download package manifest"),
+    db_path: Path = typer.Option(..., help="Existing database"),
+    threads: int = typer.Option(4, help="Parallel threads")
+):
+    manifest = MakiAtbManifest.from_csv(manifest_path, threads, db_path)
+    
+    return update_impl(manifest, db_path, threads)
 
 
 def main():

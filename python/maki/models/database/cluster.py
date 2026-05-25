@@ -69,8 +69,9 @@ class ReadWriteCluster(Cluster):
     # ======================
         
     def insert(self, data: SequencePackage):
-        for record in data.records():
-            trg = self.source_dir / f"{record.accession}.{"gff" if record.gff else "fa"}"
+        for record in data.genomes():
+            # trg = self.source_dir / f"{record.accession}.{"gff" if record.gff else "fa"}"
+            trg = self.source_dir / f"{record.accession}.gff"
             if not trg.exists():
                 self._write_record_to(record, trg)
                 self._changed = True
@@ -118,8 +119,10 @@ class ReadWriteCluster(Cluster):
             if record.gff:
                 with open_maybe_gzip(Path(record.gff)) as gff:
                     for line in gff:
-                        if "\tbakta\t" in line:
+                        if "\tbakta\tregion\t" in line:
                             f.write(f"#{line}")
+                        elif line.startswith("##FASTA"):
+                            break
                         else:
                             f.write(line)
                 f.write("##FASTA\n")

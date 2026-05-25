@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List
 
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy
+from maki.models.taxonomy.base import resolve_accession_taxids
 from .archive import XzArchive, RawArchive
 from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, read_manifest
 
@@ -112,7 +113,9 @@ class WriteableDatabase(_Database):
         return StaticDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.compress(), self.taxonomy, self.manifest)
       
     def insert(self, package: DatabasePackage, concurrency: int):
-        groups = self._group_by_rank(package)
+        taxids = self._get_taxids(package)
+        groups = self._group_by_rank(package, taxids)
+        
         for cluster_id, accessions in groups:
             # fetch cluster
             new_cluster = cluster_id not in self.clusters
@@ -133,20 +136,26 @@ class WriteableDatabase(_Database):
                 
                 # update manifest
                 for rec in data.genomes():
+                    if not rec.taxid:
+                        rec.taxid = taxids.get(rec.accession)
+                    
                     self.manifest.insert(rec)
         
         # preserve manifest
         self.save_manifest()
         
-    def _group_by_rank(self, package: DatabasePackage):
+    def _get_taxids(self, package: DatabasePackage):
+        return resolve_accession_taxids(((r.accession, r.taxonomy) for r in package.records() if not r.taxid), self.taxonomy)
+        
+    def _group_by_rank(self, package: DatabasePackage, taxids: Dict[str, str]):
         grouped: Dict[str, List[str]] = {}
-
-        for record in package:
-            taxid = record.taxid
-
+        
+        for record in package.records():
+            taxid = taxids.get(record.accession)
             ancestor = record.taxonomy if not taxid else self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
-            key = "/".join(self.taxonomy.get_lineage(ancestor))
             
+            key = "/".join(self.taxonomy.get_lineage(ancestor))
             grouped.setdefault(key, []).append(record.accession)
 
         return list(grouped.items())
+    

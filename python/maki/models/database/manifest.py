@@ -6,7 +6,6 @@ from dataclasses import dataclass, astuple, fields
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, Optional, Tuple, overload
 
-from maki.models.taxonomy.base import BaseTaxonomy, resolve_accession_taxids
 from maki.utils.io import open_maybe_gzip
 
 
@@ -47,7 +46,7 @@ class GenomeData(GenomeRecord):
 
 class SequencePackage(ABC):
     @abstractmethod
-    def genomes(self) -> Iterable[GenomeData]:
+    def genomes(self) -> Iterator[GenomeData]:
         pass
     
     @abstractmethod
@@ -64,7 +63,7 @@ class SequencePackage(ABC):
 
 class DatabasePackage(ABC):
     @abstractmethod
-    def __iter__(self) -> Iterator[GenomeRecord]:
+    def records(self) -> Iterator[GenomeRecord]:
         pass
   
     @abstractmethod
@@ -101,14 +100,14 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
             for r in records:
                 self.insert(r)
 
-    def __iter__(self):
+    def records(self):
         return self._records.values().__iter__()
       
     def retrieve_data(self, accessions: Iterable[str]):
         return Manifest(self._records[acc] for acc in accessions)
       
     def genomes(self):
-        for v in self:
+        for v in self.records():
             if isinstance(v, GenomeData):
                 yield v
 
@@ -135,24 +134,6 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
             fh.writerow((f.name for f in fields(first_record)))
             fh.writerow(first_record.astuple())
             fh.writerows((r.astuple() for r in it))
-            
-    def update_taxids(self, taxonomy: BaseTaxonomy):
-        print("Resolving genome taxonomy...")
-        mapping = resolve_accession_taxids(((r.accession, r.taxonomy) for r in self._records.values() if not r.taxid), taxonomy)
-
-        # attach taxids to records
-        for rec in self._records.values():
-            if not rec.taxid:
-                rec.taxid = mapping.get(rec.accession)
-
-        # remove unresolved
-        valid_records = sum(1 for r in self._records.values() if r.taxid)
-        missing_records = len(self._records.values()) - valid_records
-
-        if missing_records:
-            print(f"[warning] {missing_records} genomes could not be assigned taxonomy IDs")
-
-        print(f"{valid_records} genomes with valid taxonomy.")
             
 
 @overload

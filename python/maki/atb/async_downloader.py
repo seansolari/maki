@@ -2,11 +2,14 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from tempfile import TemporaryDirectory
+from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 import asyncio
 import csv
 import tarfile
+from maki.atb.gff import pjson_to_gff
+from maki.models.database.manifest import DatabasePackage, GenomeData, GenomeRecord, SequencePackage
 import requests
 from pathlib import Path
 from tqdm import tqdm
@@ -23,6 +26,13 @@ class Manifest:
         
     def __iter__(self):
         return self.rows.__iter__()
+      
+    def __len__(self):
+        return self.rows.__len__()
+      
+    def records(self):
+        for row in self:
+            yield GenomeRecord(row[ASSEMBLY_SCHEMA.sample], row[ASSEMBLY_SCHEMA.species], None)
         
     def insert(self, row: Dict[str, str]):
         assert all(c in row for c in self.columns), f"Row missing columns: {", ".join(c for c in self.columns if c not in row)}"
@@ -37,7 +47,7 @@ class Manifest:
         return all(c in self.columns for c in (BAKTA_SCHEMA.tar_xz, BAKTA_BATCH_SCHEMA.tar_xz_url, BAKTA_BATCH_SCHEMA.tar_xz_md5, BAKTA_BATCH_SCHEMA.tar_xz_size_MB, BAKTA_SCHEMA.file_name, BAKTA_SCHEMA.file_md5))
         
     @classmethod
-    def from_csv(cls, path: Path) -> Manifest:
+    def from_csv(cls, path: Path, *args, **kwargs):
         with open_maybe_gzip(path) as f:
             fieldnames: Optional[List[str]] = None
             
@@ -52,7 +62,7 @@ class Manifest:
             reader = csv.DictReader(f, fieldnames=fieldnames)
             assert reader.fieldnames
             
-            mf = Manifest(reader.fieldnames)
+            mf = cls(reader.fieldnames, *args, **kwargs)
             for r in reader:
                 mf.insert(r)
 
@@ -132,7 +142,7 @@ class BaktaItem(BatchItem):
         return RemoteBatchFile(r[BAKTA_SCHEMA.tar_xz], r[BAKTA_BATCH_SCHEMA.tar_xz_url], r[BAKTA_BATCH_SCHEMA.tar_xz_md5], r[BAKTA_BATCH_SCHEMA.tar_xz_size_MB]), BaktaItem(filename=cls.dest(r), md5=r[BAKTA_SCHEMA.file_md5])
 
 
-def extract_batch_sync(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
+def extract_batch_async(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
     extracted = 0
 
     # ignore already existing results
@@ -197,7 +207,7 @@ async def run_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_d
 
     return await loop.run_in_executor(
         executor,
-        extract_batch_sync,
+        extract_batch_async,
         batch_rec,
         items,
         output_dir,
@@ -229,3 +239,70 @@ async def run_jobs_async(batches: Dict[RemoteBatchFile, List[BatchItem]], output
     executor.shutdown(wait=True)
 
     return total
+
+
+class MakiAtbData(SequencePackage):
+    def __init__(self, dir: Optional[Path] = None) -> None:
+        super().__init__()
+        self._thd = TemporaryDirectory(dir=dir)
+        self._genomes: Set[GenomeData] = set()
+        
+    def insert(self, rec: GenomeData):
+        self._genomes.add(rec)
+        
+    @property
+    def path(self):
+        return Path(self._thd.name)
+      
+    def genomes(self):
+        return self._genomes.__iter__()
+        
+    def cleanup(self):
+        self._thd.cleanup()
+
+
+class MakiAtbManifest(Manifest, DatabasePackage):
+    def __init__(self, columns: Iterable[str], concurrency: int, tmpdir: Path):
+        super().__init__(columns)
+        self.concurrency = concurrency
+        self.tmp = tmpdir
+  
+    def retrieve_data(self, accessions: Iterable[str]) -> MakiAtbData:
+        # retrieve query rows
+        submanifest = MakiAtbManifest(self.columns, self.concurrency, self.tmp)
+        queries = set(accessions)
+        
+        for row in self:
+            if row[ASSEMBLY_SCHEMA.sample] in queries:
+                submanifest.insert(row)
+        
+        assert len(submanifest) == len(queries)
+        
+        # download data
+        result = MakiAtbData(self.tmp)
+        
+        asyncio.run(submanifest.download_batches(result.path))
+        
+        do_annot = self.has_annotations
+        for row in self:
+            result.insert(GenomeData(row[ASSEMBLY_SCHEMA.sample], row[ASSEMBLY_SCHEMA.species], None, str(result.path / "fa" / AssemblyItem.dest(row)), None if not do_annot else str((result.path / "gff" / BaktaItem.dest(row)).with_suffix(".gff"))))
+        
+        return result
+  
+    async def download_batches(self, output_dir: Path):
+        # assemblies
+        assert self.has_assemblies, "Missing assembly metadata"
+        print("Preparing assembly batches...")
+        batches = self.batch(AssemblyItem.from_row)
+
+        total = await run_jobs_async(batches, output_dir / "fa", self.concurrency)
+        print(f"Extracted {total} assemblies")
+
+        if self.has_annotations:
+            print("Preparing annotation batches...")
+            batches = self.batch(BaktaItem.from_row)
+        
+            total = await run_jobs_async(batches, output_dir / "bakta", self.concurrency)
+            print(f"Extracted {total} annotations")
+            
+            pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, self.concurrency)
