@@ -3,7 +3,7 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
-#include "maki/classify/io/fastq.hpp"
+#include "maki/build/io/fastq.hpp"
 #include "test_common.hpp"
 #include <cstdint>
 #include <filesystem>

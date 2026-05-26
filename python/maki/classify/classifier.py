@@ -2,6 +2,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from maki.classify.sample_manifest import Sample, SampleManifest
+from maki.models.database.cluster import ClusterHandle
+from maki.models.database.database import StaticDatabase
+import maki.core as mx
+
 
 class ClassificationResult:
     def __init__(self, assignments):
@@ -12,15 +17,46 @@ class ClassificationResult:
         return json.dumps(self.assignments, indent=2)
       
 
+class ClassifyThread:
+    def __init__(self, root: Path, sample: Sample) -> None:
+        self.root = root
+        self.sample = sample
+        
+        self.graph_dir = root / "index"
+        self.classify_dir = root / "classify"
+        
+    @property
+    def indexed(self) -> bool:
+        return (self.graph_dir / "index" / ".ready").exists()
+        
+    def index(self, kmer_size: int, threads: int):
+        """Create sample graph at `self.graph_dir`.
+        """
+        if not self.indexed:
+            rp = mx.read_pair(str(self.sample.forward), str(self.sample.reverse))
+            opts = mx.build_opts(kmer_size, 7, self.graph_dir, threads)
+            
+            mx.construct_cdbg(rp, opts)
+            
+            (self.graph_dir / "index" / ".ready").touch()
+        
+    def classify(self, h: ClusterHandle, threads: int):
+        outdir = self.classify_dir / h.name
+
+        if outdir.exists():
+            print(f"[classify] classification {self.graph_dir.name} -> {h.name} exists at {outdir}, skipping.")
+            return
+        
+        
+        outdir.mkdir(parents=True, exist_ok=True)
+
+
 class Classifier:
-    def __init__(self, db, threads=4, confidence=0.1, min_hits=5):
+    def __init__(self, db: StaticDatabase, threads: int = 4):
         self.db = db
         self.threads = threads
-        self.confidence = confidence
-        self.min_hits = min_hits
 
-    def run(self, sample_manifest, output_dir):
-        output_dir = Path(output_dir)
+    def run(self, sample_manifest: SampleManifest, output_dir: Path):
         output_dir.mkdir(parents=True, exist_ok=True)
 
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
@@ -54,7 +90,7 @@ class Classifier:
         return ClassificationResult(assignments)
 
     def _run_filter(self, reads):
-        return reads  # 🔌
+        return reads
 
     def _classify_cluster(self, cluster, reads):
-        raise NotImplementedError  # 🔌
+        raise NotImplementedError

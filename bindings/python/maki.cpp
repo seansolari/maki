@@ -1,6 +1,7 @@
 
-#include "maki/build/graph/construct_cdbg.hpp"
 #include "maki/build/graph/construct_common.hpp"
+#include "maki/build/graph/construct_cdbg.hpp"
+#include "maki/build/graph/construct_wdbg.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/io.hpp"
@@ -42,7 +43,11 @@ PYBIND11_MODULE(_maki, m) {
       .def_readonly("files", &GenomeManifest::files)
       .def_readonly("type", &GenomeManifest::type);
 
-  m.def("read_manifest", &readFilePaths);
+  py::class_<DataFilePair>(m, "read_pair")
+      .def(py::init<>())
+      .def(py::init<std::string&&,std::string&&>(), py::arg("forward"), py::arg("reverse"))
+      .def_readwrite("forwardFile", &DataFilePair::forwardFile)
+      .def_readwrite("reverseFile", &DataFilePair::reverseFile);
 
   py::class_<dbg::BuildOptions>(m, "build_opts")
       .def(py::init<>())
@@ -66,4 +71,7 @@ PYBIND11_MODULE(_maki, m) {
         py::overload_cast<const GenomeManifest &, dbg::BuildOptions>(
             &cdbg::construct));
 
+  m.def("construct_wdbg",
+        py::overload_cast<const DataFilePair &, dbg::BuildOptions>(
+            &wdbg::construct));
 }

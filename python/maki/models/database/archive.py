@@ -6,7 +6,7 @@ import tarfile
 from tempfile import TemporaryDirectory
 from typing import Iterator, Set
 
-from .cluster import ReadOnlyCluster, ReadWriteCluster, TemporaryClusterData
+from .cluster import ClusterHandle, ReadWriteCluster, TemporaryClusterData
 
 
 class Archive:
@@ -72,17 +72,16 @@ class XzArchive(Archive):
                 for line in f:
                     self.manifest.add(line.strip())
     
-    def get(self, cluster_id: str) -> ReadOnlyCluster:
+    def get(self, cluster_id: str) -> ClusterHandle:
         if cluster_id not in self.manifest:
             raise KeyError(f"Unrecognised cluster id: {cluster_id}")
+        
+        def _extract(p: Path) -> Path:
+            with tarfile.open(self.xz_file, "r:xz") as tar:
+                tar.extract(cluster_id, p)
+            return p / Path(cluster_id)
           
-        with tarfile.open(self.xz_file, "r:xz") as tar:
-            dh = TemporaryClusterData(dir=self.xz_file.parent)
-            
-            tar.extract(cluster_id, path=dh.dir)
-            dh.set_root(Path(cluster_id))
-          
-            return ReadOnlyCluster(dh)
+        return ClusterHandle(_extract, dir=self.xz_file.parent)
     
     def _init_archive(self):
         raw = RawArchive(self.root())

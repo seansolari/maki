@@ -156,3 +156,18 @@ std::string_view extractSequenceName(std::string_view path) {
 
   return path;
 }
+
+std::ostream &operator<<(std::ostream &os, const DataFilePair &obj) {
+  return os << "PairedReads(" << obj.forwardFile << ", " << obj.reverseFile
+            << ")";
+}
+
+bool DataFilePair::gzCompressed() const {
+  bool lCx = forwardFile.ends_with(".gz"), rCx = reverseFile.ends_with(".gz");
+
+  if (lCx != rCx)
+    throw std::runtime_error("paired files " + forwardFile + " and " +
+                             reverseFile + " have different compression");
+  else
+    return lCx;
+}

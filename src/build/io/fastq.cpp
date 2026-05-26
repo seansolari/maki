@@ -1,5 +1,5 @@
 
-#include "maki/classify/io/fastq.hpp"
+#include "maki/build/io/fastq.hpp"
 #include "maki/core/seq/io.hpp"
 #include <algorithm>
 #include <cassert>
@@ -10,21 +10,6 @@
 #include <zstr.hpp>
 
 using namespace seqan3::literals;
-
-std::ostream &operator<<(std::ostream &os, const DataFilePair &obj) {
-  return os << "PairedReads(" << obj.forwardFile << ", " << obj.reverseFile
-            << ")";
-}
-
-bool DataFilePair::gzCompressed() const {
-  bool lCx = forwardFile.ends_with(".gz"), rCx = reverseFile.ends_with(".gz");
-
-  if (lCx != rCx)
-    throw std::runtime_error("paired files " + forwardFile + " and " +
-                             reverseFile + " have different compression");
-  else
-    return lCx;
-}
 
 std::vector<DataFilePair> pairInputFiles(const std::vector<fs::path> &files) {
   // check even number of files
@@ -522,4 +507,14 @@ std::vector<ReadChunks> chunkReads(ReadChunks &&chunks,
   }
 
   return xdata;
+}
+
+std::vector<const SequenceContainer *>
+toView(const std::vector<ReadChunks> &reads) {
+  std::vector<const SequenceContainer *> views;
+  views.reserve(reads.size());
+  for (const auto &seq : reads) {
+    views.push_back(&seq);
+  }
+  return views;
 }

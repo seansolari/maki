@@ -15,17 +15,6 @@ namespace fs = std::filesystem;
 using oneapi::tbb::filter_mode::parallel;
 using oneapi::tbb::filter_mode::serial_in_order;
 
-struct DataFilePair {
-  std::string forwardFile, reverseFile;
-
-  DataFilePair(std::string &&fwd, std::string &&rev)
-      : forwardFile(std::move(fwd)), reverseFile(std::move(rev)) {}
-
-  friend std::ostream &operator<<(std::ostream &, const DataFilePair &obj);
-  inline bool operator==(DataFilePair const &) const = default;
-  bool gzCompressed() const;
-};
-
 std::vector<DataFilePair> pairInputFiles(const std::vector<fs::path> &files);
 
 namespace detail {
@@ -204,3 +193,6 @@ ReadVector flattenReads(ReadChunks &&data);
 
 // `granularity` is roughly the length of the resulting vector
 std::vector<ReadChunks> chunkReads(ReadChunks &&data, std::size_t granularity);
+
+std::vector<const SequenceContainer *>
+toView(const std::vector<ReadChunks> &reads);

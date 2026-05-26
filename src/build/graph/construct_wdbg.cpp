@@ -1,5 +1,6 @@
 
 #include "maki/build/graph/construct_wdbg.hpp"
+#include "maki/build/io/fastq.hpp"
 #include "maki/build/kmers/construct_terminals.hpp"
 #include "maki/core/graph/archive/counts.hpp"
 #include "maki/core/utils/logging.hpp"
@@ -143,6 +144,12 @@ WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   sinks.finalize();
 
   return finalise(outp, params.kmer_size, std::move(rawCounts), params.out);
+}
+
+WeightedGraphFiles construct(const DataFilePair &fp, dbg::BuildOptions params) {
+  auto chunks = chunkReads(detail::parsePairedFastq(fp, params.kmer_size, params.kmer_size, params.threads), 10 * params.threads);
+  auto view = toView(chunks);
+  return construct(view, params);
 }
 
 } // namespace wdbg

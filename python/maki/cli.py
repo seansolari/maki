@@ -74,14 +74,12 @@ def classify(
     db_path: Path = typer.Option(..., help="Database path"),
     output: Path = typer.Option(..., help="Output directory"),
     threads: int = typer.Option(4, help="Parallel classification"),
-    confidence: float = typer.Option(0.1, help="Confidence threshold"),
-    min_hits: int = typer.Option(5, help="Minimum hits per assignment")
 ):
     db = mdb.StaticDatabase.load(db_path)
     samples = SampleManifest.from_csv(samples_path)
 
-    # classifier = Classifier(db, threads, confidence, min_hits)
-    # classifier.run(samples, output)
+    classifier = Classifier(db, threads)
+    classifier.run(samples, output)
 
 
 def main():

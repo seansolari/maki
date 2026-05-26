@@ -1,6 +1,6 @@
 
 set (MAKI_CLASSIFY_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/interleave.cpp"
-  "${CMAKE_CURRENT_SOURCE_DIR}/io/fastq.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/summary.cpp"
   PARENT_SCOPE
 )

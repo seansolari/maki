@@ -1,12 +1,10 @@
 # To do:
 
-*Last updated*: Mon 11 May, 2026
+*Last updated*: Tue 26 May, 2026
 
 ## High priority
 
-  - Python bindings for graph creation and querying.
   - Index construction benchmarking plan.
-  - Profiling algorithm.
   - Profiling benchmarking plan.
 
 ## Low priority
@@ -25,11 +23,17 @@
       - **DONE** - Use filters to construct manifest with all required file links.
         - **DONE** - Fix column names to include e.g. asm_
       - **DONE** - Use manifest to download batches and extract required files in a parallel, re-entrant and fault-tolerant manner.
+  - **DONE** - Coloured graph bindings
+  - **DONE** - Weighted graph bindings
   - Implement maki algorithms using bindings
-  - Coloured graph bindings
-  - Weighted graph bindings
-  - Writing classify results at annotation level to parquet file
+    - Devise regression method.
+    - Test regression method using dummy scripts.
+    - Store GFF/header metadata for later analysis during DB build.
+    - Writing classify results at annotation level to parquet file
+    - Implement regression method based on `summarise.hpp` output.
   - Classify graph bindings
+  - Build routines
+    - Suffix size estimation.
 
 ### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
 

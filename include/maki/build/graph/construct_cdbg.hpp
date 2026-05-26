@@ -12,6 +12,7 @@
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
+#include "maki/core/seq/io.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <memory>

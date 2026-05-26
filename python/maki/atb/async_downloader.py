@@ -245,17 +245,17 @@ class MakiAtbData(SequencePackage):
     def __init__(self, dir: Optional[Path] = None) -> None:
         super().__init__()
         self._thd = TemporaryDirectory(dir=dir)
-        self._genomes: Set[GenomeData] = set()
+        self._genomes: Dict[str, GenomeData] = {}
         
     def insert(self, rec: GenomeData):
-        self._genomes.add(rec)
+        self._genomes[rec.accession] = rec
         
     @property
     def path(self):
         return Path(self._thd.name)
       
     def genomes(self):
-        return self._genomes.__iter__()
+        return iter(self._genomes.values())
         
     def cleanup(self):
         self._thd.cleanup()
@@ -280,7 +280,6 @@ class MakiAtbManifest(Manifest, DatabasePackage):
         
         # download data
         result = MakiAtbData(self.tmp)
-        
         asyncio.run(submanifest.download_batches(result.path))
         
         do_annot = self.has_annotations

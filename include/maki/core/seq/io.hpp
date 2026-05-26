@@ -98,3 +98,15 @@ struct GenomeManifest {
 
 GenomeManifest readFilePaths(const char *manifest_file, std::size_t col,
                              const char sep, InputFileType filter);
+
+struct DataFilePair {
+  std::string forwardFile, reverseFile;
+
+  DataFilePair() =default;
+  DataFilePair(std::string &&fwd, std::string &&rev)
+      : forwardFile(std::move(fwd)), reverseFile(std::move(rev)) {}
+
+  friend std::ostream &operator<<(std::ostream &, const DataFilePair &obj);
+  inline bool operator==(DataFilePair const &) const = default;
+  bool gzCompressed() const;
+};

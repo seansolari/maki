@@ -9,6 +9,8 @@
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
+#include "maki/core/seq/io.hpp"
+
 
 // -----------------------------------------------------------------------------
 // Construct abundance-weighted succinct de Bruijn graph
@@ -94,6 +96,9 @@ struct SuffixwiseTerminals
 // -----------------------------------------------------------------------------
 
 WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
+                             dbg::BuildOptions params = {});
+
+WeightedGraphFiles construct(const DataFilePair &fp,
                              dbg::BuildOptions params = {});
 
 } // namespace wdbg

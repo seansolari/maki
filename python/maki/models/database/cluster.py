@@ -3,7 +3,7 @@ from pathlib import Path
 import shutil
 import tarfile
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Optional
+from typing import Callable, Optional
 
 from maki.models.database.manifest import GenomeData, SequencePackage
 from maki.utils.io import open_maybe_gzip
@@ -17,31 +17,33 @@ class Cluster:
         self.index_dir.mkdir(parents=True, exist_ok=True)
 
 
-class TemporaryClusterData:
-    def __init__(self, dir: Optional[Path] = None):
-        self._fh = TemporaryDirectory(dir=dir)
+class XzClusterIndex(Cluster):
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
         
-        self.root: Optional[Path] = None
+        self._db = mx.cdbg()
+        mx.cdbg.disk_load(self._db, self.index_dir)
+
+
+class ClusterHandle:
+    def __init__(self, _initter: Callable[[Path], Path], dir: Optional[Path] = None) -> None:
+        if dir:
+            dir.mkdir(parents=True, exist_ok=True)
         
-    @property
-    def dir(self) -> Path:
-        return Path(self._fh.name)
-    
-    def set_root(self, rel_path: Path):
-        self.root = self.dir / rel_path
+        self._tmp = TemporaryDirectory(dir=dir)
+        self.cluster = XzClusterIndex(_initter(Path(self._tmp.name)))
         
     def __del__(self):
-        self._fh.cleanup()
-
-
-class ReadOnlyCluster(Cluster):
-    def __init__(self, handle: TemporaryClusterData):
-        if not handle.root:
-            raise ValueError("TemporaryClusterData not properly initialised.")
+        self._tmp.cleanup()
+        
+    @property
+    def name(self) -> str:
+        return self.cluster.root.name
       
-        super().__init__(handle.root)
-        self._dh = handle
-
+    @property
+    def db(self) -> mx.cdbg:
+        return self.cluster._db
+        
 
 class ReadWriteCluster(Cluster):
     def __init__(self, root: Path) -> None:

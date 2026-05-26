@@ -98,8 +98,6 @@ class StaticDatabase(_Database):
         with self.metadata_file.open("w") as f:
             json.dump(meta, f, indent=2)
             
-        self.save_manifest()
-            
     def decompress(self) -> WriteableDatabase:
         return WriteableDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.decompress(), self.taxonomy, self.manifest)
     
@@ -119,6 +117,8 @@ class WriteableDatabase(_Database):
         for cluster_id, accessions in groups:
             # fetch cluster
             new_cluster = cluster_id not in self.clusters
+            
+            print(f"[insert] retrieving cluster {cluster_id}")
             cluster = self.clusters.get_or_create(cluster_id)
             
             if (not new_cluster) and (not cluster.updateable):
@@ -126,12 +126,17 @@ class WriteableDatabase(_Database):
             
             # build cluster
             with package.retrieve_data(accessions) as data:
+                print(f"[insert] inserting sequences into cluster {cluster.root}")
                 cluster.insert(data)
+                
+                print(f"[insert] constructing cluster index {cluster.root}")
                 cluster.build(self.kmer_size, concurrency)
                 
                 if cluster.updateable or self.update_mode == UpdateMode.updateable:
+                    print(f"[insert] persisting sources at {cluster.source_dir}")
                     cluster.persist_sources()
                 else:
+                    print(f"[insert] clearing sources at {cluster.source_dir}")
                     cluster.remove_sources()
                 
                 # update manifest
@@ -158,4 +163,3 @@ class WriteableDatabase(_Database):
             grouped.setdefault(key, []).append(record.accession)
 
         return list(grouped.items())
-    

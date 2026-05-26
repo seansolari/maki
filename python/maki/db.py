@@ -16,6 +16,7 @@ def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, rank: str, t
     db = db.decompress()
     db.insert(manifest, threads)
     
+    print("Compressing database.")
     db = db.compress()
     print("Database build complete.")
     

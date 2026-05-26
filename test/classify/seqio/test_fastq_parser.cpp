@@ -8,7 +8,7 @@
 #include <seqan3/io/sequence_file/all.hpp>
 #include <seqan3/utility/views/zip.hpp>
 
-#include "maki/classify/io/fastq.hpp"
+#include "maki/build/io/fastq.hpp"
 #include "maki/maki.h"
 
 namespace fs = std::filesystem;
