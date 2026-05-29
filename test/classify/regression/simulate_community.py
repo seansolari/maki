@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import random
 from typing import List, Tuple
 
-from .generate_templates import DNA, COMPLEMENT
+from generate_templates import DNA, COMPLEMENT
 
 def mutate(seq: str, n_mut: int, seed: int):
     random.seed(seed)
@@ -43,3 +43,4 @@ def simulate_community(templates: List[str], members: List[ReferenceToken], seed
         all_reads.extend(simulate_reads(seq, tkn.coverage, read_len, insert_size))
     
     return all_reads
+  
