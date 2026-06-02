@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
 from tempfile import TemporaryDirectory
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import asyncio
 import csv
@@ -37,6 +37,10 @@ class Manifest:
     def insert(self, row: Dict[str, str]):
         assert all(c in row for c in self.columns), f"Row missing columns: {", ".join(c for c in self.columns if c not in row)}"
         self.rows.append(row)
+        
+    def append(self, rhs: Manifest):
+        assert self.columns == rhs.columns
+        self.rows.extend(rhs.rows)
         
     @property
     def has_assemblies(self) -> bool:
@@ -250,6 +254,9 @@ class MakiAtbData(SequencePackage):
     def insert(self, rec: GenomeData):
         self._genomes[rec.accession] = rec
         
+    def __getitem__(self, *args, **kwargs):
+        return self._genomes.__getitem__(*args, **kwargs)
+        
     @property
     def path(self):
         return Path(self._thd.name)
@@ -266,9 +273,8 @@ class MakiAtbManifest(Manifest, DatabasePackage):
         super().__init__(columns)
         self.concurrency = concurrency
         self.tmp = tmpdir
-  
-    def retrieve_data(self, accessions: Iterable[str]) -> MakiAtbData:
-        # retrieve query rows
+        
+    def select(self, accessions: Iterable[str]) -> MakiAtbManifest:
         submanifest = MakiAtbManifest(self.columns, self.concurrency, self.tmp)
         queries = set(accessions)
         
@@ -277,6 +283,11 @@ class MakiAtbManifest(Manifest, DatabasePackage):
                 submanifest.insert(row)
         
         assert len(submanifest) == len(queries)
+        return submanifest
+  
+    def retrieve_data(self, accessions: Iterable[str]) -> MakiAtbData:
+        # retrieve query rows
+        submanifest = self.select(accessions)
         
         # download data
         result = MakiAtbData(self.tmp)

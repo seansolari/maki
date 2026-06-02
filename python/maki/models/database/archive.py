@@ -6,7 +6,7 @@ import tarfile
 from tempfile import TemporaryDirectory
 from typing import Iterator, Set
 
-from .cluster import ClusterHandle, ReadWriteCluster, TemporaryClusterData
+from .cluster import ClusterHandle, ReadWriteCluster
 
 
 class Archive:

@@ -4,7 +4,6 @@
 
 ## High priority
 
-  - Index construction benchmarking plan.
   - Profiling benchmarking plan.
 
 ## Low priority
@@ -15,6 +14,14 @@
   - Add Newick support if necessary.
 
 ## Planned updates
+
+### Tue 2 Jun, 2026 - Database Benchmarking
+  - Annotated genome graph construction benchmarking
+    - Script to create datasets from manifest.
+    - Create manifests, job script and parameter yaml.
+    - Download genomes from manifest.
+    - Setup and submit jobs on M3.
+  - Eukaryotic genome graph construction benchmarking
 
 ### Mon 11 May, 2026 - Python bindings and ATB
 

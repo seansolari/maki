@@ -1,0 +1,41 @@
+Bootstrap: docker
+From: ubuntu:24.04
+
+%labels
+    Author Sean Solari
+    Version v2.0.0
+
+%environment
+    export PATH=/opt/venv/bin:$PATH
+
+%files
+    . /opt/maki
+
+%post
+    apt-get update && apt-get install -y \
+        python3 \
+        python3-venv \
+        python3-pip \
+        python3-dev \
+        build-essential \
+        cmake \
+        git \
+        libtbb-dev \
+        && rm -rf /var/lib/apt/lists/*
+
+    python3 -m venv /opt/venv
+    . /opt/venv/bin/activate
+
+    python3 -m pip install --upgrade pip
+
+    cd /opt/maki
+
+    # Build + install package (runs CMake via scikit-build)
+    python3 -m pip install .
+
+    apt-get remove -y cmake git
+    apt-get autoremove -y
+    apt-get clean
+
+%runscript
+    exec maki "$@"

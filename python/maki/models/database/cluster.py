@@ -45,19 +45,26 @@ class ClusterHandle:
         return self.cluster._db
         
 
-class ReadWriteCluster(Cluster):
-    def __init__(self, root: Path) -> None:
-        super().__init__(root)
-        self.source_dir = self.root / "source"
+class SequenceSourceDir:
+    def __init__(self, source_dir: Path, src_type: mx.FileType) -> None:
+        assert (src_type == mx.FileType.GFF) or (src_type == mx.FileType.FNA)
+        
+        self.source_dir = source_dir
+        self.src_type = src_type
+        self.src_ext = "gff" if self.src_type == mx.FileType.GFF else "fa"
+        
         self._changed = False
         self._prepare_source_dir()
-        
-    def __del__(self):
-        if self.updateable and self._changed:
-            self.persist_sources()
-
-        shutil.rmtree(self.source_dir)
     
+    def insert(self, data: SequencePackage):
+        for record in data.genomes():
+            trg = self.source_dir / f"{record.accession}.{self.src_ext}"
+            if not trg.exists():
+                self._write_record_to(record, trg)
+                self._changed = True
+            else:
+                print(f"[warning] skipping writing {trg} as it already exists")
+                
     @property
     def xz_file(self) -> Path:
         return self.source_dir.with_suffix(".tar.xz")
@@ -66,20 +73,10 @@ class ReadWriteCluster(Cluster):
     def updateable(self) -> bool:
         return self.xz_file.exists()
       
-    # ======================
-    # SOURCE MANAGEMENT
-    # ======================
-        
-    def insert(self, data: SequencePackage):
-        for record in data.genomes():
-            # trg = self.source_dir / f"{record.accession}.{"gff" if record.gff else "fa"}"
-            trg = self.source_dir / f"{record.accession}.gff"
-            if not trg.exists():
-                self._write_record_to(record, trg)
-                self._changed = True
-            else:
-                print(f"[warning] skipping writing {trg} as it already exists")
-    
+    @property
+    def changed(self) -> bool:
+        return self._changed
+      
     def persist_sources(self):
         with tarfile.open(self.xz_file, "w:xz") as tar:
             for file in filter(lambda p: p.is_file(), self.source_dir.iterdir()):
@@ -90,31 +87,10 @@ class ReadWriteCluster(Cluster):
     def remove_sources(self):
         self.xz_file.unlink(missing_ok=True)
         
-    # ======================
-    # INDEX
-    # ======================
-        
-    def build(self, k: int, threads: int):
-        with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
-            for p in self.source_dir.iterdir():
-                fh.write(f"{p}\n".encode("utf-8"))
-            fh.flush()
-          
-            manifest = mx.read_manifest(fh.name, 0, ",", mx.FileType.GFF3)
-            opts = mx.build_opts(k, 7, self.index_dir, threads)
-            
-            mx.construct_cdbg(manifest, opts)
-    
-    # ======================
-    # DETAILS
-    # ======================
-        
-    def _prepare_source_dir(self):
-        self.source_dir.mkdir(parents=True, exist_ok=True)
-        
-        if self.xz_file.exists():
-            with tarfile.open(self.xz_file, "r:xz") as tar:
-                tar.extractall(self.source_dir)
+    def write_manifest(self, fh):
+        for p in self.source_dir.iterdir():
+            fh.write(f"{p}\n".encode("utf-8"))
+        fh.flush()
 
     def _write_record_to(self, record: GenomeData, file: Path):
         with file.open("w") as f:
@@ -131,4 +107,34 @@ class ReadWriteCluster(Cluster):
             
             with open_maybe_gzip(Path(record.fasta)) as fna:
                 f.writelines(fna)
+                
+    def _prepare_source_dir(self):
+        self.source_dir.mkdir(parents=True, exist_ok=True)
+        
+        if self.xz_file.exists():
+            with tarfile.open(self.xz_file, "r:xz") as tar:
+                tar.extractall(self.source_dir)
+
+
+class ReadWriteCluster(Cluster, SequenceSourceDir):
+    def __init__(self, root: Path) -> None:
+        Cluster.__init__(self, root)
+        SequenceSourceDir.__init__(self, self.root / "source", mx.FileType.GFF3)
+        
+    def __del__(self):
+        if self.updateable and self.changed:
+            self.persist_sources()
+
+        shutil.rmtree(self.source_dir)
+    
+    def build(self, k: int, threads: int):
+        with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
+            self.write_manifest(fh)
+          
+            manifest = mx.read_manifest(fh.name, 0, ",", self.src_type)
+            opts = mx.build_opts(k, 7, self.index_dir, threads)
+            
+            mx.construct_cdbg(manifest, opts)
+        
+    
                 

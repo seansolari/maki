@@ -15,7 +15,7 @@ class ClassificationResult:
     def to_json(self):
         import json
         return json.dumps(self.assignments, indent=2)
-      
+
 
 class ClassifyThread:
     def __init__(self, root: Path, sample: Sample) -> None:
@@ -84,7 +84,8 @@ class Classifier:
 
         assignments = {}
 
-        for cid, cluster in self.db.clusters.items():
+        for cid in self.db.clusters:
+            cluster = self.db.clusters.get(cid)
             assignments[cid] = self._classify_cluster(cluster, reads)
 
         return ClassificationResult(assignments)

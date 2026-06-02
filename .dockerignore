@@ -1,0 +1,22 @@
+# VCS
+.git
+.gitignore
+
+# build outputs
+build/
+dist/
+*.egg-info/
+
+# caches
+__pycache__/
+*.pyc
+
+# CI / tooling
+.github/
+.vscode/
+
+# large or irrelevant
+docs/
+
+# wheels (optional)
+wheels/
