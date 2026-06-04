@@ -10,7 +10,7 @@ from rich.table import Table
 from pathlib import Path
 import maki.models.database as mdb
 
-from .async_downloader import MakiAtbManifest
+from .downloader import MakiAtbManifest
 from .config import SQLITE_URL
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
@@ -176,7 +176,7 @@ def download(
 
     mani = MakiAtbManifest.from_csv(manifest, concurrency, output_dir)
     
-    asyncio.run(mani.download_batches(output_dir))
+    mani.download_batches(output_dir)
     
     mani.write_csv(output_dir / "manifest.csv.gz")
     typer.echo(f"Manifest exported to {output_dir / "manifest.csv.gz"}")

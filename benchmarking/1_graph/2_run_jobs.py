@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+from argparse import ArgumentParser
+from dataclasses import dataclass
+import os
+from pathlib import Path
+import subprocess
+from typing import List
+
+
+parser = ArgumentParser()
+parser.add_argument("--config", type=str)
+parser.add_argument("--out", type=str)
+parser.add_argument("--env-init", type=str, default=None, required=False)
+parser.add_argument("--no-run", action="store_true")
+args = parser.parse_args()
+
+# -------------------------
+# TEMPLATE
+# -------------------------
+
+@dataclass(frozen=True)
+class BenchmarkJob:
+    k: int
+    s: int
+    thread: int
+    data: str
+    
+    @property
+    def manifest(self) -> str:
+        return os.path.join(self.data, "manifest.txt")
+      
+    @property
+    def name(self) -> str:
+        return f"{os.path.basename(self.data)}_{self.k}_{self.s}_{self.thread}"
+      
+    @property
+    def n(self) -> int:
+        return int(self.data.rsplit("_", 1)[1])
+
+
+params: List[BenchmarkJob] = []
+
+with open(args.config, 'r') as f:
+    for line in f:
+        k, s, thread, data = line.strip().split("\t")
+        
+        k = int(k)
+        s = int(s)
+        thread = int(thread)
+        
+        params.append(BenchmarkJob(k, s, thread, data.rstrip("/")))
+
+# -------------------------
+# OUTPUT
+# -------------------------
+
+out = Path(args.out)
+
+jobs = out / "jobs"
+jobs.mkdir(parents=True, exist_ok=True)
+
+results = out / "results"
+results.mkdir(parents=True, exist_ok=True)
+
+# -------------------------
+# HELPER FUNCTIONS
+# -------------------------
+
+def estimate_time(k: int, s: int, threads: int, n: int) -> str:
+    if n <= 100:
+        return "00:30:00"
+    elif n <= 500:
+        return "02:00:00"
+    else:
+        return "05:00:00"
+
+
+def estimate_mem(k: int, s: int, threads: int, n: int):
+    ...
+
+
+# -------------------------
+# LOAD TEMPLATE
+# -------------------------
+
+with open("job_template.sh", "r") as f:
+    template = f.read()
+
+# -------------------------
+# GENERATE JOBS
+# -------------------------
+
+job_count = 0
+submitted_count = 0
+
+for i, pset in enumerate(params):
+    job_id = f"run_{i:04d}"
+    job_results = results / job_id
+
+    # Skip completed runs
+    if (job_results / "done.flag").exists():
+        print(f"Skipping {job_id} (already done)")
+        continue
+
+    job_results.mkdir(parents=True, exist_ok=True)
+
+    time = estimate_time(pset.k, pset.s, pset.thread, pset.n)
+    mem = estimate_mem(pset.k, pset.s, pset.thread, pset.n)
+
+    script_content = template.format(
+        job_name=job_id,
+        threads=pset.thread,
+        time=time,
+        mem=mem,
+        module_load=args.env_init or "",
+        outdir=str(job_results),
+        manifest=pset.manifest,
+        k=pset.k,
+        s=pset.s,
+        n=pset.n
+    )
+
+    script_path = jobs / f"{job_id}.sh"
+    
+    with script_path.open("w") as f:
+        f.write(script_content)
+
+    script_path.chmod(0o755)
+
+    # Submit job
+    if not args.no_run:
+        subprocess.run(["sbatch", script_path])
+
+    submitted_count += 1
+    job_count += 1
+
+print(f"\nGenerated jobs: {job_count}")
+print(f"Submitted jobs: {submitted_count}")

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 from argparse import ArgumentParser
+from dataclasses import dataclass
+from itertools import chain, product
 from pathlib import Path
 import random
 from typing import Dict, List, Set
 
-from maki.atb.async_downloader import MakiAtbManifest
+from maki.atb.downloader import MakiAtbManifest
 from maki.models.database.cluster import SequenceSourceDir
-import maki.core as mx
 
 
 GENOME_COUNTS = [100, 500, 1000]
@@ -16,24 +17,27 @@ SUFFIX_SIZES = [4, 5, 6, 7, 8]
 THREAD_COUNTS = [32, 64]
 
 
-def take_taxonomy(mf: MakiAtbManifest, taxonomy: str, seed: int = 1) -> List[List[str]]:
-    accns = sorted({r.accession for r in mf.records() if r.taxonomy == taxonomy})
-    assert len(accns) >= GENOME_COUNTS[-1], f"Not enough genomes belonging to group: {taxonomy}"
-    
-    random.seed(seed)
-    return [
-        random.sample(accns, count)
-        for count in GENOME_COUNTS
-    ]
-    
-  
+# Data members
+# ------------
+
+
+@dataclass
+class AccessionList:
+    name: str
+    accessions: List[str]
+
+
+# Auxilliary
+# ----------
+
+
 def group_by_taxonomy(mf: MakiAtbManifest) -> Dict[str, List[str]]:
     res = {}
     for rec in mf.records():
         res.setdefault(rec.taxonomy, []).append(rec.accession)
     return res
     
-
+    
 def sample_accessions(keys: List[str], groups: Dict[str, List[str]], n: int) -> List[str]:
     failed = 0
     selected: Set[str] = set()
@@ -49,59 +53,84 @@ def sample_accessions(keys: List[str], groups: Dict[str, List[str]], n: int) -> 
                 if failed == 1000:
                     raise RuntimeError("Reached maximum attempted inserts")
     return sorted(selected)
+    
+
+# Main
+# ----
 
 
-def take_random(mf: MakiAtbManifest, reps: int, seed: int = 1) -> List[List[List[str]]]:
-    groups = group_by_taxonomy(mf)
+def take_taxonomy_n(accns: List[str], taxonomy: str, n: int) -> AccessionList:
+    assert len(accns) >= n, f"Not enough genomes belonging to group: {taxonomy}"
+    return AccessionList(
+        name=f"{taxonomy}_{n}",
+        accessions=random.sample(accns, n)
+    )
 
-    result: List[List[List[str]]] = []
-    for rep in range(reps):
-        random.seed(seed + rep)
-        keys = list(groups.keys())
 
-        rep_result: List[List[str]] = []
-        for count in GENOME_COUNTS:
-            random.shuffle(keys)
-            rep_result.append(sample_accessions(keys, groups, count))
-            
-        result.append(rep_result)
-        
-    return result
+def generate_taxonomy_datasets(mf: MakiAtbManifest, taxonomy: str, seed: int):
+    accns = sorted({r.accession for r in mf.records() if r.taxonomy == taxonomy})
+    
+    random.seed(seed)
+    for count in GENOME_COUNTS:
+        yield take_taxonomy_n(accns, taxonomy, count)
+
+
+def generate_random_datasets(groups: Dict[str, List[str]], seed: int):
+    random.seed(seed)
+    
+    keys = list(groups.keys())
+    random.shuffle(keys)
+    accns = sample_accessions(keys, groups, GENOME_COUNTS[-1])
+    
+    for count in GENOME_COUNTS:
+        yield AccessionList(name=f"seed{seed}_{count}", accessions=accns[:count])
 
 
 def main(manifest_path: Path, threads: int, outdir: Path):
-    manifest = MakiAtbManifest.from_csv(manifest_path, threads, outdir)
+    mf = MakiAtbManifest.from_csv(manifest_path, threads, outdir)
+    groups = group_by_taxonomy(mf)
 
-    # create low-diversity genome samples
-    kp_accns = take_taxonomy(manifest, "Klebsiella pneumoniae", 1)
-    se_accns = take_taxonomy(manifest, "Salmonella enterica", 2)
-    mt_accns = take_taxonomy(manifest, "Mycobacterium tuberculosis", 3)
-    
-    # random sampling
-    rnd_accns = take_random(manifest, 3, 4)
-    
+    # create datasets
+    datasets = list(chain(
+        generate_taxonomy_datasets(mf, "Klebsiella pneumoniae", 1),
+        generate_taxonomy_datasets(mf, "Salmonella enterica", 2),
+        generate_taxonomy_datasets(mf, "Mycobacterium tuberculosis", 3),
+        generate_random_datasets(groups, 1),
+        generate_random_datasets(groups, 2),
+        generate_random_datasets(groups, 3)
+    ))
+
     # download data
-    all_accns: Set[str] = set()
-    for grp in kp_accns:
-        all_accns |= set(grp)
-    for grp in se_accns:
-        all_accns |= set(grp)
-    for grp in mt_accns:
-        all_accns |= set(grp)
-    for batch in rnd_accns:
-        for grp in batch:
-            all_accns |= set(grp)
+    accns = {
+        accn
+        for dset in datasets
+        for accn in dset.accessions
+    }
+    
+    # create source directories
+    data_directories: List[str] = []
+    
+    with mf.retrieve_data(accns) as data:
+        for dset in datasets:
+            src = SequenceSourceDir(outdir / dset.name)
             
-    with manifest.retrieve_data(all_accns) as data:
-        for grp in kp_accns:
-            src = SequenceSourceDir(outdir / f"kp_{len(grp)}", mx.FileType.GFF3)
-            src.insert(data.select(grp))
-            # write manifest
-            ...
-            
-    # write parameter YAML
-    ...
-            
+            # Write sequences
+            for accn in dset.accessions:
+                src.insert_genome(data[accn])
+                
+            # Write manifest
+            with (src.source_dir / "manifest.txt").open("w") as f:
+                src.write_manifest(f)
+                
+            data_directories.append(str(src.source_dir))
+
+    # write parameter tsv
+    with (outdir / "parameter-combinations.txt").open("w") as f:
+        for dir, k, s, t in product(data_directories, KMER_SIZES, SUFFIX_SIZES, THREAD_COUNTS):
+            f.write(f"{k}\t{s}\t{t}\t{dir}\n")
+
+    print(f"Data and parameteres written to {outdir}.")
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -109,9 +138,13 @@ def parse_args():
     parser.add_argument("--threads", type=int)
     parser.add_argument("--out", type=str)
     return parser.parse_args()
-    
+
 
 if __name__ == "__main__":
     args = parse_args()
-    main(Path(args.manifest), args.threads, Path(args.out))
+    
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    
+    main(Path(args.manifest), args.threads, out)
     

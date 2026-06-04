@@ -1,18 +1,16 @@
 from __future__ import annotations
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from dataclasses import dataclass
+import multiprocessing
 from tempfile import TemporaryDirectory
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
-import asyncio
 import csv
 import tarfile
 from maki.atb.gff import pjson_to_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData, GenomeRecord, SequencePackage
 import requests
 from pathlib import Path
-from tqdm import tqdm
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
 from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
@@ -146,7 +144,7 @@ class BaktaItem(BatchItem):
         return RemoteBatchFile(r[BAKTA_SCHEMA.tar_xz], r[BAKTA_BATCH_SCHEMA.tar_xz_url], r[BAKTA_BATCH_SCHEMA.tar_xz_md5], r[BAKTA_BATCH_SCHEMA.tar_xz_size_MB]), BaktaItem(filename=cls.dest(r), md5=r[BAKTA_SCHEMA.file_md5])
 
 
-def extract_batch_async(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
+def extract_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
     extracted = 0
 
     # ignore already existing results
@@ -206,42 +204,19 @@ def extract_batch_async(batch_rec: RemoteBatchFile, items: List[BatchItem], outp
     return extracted
 
 
-async def run_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path, executor: ThreadPoolExecutor):
-    loop = asyncio.get_running_loop()
-
-    return await loop.run_in_executor(
-        executor,
-        extract_batch_async,
-        batch_rec,
-        items,
-        output_dir,
-    )
-    
-
-async def run_jobs_async(batches: Dict[RemoteBatchFile, List[BatchItem]], output_dir: Path, concurrency: int = 6):
+def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_dir: Path, concurrency: int = 6):
     if not batches:
         print("Nothing to download")
         return 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    semaphore = asyncio.Semaphore(concurrency)
-    executor = ThreadPoolExecutor(max_workers=concurrency)
-
-    async def worker(batch_rec: RemoteBatchFile, items: List[BatchItem]):
-        async with semaphore:
-            return await run_batch(batch_rec, items, output_dir, executor)
-
-    tasks = [worker(batch_rec, items) for batch_rec, items in batches.items()]
-
+    
     total = 0
-
-    for coro in tqdm(asyncio.as_completed(tasks), total=len(tasks)):
-        result = await coro
-        total += result
-
-    executor.shutdown(wait=True)
-
+    with multiprocessing.Pool(processes=concurrency) as pool:
+        args = ((rec, items, output_dir) for rec, items in batches.items())
+        for extracted in pool.starmap(extract_batch, args):
+            total += extracted
+            
     return total
 
 
@@ -291,7 +266,7 @@ class MakiAtbManifest(Manifest, DatabasePackage):
         
         # download data
         result = MakiAtbData(self.tmp)
-        asyncio.run(submanifest.download_batches(result.path))
+        submanifest.download_batches(result.path)
         
         do_annot = self.has_annotations
         for row in self:
@@ -299,20 +274,20 @@ class MakiAtbManifest(Manifest, DatabasePackage):
         
         return result
   
-    async def download_batches(self, output_dir: Path):
+    def download_batches(self, output_dir: Path):
         # assemblies
         assert self.has_assemblies, "Missing assembly metadata"
         print("Preparing assembly batches...")
         batches = self.batch(AssemblyItem.from_row)
 
-        total = await run_jobs_async(batches, output_dir / "fa", self.concurrency)
+        total = run_jobs_parallel(batches, output_dir / "fa", self.concurrency)
         print(f"Extracted {total} assemblies")
 
         if self.has_annotations:
             print("Preparing annotation batches...")
             batches = self.batch(BaktaItem.from_row)
         
-            total = await run_jobs_async(batches, output_dir / "bakta", self.concurrency)
+            total = run_jobs_parallel(batches, output_dir / "bakta", self.concurrency)
             print(f"Extracted {total} annotations")
             
             pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, self.concurrency)

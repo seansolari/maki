@@ -46,25 +46,23 @@ class ClusterHandle:
         
 
 class SequenceSourceDir:
-    def __init__(self, source_dir: Path, src_type: mx.FileType) -> None:
-        assert (src_type == mx.FileType.GFF) or (src_type == mx.FileType.FNA)
-        
+    def __init__(self, source_dir: Path) -> None:
         self.source_dir = source_dir
-        self.src_type = src_type
-        self.src_ext = "gff" if self.src_type == mx.FileType.GFF else "fa"
         
         self._changed = False
         self._prepare_source_dir()
+        
+    def insert_genome(self, record: GenomeData):
+        result = self._try_write_record(record)
+        if result:
+            self._changed = True
+        else:
+            print(f"[warning] skipping writing {record.accession} as it already exists")
     
     def insert(self, data: SequencePackage):
         for record in data.genomes():
-            trg = self.source_dir / f"{record.accession}.{self.src_ext}"
-            if not trg.exists():
-                self._write_record_to(record, trg)
-                self._changed = True
-            else:
-                print(f"[warning] skipping writing {trg} as it already exists")
-                
+            self.insert_genome(record)
+    
     @property
     def xz_file(self) -> Path:
         return self.source_dir.with_suffix(".tar.xz")
@@ -91,35 +89,53 @@ class SequenceSourceDir:
         for p in self.source_dir.iterdir():
             fh.write(f"{p}\n".encode("utf-8"))
         fh.flush()
-
-    def _write_record_to(self, record: GenomeData, file: Path):
-        with file.open("w") as f:
-            if record.gff:
-                with open_maybe_gzip(Path(record.gff)) as gff:
-                    for line in gff:
-                        if "\tbakta\tregion\t" in line:
-                            f.write(f"#{line}")
-                        elif line.startswith("##FASTA"):
-                            break
-                        else:
-                            f.write(line)
-                f.write("##FASTA\n")
-            
-            with open_maybe_gzip(Path(record.fasta)) as fna:
-                f.writelines(fna)
-                
+        
     def _prepare_source_dir(self):
         self.source_dir.mkdir(parents=True, exist_ok=True)
         
         if self.xz_file.exists():
             with tarfile.open(self.xz_file, "r:xz") as tar:
                 tar.extractall(self.source_dir)
+        
+    def _try_write_record(self, record: GenomeData) -> Optional[Path]:
+        ext = "gff" if record.gff else "fna"
+        dest = self.source_dir / f"{record.accession}.{ext}"
+        if dest.exists():
+            return None
+        else:
+            self._write_record_to(record, dest)
+            return dest
+
+    def _write_record_to(self, record: GenomeData, file: Path):
+        with file.open("w") as f:
+            # Write GFF
+            if record.gff:
+                with open_maybe_gzip(Path(record.gff)) as gff:
+                    for line in gff:
+                        if "\tbakta\tregion\t" in line:
+                            f.write(f"#{line}")
+                        elif line.startswith("##FASTA"):
+                            if record.fasta:
+                                print(f"[warning] record {record.accession} supplies sequence in both GFF and FNA, preferring GFF.")
+                            f.write(line)
+                            f.writelines(gff)
+                            return
+                        else:
+                            f.write(line)
+                f.write("##FASTA\n")
+            
+            # Write FNA
+            if not record.fasta:
+                raise RuntimeError(f"No FASTA sequence supplied for {record.accession}")
+            else:
+                with open_maybe_gzip(Path(record.fasta)) as fna:
+                    f.writelines(fna)
 
 
 class ReadWriteCluster(Cluster, SequenceSourceDir):
     def __init__(self, root: Path) -> None:
         Cluster.__init__(self, root)
-        SequenceSourceDir.__init__(self, self.root / "source", mx.FileType.GFF3)
+        SequenceSourceDir.__init__(self, self.root / "source")
         
     def __del__(self):
         if self.updateable and self.changed:
@@ -131,10 +147,9 @@ class ReadWriteCluster(Cluster, SequenceSourceDir):
         with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
             self.write_manifest(fh)
           
-            manifest = mx.read_manifest(fh.name, 0, ",", self.src_type)
+            manifest = mx.read_manifest(fh.name, 0, ",", mx.FileType.GFF3)
             opts = mx.build_opts(k, 7, self.index_dir, threads)
             
             mx.construct_cdbg(manifest, opts)
-        
-    
+
                 

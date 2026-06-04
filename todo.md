@@ -17,9 +17,9 @@
 
 ### Tue 2 Jun, 2026 - Database Benchmarking
   - Annotated genome graph construction benchmarking
-    - Script to create datasets from manifest.
-    - Create manifests, job script and parameter yaml.
-    - Download genomes from manifest.
+    - **DONE** - Script to create datasets from manifest.
+    - **DONE** - Create manifests, job script and parameter yaml.
+    - **DONE** - Download genomes from manifest.
     - Setup and submit jobs on M3.
   - Eukaryotic genome graph construction benchmarking
 
@@ -39,8 +39,7 @@
     - Writing classify results at annotation level to parquet file
     - Implement regression method based on `summarise.hpp` output.
   - Classify graph bindings
-  - Build routines
-    - Suffix size estimation.
+  - Suffix size estimation.
 
 ### Tue 28 Apr. 2026 - Migrate counting graph creation from FastQ
 
