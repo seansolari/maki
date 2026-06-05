@@ -1,8 +1,10 @@
 from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
+import logging
 import multiprocessing
 from tempfile import TemporaryDirectory
+import time
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import csv
@@ -10,11 +12,19 @@ import tarfile
 from maki.atb.gff import pjson_to_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData, GenomeRecord, SequencePackage
 import requests
+from requests.adapters import HTTPAdapter
 from pathlib import Path
+
+from tqdm import tqdm
+import urllib3
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
 from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
 from .lists import RemoteBatchFile
+
+
+logger = logging.getLogger(__name__)
+_worker_id: Optional[int] = None
 
 
 class Manifest:
@@ -104,12 +114,12 @@ class Manifest:
             batches.setdefault(batch_key, []).append(batch_item)
                 
         if unidentified_batches:
-            print("[error] could not resolve the following records:")
             cols = list(unidentified_batches[0].keys())
-            print(",".join(cols))
-            for r in unidentified_batches:
-                print(",".join(r[c] for c in cols))
-            
+            logger.error(
+                "could not resolve the following records:\n%s\n%s\n",
+                ",".join(cols),
+                "\n".join(",".join(r[c] for c in cols) for r in unidentified_batches)
+            )
             raise RuntimeError("Unidentified batch records.")
           
         return batches
@@ -144,7 +154,56 @@ class BaktaItem(BatchItem):
         return RemoteBatchFile(r[BAKTA_SCHEMA.tar_xz], r[BAKTA_BATCH_SCHEMA.tar_xz_url], r[BAKTA_BATCH_SCHEMA.tar_xz_md5], r[BAKTA_BATCH_SCHEMA.tar_xz_size_MB]), BaktaItem(filename=cls.dest(r), md5=r[BAKTA_SCHEMA.file_md5])
 
 
-def extract_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
+def init_downloader(lock, worker_ids: List[int]):
+    tqdm.set_lock(lock)
+    global _worker_id
+    _worker_id = worker_ids.pop()
+
+
+class TqdmStream:
+    def __init__(self, raw, *args, **kwargs):
+        self.raw = raw
+        self.pbar = tqdm(*args, **kwargs)
+        
+    def __enter__(self):
+        return self
+      
+    def __exit__(self, *args, **kwargs):
+        self.pbar.__exit__(*args, **kwargs)
+
+    def read(self, size=-1, *args, **kwargs):
+        data = self.raw.read(size, *args, **kwargs)
+        self.pbar.update(len(data))
+        return data
+
+    def readable(self):
+        return True
+      
+    def write(self, b: bytes, *args, **kwargs):
+        return self.raw.write(b, *args, **kwargs)
+  
+    def tell(self, *args, **kwargs) -> int:
+        return self.raw.tell(*args, **kwargs)
+      
+    def seek(self, pos: int, *args, **kwargs):
+        return self.raw.seek(pos, *args, **kwargs)
+      
+    def close(self, *args, **kwargs):
+        return self.raw.close(*args, **kwargs)
+      
+    @property
+    def name(self) -> str | bytes:
+        return self.raw.name
+      
+    @property
+    def mode(self):
+        return self.raw.mode
+
+
+def download_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path, max_retries: int = 3):
+    global _worker_id
+    assert _worker_id is not None, "Worker ID not set"
+    
     extracted = 0
 
     # ignore already existing results
@@ -163,60 +222,105 @@ def extract_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir
         queries[item.filename] = item
 
     if queries:
-        with requests.get(batch_rec.tar_xz_url, stream=True) as r:
+        session = requests.Session()
+        retries = urllib3.Retry(total=max_retries, connect=max_retries, read=max_retries, backoff_factor=1, allowed_methods=None)
+        session.mount('http://', HTTPAdapter(max_retries=retries))
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+      
+        with session.get(batch_rec.tar_xz_url, stream=True) as r:
             r.raise_for_status()
-
-            # streaming tar read
-            tar = tarfile.open(fileobj=r.raw, mode="r|*")
-            tar_recnames: List[str] = []
-
-            for member in tar:
-                tar_recnames.append(member.name)
+            total_size = int(r.headers.get('content-length', 0))
+            
+            with TqdmStream(r.raw, total=total_size, unit="B", unit_scale=True, desc=batch_rec.tar_xz_url, position=_worker_id + 1, leave=False) as stream,\
+                tarfile.open(fileobj=stream, mode="r|*") as tar:
                 
-                if member.name not in queries:
-                    continue
+                tar_recnames: List[str] = []
 
-                item = queries.pop(member.name)
-                        
-                target = output_dir / item.filename
-                target.parent.mkdir(parents=True, exist_ok=True)
+                for member in tar:
+                    tar_recnames.append(member.name)
+                    
+                    if member.name not in queries:
+                        continue
 
-                extracted_file = tar.extractfile(member)
-                if extracted_file is None:
-                    continue
+                    item = queries.pop(member.name)
+                            
+                    target = output_dir / item.filename
+                    target.parent.mkdir(parents=True, exist_ok=True)
 
-                with open(target, "wb") as f:
-                    while chunk := extracted_file.read(8192):
-                        f.write(chunk)
+                    extracted_file = tar.extractfile(member)
+                    if extracted_file is None:
+                        continue
+                    
+                    with target.open("wb") as f:
+                        while chunk := extracted_file.read(8192):
+                            f.write(chunk)
 
-                # validate
-                if item.md5 and md5sum(target) != item.md5:
-                    raise RuntimeError(f"MD5 mismatch: {target}")
+                    # validate
+                    if item.md5 and md5sum(target) != item.md5:
+                        raise RuntimeError(f"MD5 mismatch: {target}")
 
-                extracted += 1
+                    extracted += 1
 
-            # check for unresolved queries
-            if queries:
-                print(f"[error] Could not find requested files in batch {batch_rec.tar_xz}@{batch_rec.tar_xz_url}: {", ".join(queries.keys())}")
-                print(f"[debug] Example keys are: {", ".join(tar_recnames[:10])}...")
-                raise RuntimeError(f"Could not find requested files in batch {batch_rec.tar_xz}: {", ".join(queries.keys())}")
+                # check for unresolved queries
+                if queries:
+                    logger.error("Could not find requested files in batch %s @ %s: %s", batch_rec.tar_xz, batch_rec.tar_xz_url, ", ".join(queries.keys()))
+                    logger.error("Example keys are: %s...", ", ".join(tar_recnames[:10]))
+                    raise RuntimeError(f"Could not find requested files in batch {batch_rec.tar_xz}: {", ".join(queries.keys())}")
     
     return extracted
+
+  
+def download_batch_resilient(args, max_tries: int = 3):
+    batch_rec, items, output_dir = args
+    
+    last_exception: Optional[Exception] = None
+    
+    for attempt in range(1, max_tries + 1):
+        try:
+            return download_batch(batch_rec, items, output_dir, max_tries)
+        except (requests.RequestException,
+                urllib3.exceptions.ProtocolError,
+                IOError) as e:
+            
+            last_exception = e
+            
+            logger.warning("Download failed (attempt %d/%d) for %s: %s", attempt, max_tries, batch_rec.tar_xz_url, e)
+            
+            if attempt < max_tries:
+                time.sleep(2 ** attempt)
+    
+    logger.error("Download permanently failed after %d attempts: %s", max_tries, batch_rec.tar_xz_url)
+    assert last_exception
+    raise last_exception
 
 
 def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_dir: Path, concurrency: int = 6):
     if not batches:
-        print("Nothing to download")
+        logger.info("Nothing to download")
         return 0
 
     output_dir.mkdir(parents=True, exist_ok=True)
     
+    # Pre-allocate worker slots
+    manager_list = list(range(concurrency))
     total = 0
-    with multiprocessing.Pool(processes=concurrency) as pool:
-        args = ((rec, items, output_dir) for rec, items in batches.items())
-        for extracted in pool.starmap(extract_batch, args):
-            total += extracted
-            
+    
+    with multiprocessing.Pool(
+        concurrency,
+        initializer=init_downloader,
+        initargs=(multiprocessing.RLock(), manager_list)
+    ) as pool:
+      
+        with tqdm(total=len(batches), position=0, desc="Batch") as pbar:
+            for result in pool.imap_unordered(
+                download_batch_resilient,
+                ((rec, items, output_dir) for rec, items in batches.items()),
+                chunksize=1
+            ):
+              
+                total += result
+                pbar.update(1)
+
     return total
 
 
@@ -277,17 +381,17 @@ class MakiAtbManifest(Manifest, DatabasePackage):
     def download_batches(self, output_dir: Path):
         # assemblies
         assert self.has_assemblies, "Missing assembly metadata"
-        print("Preparing assembly batches...")
+        logger.info("Preparing assembly batches...")
         batches = self.batch(AssemblyItem.from_row)
 
         total = run_jobs_parallel(batches, output_dir / "fa", self.concurrency)
-        print(f"Extracted {total} assemblies")
+        logger.info("Extracted %d assemblies", total)
 
         if self.has_annotations:
-            print("Preparing annotation batches...")
+            logger.info("Preparing annotation batches...")
             batches = self.batch(BaktaItem.from_row)
         
             total = run_jobs_parallel(batches, output_dir / "bakta", self.concurrency)
-            print(f"Extracted {total} annotations")
+            logger.info("Extracted %d annotations", total)
             
             pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, self.concurrency)

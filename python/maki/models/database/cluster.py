@@ -85,6 +85,10 @@ class SequenceSourceDir:
     def remove_sources(self):
         self.xz_file.unlink(missing_ok=True)
         
+    def accessions(self):
+        for p in self.source_dir.iterdir():
+            yield p.name.rsplit(".", 1)[0]
+        
     def write_manifest(self, fh):
         for p in self.source_dir.iterdir():
             fh.write(f"{p}\n".encode("utf-8"))

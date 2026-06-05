@@ -24,6 +24,10 @@ mkdir -p {outdir}
         2> {outdir}/stderr.txt
     "
 
+# Size of database on disk
+du -bsh {outdir}/index > {outdir}/index-space.txt
+
+# Remove index
 rm -rf {outdir}/index
 
 # Diagnostics
@@ -32,4 +36,4 @@ hostname > {outdir}/host.txt
 date > {outdir}/date.txt
 
 # Mark completion
-touch {outdir}/done.flag
+echo 'complete' > {outdir}/done.flag

@@ -12,6 +12,7 @@ parser.add_argument("--config", type=str)
 parser.add_argument("--out", type=str)
 parser.add_argument("--env-init", type=str, default=None, required=False)
 parser.add_argument("--no-run", action="store_true")
+parser.add_argument("--force", action="store_true")
 args = parser.parse_args()
 
 # -------------------------
@@ -76,7 +77,10 @@ def estimate_time(k: int, s: int, threads: int, n: int) -> str:
 
 
 def estimate_mem(k: int, s: int, threads: int, n: int):
-    ...
+    if n <= 100:
+        return "50G"
+    else:
+        return "256G"
 
 
 # -------------------------
@@ -98,9 +102,21 @@ for i, pset in enumerate(params):
     job_results = results / job_id
 
     # Skip completed runs
-    if (job_results / "done.flag").exists():
-        print(f"Skipping {job_id} (already done)")
-        continue
+    launch = not (job_results / "done.flag").exists()
+    
+    if not launch:
+        stat = (job_results / "done.flag").read_text().strip()
+        if (stat == "submitted"):
+            if args.force:
+                launch = True
+            else:
+                print(f"Skipping {job_id} (already submitted, to override add `--force`)")
+                continue
+        else:
+            assert stat == "complete"
+            
+            print(f"Skipping {job_id} (already done)")
+            continue
 
     job_results.mkdir(parents=True, exist_ok=True)
 
@@ -130,8 +146,10 @@ for i, pset in enumerate(params):
     # Submit job
     if not args.no_run:
         subprocess.run(["sbatch", script_path])
+        (job_results / "done.flag").write_text("submitted")
 
-    submitted_count += 1
+        submitted_count += 1
+    
     job_count += 1
 
 print(f"\nGenerated jobs: {job_count}")
