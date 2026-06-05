@@ -8,7 +8,7 @@ from pathlib import Path
 import random
 from typing import Dict, List, Set
 
-from maki.atb.downloader import MakiAtbManifest
+from maki.atb.downloader import DiskAtbManifest
 from maki.models.database.cluster import SequenceSourceDir
 
 
@@ -34,7 +34,7 @@ class AccessionList:
 # ----------
 
 
-def group_by_taxonomy(mf: MakiAtbManifest) -> Dict[str, List[str]]:
+def group_by_taxonomy(mf: DiskAtbManifest) -> Dict[str, List[str]]:
     res = {}
     for rec in mf.records():
         res.setdefault(rec.taxonomy, []).append(rec.accession)
@@ -81,7 +81,7 @@ def take_taxonomy_n(accns: List[str], taxonomy: str, n: int) -> AccessionList:
     )
 
 
-def generate_taxonomy_datasets(mf: MakiAtbManifest, taxonomy: str, seed: int):
+def generate_taxonomy_datasets(mf: DiskAtbManifest, taxonomy: str, seed: int):
     accns = sorted({r.accession for r in mf.records() if r.taxonomy == taxonomy})
     
     random.seed(seed)
@@ -103,7 +103,7 @@ def generate_random_datasets(groups: Dict[str, List[str]], seed: int):
 
 def main(manifest_path: Path, threads: int, outdir: Path):
     logger.info("Reading manifest from %s.", manifest_path)
-    mf = MakiAtbManifest.from_csv(manifest_path, threads, outdir)
+    mf = DiskAtbManifest.from_csv(manifest_path, threads, outdir)
     
     groups = group_by_taxonomy(mf)
 
@@ -125,7 +125,7 @@ def main(manifest_path: Path, threads: int, outdir: Path):
     
     if missing:
         logger.info("Downloading data for %d accessions (out of %d total)", len(missing), len(accns))
-      
+        
         with mf.retrieve_data(missing) as data:
             for dset, src in zip(datasets, sources):
                 changed = False

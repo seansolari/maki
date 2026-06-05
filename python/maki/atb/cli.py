@@ -1,4 +1,3 @@
-import asyncio
 import csv
 from datetime import datetime
 import gzip
@@ -10,7 +9,7 @@ from rich.table import Table
 from pathlib import Path
 import maki.models.database as mdb
 
-from .downloader import MakiAtbManifest
+from .downloader import DiskAtbManifest
 from .config import SQLITE_URL
 from .importer import import_annotation_batches, import_assembly_batches
 from .queries import QueryOptions, count_taxon, count_all, list_sample_rows, plan_download as plan_download_impl
@@ -174,7 +173,7 @@ def download(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    mani = MakiAtbManifest.from_csv(manifest, concurrency, output_dir)
+    mani = DiskAtbManifest.from_csv(manifest, concurrency, output_dir)
     
     mani.download_batches(output_dir)
     
@@ -201,7 +200,7 @@ def build(
     ),
     force: bool = False
 ):
-    manifest = MakiAtbManifest.from_csv(manifest_path, threads, db_path)
+    manifest = DiskAtbManifest.from_csv(manifest_path, threads, db_path)
     
     return build_impl(manifest, db_path, kmer_size, rank, threads, mdb.UpdateMode[mode.lower()], mdb.TaxonomySource.gtdb, force)
 
@@ -218,7 +217,7 @@ def update(
     db_path: Path = typer.Option(..., help="Existing database"),
     threads: int = typer.Option(4, help="Parallel threads")
 ):
-    manifest = MakiAtbManifest.from_csv(manifest_path, threads, db_path)
+    manifest = DiskAtbManifest.from_csv(manifest_path, threads, db_path)
     
     return update_impl(manifest, db_path, threads)
 

@@ -48,17 +48,13 @@ class SequencePackage(ABC):
     @abstractmethod
     def genomes(self) -> Iterator[GenomeData]:
         pass
-    
-    @abstractmethod
-    def cleanup(self) -> None:
-        pass
       
     def __enter__(self):
         return self
-        
+    
+    @abstractmethod
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.cleanup()
-        return False
+        pass
       
 
 class DatabasePackage(ABC):
@@ -111,8 +107,8 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
             if isinstance(v, GenomeData):
                 yield v
 
-    def cleanup(self) -> None:
-        pass
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return
       
     def __len__(self):
         return self._records.__len__()

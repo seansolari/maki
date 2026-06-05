@@ -1,22 +1,22 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
 import logging
 import multiprocessing
+import os
+import shutil
 from tempfile import TemporaryDirectory
-import time
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, overload
+from urllib.request import urlretrieve
 
 import csv
 import tarfile
 from maki.atb.gff import pjson_to_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData, GenomeRecord, SequencePackage
-import requests
-from requests.adapters import HTTPAdapter
 from pathlib import Path
 
 from tqdm import tqdm
-import urllib3
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
 from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
@@ -24,7 +24,6 @@ from .lists import RemoteBatchFile
 
 
 logger = logging.getLogger(__name__)
-_worker_id: Optional[int] = None
 
 
 class Manifest:
@@ -154,61 +153,9 @@ class BaktaItem(BatchItem):
         return RemoteBatchFile(r[BAKTA_SCHEMA.tar_xz], r[BAKTA_BATCH_SCHEMA.tar_xz_url], r[BAKTA_BATCH_SCHEMA.tar_xz_md5], r[BAKTA_BATCH_SCHEMA.tar_xz_size_MB]), BaktaItem(filename=cls.dest(r), md5=r[BAKTA_SCHEMA.file_md5])
 
 
-def init_downloader(lock, worker_ids: List[int]):
-    tqdm.set_lock(lock)
-    global _worker_id
-    _worker_id = worker_ids.pop()
-
-
-class TqdmStream:
-    def __init__(self, raw, *args, **kwargs):
-        self.raw = raw
-        self.pbar = tqdm(*args, **kwargs)
-        
-    def __enter__(self):
-        return self
-      
-    def __exit__(self, *args, **kwargs):
-        self.pbar.__exit__(*args, **kwargs)
-
-    def read(self, size=-1, *args, **kwargs):
-        data = self.raw.read(size, *args, **kwargs)
-        self.pbar.update(len(data))
-        return data
-
-    def readable(self):
-        return True
-      
-    def write(self, b: bytes, *args, **kwargs):
-        return self.raw.write(b, *args, **kwargs)
-  
-    def tell(self, *args, **kwargs) -> int:
-        return self.raw.tell(*args, **kwargs)
-      
-    def seek(self, pos: int, *args, **kwargs):
-        return self.raw.seek(pos, *args, **kwargs)
-      
-    def close(self, *args, **kwargs):
-        return self.raw.close(*args, **kwargs)
-      
-    @property
-    def name(self) -> str | bytes:
-        return self.raw.name
-      
-    @property
-    def mode(self):
-        return self.raw.mode
-
-
-def download_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path, max_retries: int = 3):
-    global _worker_id
-    assert _worker_id is not None, "Worker ID not set"
-    
-    extracted = 0
-
-    # ignore already existing results
+def missing_batch_items(items: List[BatchItem], output_dir: Path):
     queries: Dict[str, BatchItem] = {}
-    
+        
     for item in items:
         target = output_dir / item.filename
         
@@ -221,77 +168,85 @@ def download_batch(batch_rec: RemoteBatchFile, items: List[BatchItem], output_di
         
         queries[item.filename] = item
 
-    if queries:
-        session = requests.Session()
-        retries = urllib3.Retry(total=max_retries, connect=max_retries, read=max_retries, backoff_factor=1, allowed_methods=None)
-        session.mount('http://', HTTPAdapter(max_retries=retries))
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-      
-        with session.get(batch_rec.tar_xz_url, stream=True) as r:
-            r.raise_for_status()
-            total_size = int(r.headers.get('content-length', 0))
-            
-            with TqdmStream(r.raw, total=total_size, unit="B", unit_scale=True, desc=batch_rec.tar_xz_url, position=_worker_id + 1, leave=False) as stream,\
-                tarfile.open(fileobj=stream, mode="r|*") as tar:
-                
-                tar_recnames: List[str] = []
+    return queries
+  
+  
+def ensure_archive(batch_rec: RemoteBatchFile, dest: Path):
+    if dest.exists():
+        if md5sum(dest) != batch_rec.tar_xz_md5:
+            logger.error("Corrupted archive %s, removing.", dest)
+            os.remove(dest)
+        else:
+            logger.info("Archive %s already exists with valid MD5. Continuing...", dest)
+            return dest
 
-                for member in tar:
-                    tar_recnames.append(member.name)
-                    
-                    if member.name not in queries:
-                        continue
-
-                    item = queries.pop(member.name)
-                            
-                    target = output_dir / item.filename
-                    target.parent.mkdir(parents=True, exist_ok=True)
-
-                    extracted_file = tar.extractfile(member)
-                    if extracted_file is None:
-                        continue
-                    
-                    with target.open("wb") as f:
-                        while chunk := extracted_file.read(8192):
-                            f.write(chunk)
-
-                    # validate
-                    if item.md5 and md5sum(target) != item.md5:
-                        raise RuntimeError(f"MD5 mismatch: {target}")
-
-                    extracted += 1
-
-                # check for unresolved queries
-                if queries:
-                    logger.error("Could not find requested files in batch %s @ %s: %s", batch_rec.tar_xz, batch_rec.tar_xz_url, ", ".join(queries.keys()))
-                    logger.error("Example keys are: %s...", ", ".join(tar_recnames[:10]))
-                    raise RuntimeError(f"Could not find requested files in batch {batch_rec.tar_xz}: {", ".join(queries.keys())}")
+    logger.info("Downloading remote archive %s to %s.", batch_rec.tar_xz_url, dest)
+    urlretrieve(batch_rec.tar_xz_url, dest)
     
+    if md5sum(dest) != batch_rec.tar_xz_md5:
+        logger.error("Download %s failed, invalid MD5.", batch_rec.tar_xz_url)
+        raise RuntimeError(f"Download {batch_rec.tar_xz_url} failed, invalid MD5.")
+    
+    return dest
+
+
+def download_batch_local(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
+    queries = missing_batch_items(items, output_dir)
+    
+    if not queries:
+        return 0
+    
+    local_archive = ensure_archive(batch_rec, output_dir / batch_rec.tar_xz)
+    extracted = 0
+    
+    with tarfile.open(local_archive, mode="r:*") as tar:
+        tar_recnames: List[str] = []
+        
+        for member in tar:
+            tar_recnames.append(member.name)
+            
+            if member.name not in queries:
+                continue
+
+            item = queries.pop(member.name)
+                    
+            target = output_dir / item.filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+
+            extracted_file = tar.extractfile(member)
+            if extracted_file is None:
+                continue
+            
+            try:
+                with target.open("wb") as f:
+                    while chunk := extracted_file.read(8192):
+                        f.write(chunk)
+                        
+                if item.md5 and md5sum(target) != item.md5:
+                    raise RuntimeError(f"MD5 mismatch: {target}")
+            except Exception as e:
+                logging.warning("Exception raised while writing %s, deleting...", target)
+                target.unlink(missing_ok=True)
+                raise e
+
+            extracted += 1
+    
+    
+    # check for unresolved queries
+    if queries:
+        logger.error("Could not find requested files in batch %s @ %s: %s", batch_rec.tar_xz, batch_rec.tar_xz_url, ", ".join(queries.keys()))
+        logger.error("Example keys are: %s...", ", ".join(tar_recnames[:10]))
+        raise RuntimeError(f"Could not find requested files in batch {batch_rec.tar_xz}: {", ".join(queries.keys())}")
+    else:
+        logger.info("Completed extraction of files from archive %s, deleting...", local_archive)
+        os.remove(local_archive)
+      
     return extracted
 
-  
-def download_batch_resilient(args, max_tries: int = 3):
-    batch_rec, items, output_dir = args
-    
-    last_exception: Optional[Exception] = None
-    
-    for attempt in range(1, max_tries + 1):
-        try:
-            return download_batch(batch_rec, items, output_dir, max_tries)
-        except (requests.RequestException,
-                urllib3.exceptions.ProtocolError,
-                IOError) as e:
-            
-            last_exception = e
-            
-            logger.warning("Download failed (attempt %d/%d) for %s: %s", attempt, max_tries, batch_rec.tar_xz_url, e)
-            
-            if attempt < max_tries:
-                time.sleep(2 ** attempt)
-    
-    logger.error("Download permanently failed after %d attempts: %s", max_tries, batch_rec.tar_xz_url)
-    assert last_exception
-    raise last_exception
+
+def download_batch_local_handle(args):
+    rec, items, output_dir = args
+    return download_batch_local(rec, items, output_dir)
 
 
 def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_dir: Path, concurrency: int = 6):
@@ -302,18 +257,13 @@ def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_di
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Pre-allocate worker slots
-    manager_list = list(range(concurrency))
     total = 0
     
-    with multiprocessing.Pool(
-        concurrency,
-        initializer=init_downloader,
-        initargs=(multiprocessing.RLock(), manager_list)
-    ) as pool:
+    with multiprocessing.Pool(concurrency) as pool:
       
         with tqdm(total=len(batches), position=0, desc="Batch") as pbar:
             for result in pool.imap_unordered(
-                download_batch_resilient,
+                download_batch_local_handle,
                 ((rec, items, output_dir) for rec, items in batches.items()),
                 chunksize=1
             ):
@@ -324,10 +274,9 @@ def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_di
     return total
 
 
-class MakiAtbData(SequencePackage):
-    def __init__(self, dir: Optional[Path] = None) -> None:
+class _MakiAtbData(SequencePackage):
+    def __init__(self) -> None:
         super().__init__()
-        self._thd = TemporaryDirectory(dir=dir)
         self._genomes: Dict[str, GenomeData] = {}
         
     def insert(self, rec: GenomeData):
@@ -336,25 +285,74 @@ class MakiAtbData(SequencePackage):
     def __getitem__(self, *args, **kwargs):
         return self._genomes.__getitem__(*args, **kwargs)
         
+    def genomes(self):
+        return iter(self._genomes.values())
+
+        
+class TempMakiAtbData(_MakiAtbData):
+    def __init__(self, dir: Optional[Path] = None) -> None:
+        super().__init__()
+        self._thd = TemporaryDirectory(dir=dir)
+
     @property
     def path(self):
         return Path(self._thd.name)
-      
-    def genomes(self):
-        return iter(self._genomes.values())
-        
-    def cleanup(self):
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self._thd.cleanup()
 
 
-class MakiAtbManifest(Manifest, DatabasePackage):
-    def __init__(self, columns: Iterable[str], concurrency: int, tmpdir: Path):
+class PersistentMakiAtbData(_MakiAtbData):
+    """Only cleanup on graceful exit."""
+    
+    def __init__(self, dir: Optional[Path] = None) -> None:
+        super().__init__()
+        self._path = (dir or Path.cwd()) / ".maki"
+        self._path.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def path(self):
+        return self._path
+    
+    def __exit__(self, *args):
+        if all(a is None for a in args):
+            self._rm()
+    
+    def _rm(self):
+        shutil.rmtree(self._path)
+
+
+class _MakiAtbManifest(Manifest):
+    def __init__(self, columns: Iterable[str], concurrency: int, base: Path):
         super().__init__(columns)
         self.concurrency = concurrency
-        self.tmp = tmpdir
+        self.base = base
+
+    def empty(self):
+        return type(self)(self.columns, self.concurrency, self.base)
+      
+    @overload
+    def _retrieve_data_dispatch(self, accessions: Iterable[str], temp: Literal[True]) -> TempMakiAtbData: ...
+    
+    @overload
+    def _retrieve_data_dispatch(self, accessions: Iterable[str], temp: Literal[False]) -> PersistentMakiAtbData: ...
+      
+    def _retrieve_data_dispatch(self, accessions: Iterable[str], temp: bool):
+        # retrieve query rows
+        submanifest = self.select(accessions)
         
-    def select(self, accessions: Iterable[str]) -> MakiAtbManifest:
-        submanifest = MakiAtbManifest(self.columns, self.concurrency, self.tmp)
+        # download data
+        result = TempMakiAtbData(self.base) if temp else PersistentMakiAtbData(self.base)
+        submanifest.download_batches(result.path)
+        
+        do_annot = self.has_annotations
+        for row in self:
+            result.insert(GenomeData(row[ASSEMBLY_SCHEMA.sample], row[ASSEMBLY_SCHEMA.species], None, str(result.path / "fa" / AssemblyItem.dest(row)), None if not do_annot else str((result.path / "gff" / BaktaItem.dest(row)).with_suffix(".gff"))))
+        
+        return result
+    
+    def select(self, accessions: Iterable[str]):
+        submanifest = self.empty()
         queries = set(accessions)
         
         for row in self:
@@ -363,20 +361,6 @@ class MakiAtbManifest(Manifest, DatabasePackage):
         
         assert len(submanifest) == len(queries)
         return submanifest
-  
-    def retrieve_data(self, accessions: Iterable[str]) -> MakiAtbData:
-        # retrieve query rows
-        submanifest = self.select(accessions)
-        
-        # download data
-        result = MakiAtbData(self.tmp)
-        submanifest.download_batches(result.path)
-        
-        do_annot = self.has_annotations
-        for row in self:
-            result.insert(GenomeData(row[ASSEMBLY_SCHEMA.sample], row[ASSEMBLY_SCHEMA.species], None, str(result.path / "fa" / AssemblyItem.dest(row)), None if not do_annot else str((result.path / "gff" / BaktaItem.dest(row)).with_suffix(".gff"))))
-        
-        return result
   
     def download_batches(self, output_dir: Path):
         # assemblies
@@ -395,3 +379,13 @@ class MakiAtbManifest(Manifest, DatabasePackage):
             logger.info("Extracted %d annotations", total)
             
             pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, self.concurrency)
+
+
+class LightAtbManifest(_MakiAtbManifest, DatabasePackage):
+    def retrieve_data(self, accessions: Iterable[str]):
+        return self._retrieve_data_dispatch(accessions, True)
+
+
+class DiskAtbManifest(_MakiAtbManifest, DatabasePackage):
+    def retrieve_data(self, accessions: Iterable[str]):
+        return self._retrieve_data_dispatch(accessions, False)
