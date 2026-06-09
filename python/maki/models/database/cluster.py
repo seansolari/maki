@@ -1,13 +1,63 @@
 
+from __future__ import annotations
+import gzip
+from itertools import repeat
+import logging
+import os
 from pathlib import Path
 import shutil
 import tarfile
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
-from maki.models.database.manifest import GenomeData, SequencePackage
+from tqdm.contrib.concurrent import process_map
+from maki.models.database.manifest import GenomeData
 from maki.utils.io import open_maybe_gzip
 import maki.core as mx
+
+
+logger = logging.getLogger(__name__)
+
+
+def try_write_record(source_dir: Path, record: GenomeData) -> Optional[Path]:
+    ext = "gff" if record.gff else "fna"
+    dest = source_dir / f"{record.accession}.{ext}.gz"
+    if dest.exists():
+        return None
+    else:
+        tmp_dest = dest.with_suffix(".tmp")
+        try:
+            write_record_to(record, tmp_dest)
+            os.replace(tmp_dest, dest)
+        finally:
+            tmp_dest.unlink(missing_ok=True)
+        return dest
+
+
+def write_record_to(record: GenomeData, file: Path):
+    with gzip.open(file, "wt") as f:
+        # Write GFF
+        if record.gff:
+            with open_maybe_gzip(Path(record.gff)) as gff:
+                for line in gff:
+                    if "\tbakta\tregion\t" in line:
+                        f.write(f"#{line}")
+                    elif line.startswith("##FASTA"):
+                        if record.fasta:
+                            logger.warning("Record supplies %s sequence in both GFF and FNA, preferring GFF.", record.accession)
+                        f.write(line)
+                        f.writelines(gff)
+                        return
+                    else:
+                        f.write(line)
+            f.write("##FASTA\n")
+        
+        # Write FNA
+        if not record.fasta:
+            raise RuntimeError(f"No FASTA sequence supplied for {record.accession}")
+        else:
+            with open_maybe_gzip(Path(record.fasta)) as fna:
+                f.writelines(fna)
 
 
 class Cluster:
@@ -51,17 +101,22 @@ class SequenceSourceDir:
         
         self._changed = False
         self._prepare_source_dir()
-        
+      
     def insert_genome(self, record: GenomeData):
-        result = self._try_write_record(record)
+        result = try_write_record(self.source_dir, record)
         if result:
             self._changed = True
         else:
-            print(f"[warning] skipping writing {record.accession} as it already exists")
+            logger.warning("skipping writing %s as it already exists", record.accession)
     
-    def insert(self, data: SequencePackage):
-        for record in data.genomes():
+    def insert(self, data: Iterable[GenomeData]):
+        for record in data:
             self.insert_genome(record)
+    
+    def pinsert(self, data: Iterable[GenomeData], concurrency: int):
+        for result in process_map(try_write_record, repeat(self.source_dir), data, max_workers=concurrency, chunksize=1, desc=f"Insert@{self.source_dir.name}"):
+            if result:
+                self._changed = True
     
     @property
     def xz_file(self) -> Path:
@@ -85,13 +140,18 @@ class SequenceSourceDir:
     def remove_sources(self):
         self.xz_file.unlink(missing_ok=True)
         
-    def accessions(self):
+    def sources(self):
         for p in self.source_dir.iterdir():
-            yield p.name.rsplit(".", 1)[0]
+            if p.name.endswith(".fna.gz") or p.name.endswith(".gff.gz"):
+                yield p
+        
+    def accessions(self):
+        for p in self.sources():
+            yield p.name.rsplit(".", 2)[0]
         
     def write_manifest(self, fh):
-        for p in self.source_dir.iterdir():
-            fh.write(f"{p}\n".encode("utf-8"))
+        for p in self.sources():
+            fh.write(f"{p}\n")
         fh.flush()
         
     def _prepare_source_dir(self):
@@ -100,40 +160,6 @@ class SequenceSourceDir:
         if self.xz_file.exists():
             with tarfile.open(self.xz_file, "r:xz") as tar:
                 tar.extractall(self.source_dir)
-        
-    def _try_write_record(self, record: GenomeData) -> Optional[Path]:
-        ext = "gff" if record.gff else "fna"
-        dest = self.source_dir / f"{record.accession}.{ext}"
-        if dest.exists():
-            return None
-        else:
-            self._write_record_to(record, dest)
-            return dest
-
-    def _write_record_to(self, record: GenomeData, file: Path):
-        with file.open("w") as f:
-            # Write GFF
-            if record.gff:
-                with open_maybe_gzip(Path(record.gff)) as gff:
-                    for line in gff:
-                        if "\tbakta\tregion\t" in line:
-                            f.write(f"#{line}")
-                        elif line.startswith("##FASTA"):
-                            if record.fasta:
-                                print(f"[warning] record {record.accession} supplies sequence in both GFF and FNA, preferring GFF.")
-                            f.write(line)
-                            f.writelines(gff)
-                            return
-                        else:
-                            f.write(line)
-                f.write("##FASTA\n")
-            
-            # Write FNA
-            if not record.fasta:
-                raise RuntimeError(f"No FASTA sequence supplied for {record.accession}")
-            else:
-                with open_maybe_gzip(Path(record.fasta)) as fna:
-                    f.writelines(fna)
 
 
 class ReadWriteCluster(Cluster, SequenceSourceDir):
@@ -151,7 +177,7 @@ class ReadWriteCluster(Cluster, SequenceSourceDir):
         with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
             self.write_manifest(fh)
           
-            manifest = mx.read_manifest(fh.name, 0, ",", mx.FileType.GFF3)
+            manifest = mx.read_manifest(fh.name, mx.FileType.GFF3)
             opts = mx.build_opts(k, 7, self.index_dir, threads)
             
             mx.construct_cdbg(manifest, opts)

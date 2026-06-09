@@ -136,6 +136,8 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
 
   LOG_INFO() << "Starting CDBG construction";
   LOG_INFO() << "Input sequences: " << data.size();
+
+  std::filesystem::create_directories(params.out);
   LOG_INFO() << "Output directory: " << params.out;
 
   TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
@@ -147,9 +149,11 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   auto terminals = extractTerminalsSparse(data, params.kmer_size);
   LOG_INFO() << "Total terminal entries = " << terminals.size();
 
+  LOG_INFO() << "Initialising sinks";
   Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
               ColourSink(outp.files.colours)};
 
+  LOG_INFO() << "Processing chunks";
   ProcessChunks(SuffixwiseKmers::FromSequences(
                     data, terminals.asRange(), params.kmer_size,
                     params.suffix_size, &cmap, &outp.str),

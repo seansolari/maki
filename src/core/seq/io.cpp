@@ -128,6 +128,10 @@ GenomeManifest readFilePaths(const char *manifest_file, std::size_t col,
   return manifest;
 }
 
+GenomeManifest readManifest(const char *manifest_file, InputFileType filter) {
+  return readFilePaths(manifest_file, 0, ',', filter);
+}
+
 std::string_view extractSequenceName(std::string_view path) {
   size_t newStart = path.find_last_of('/', (size_t)-1);
   if (newStart != (size_t)-1) {

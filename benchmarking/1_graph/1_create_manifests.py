@@ -127,19 +127,17 @@ def main(manifest_path: Path, threads: int, outdir: Path):
         logger.info("Downloading data for %d accessions (out of %d total)", len(missing), len(accns))
         
         with mf.retrieve_data(missing) as data:
-            for dset, src in zip(datasets, sources):
-                changed = False
-                
+            for dset, src in zip(datasets, sources):               
                 # Write sequences
-                for accn in dset.accessions:
-                    if accn in missing:
-                        src.insert_genome(data[accn])
-                        changed = True
-                
-                if changed:
-                    logger.info("Writing manifest to %s", src.source_dir / "manifest.txt")
-                    with (src.source_dir / "manifest.txt").open("w") as f:
-                        src.write_manifest(f)
+                tokens = [data[accn] for accn in dset.accessions if accn in missing]
+                if tokens:
+                    src.pinsert(tokens, threads)
+
+    # Update manifests
+    for src in sources:
+        logger.info("Writing manifest to %s", src.source_dir / "manifest.txt")
+        with (src.source_dir / "manifest.txt").open("w") as f:
+            src.write_manifest(f)
 
     # write parameter tsv
     with (outdir / "parameter-combinations.txt").open("w") as f:

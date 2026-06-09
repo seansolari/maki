@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name={job_name}
-#SBATCH --output=logs/{job_name}.out
-#SBATCH --error=logs/{job_name}.err
+#SBATCH --output={slurm_out}/{job_name}.out
+#SBATCH --error={slurm_out}/{job_name}.err
 #SBATCH --tasks=1
 #SBATCH --cpus-per-task={threads}
 #SBATCH --time={time}

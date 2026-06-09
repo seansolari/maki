@@ -99,10 +99,12 @@ struct GenomeManifest {
 GenomeManifest readFilePaths(const char *manifest_file, std::size_t col,
                              const char sep, InputFileType filter);
 
+GenomeManifest readManifest(const char *manifest_file, InputFileType filter);
+
 struct DataFilePair {
   std::string forwardFile, reverseFile;
 
-  DataFilePair() =default;
+  DataFilePair() = default;
   DataFilePair(std::string &&fwd, std::string &&rev)
       : forwardFile(std::move(fwd)), reverseFile(std::move(rev)) {}
 

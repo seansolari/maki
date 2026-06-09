@@ -127,7 +127,7 @@ class WriteableDatabase(_Database):
             # build cluster
             with package.retrieve_data(accessions) as data:
                 print(f"[insert] inserting sequences into cluster {cluster.root}")
-                cluster.insert(data)
+                cluster.insert(data.genomes())
                 
                 print(f"[insert] constructing cluster index {cluster.root}")
                 cluster.build(self.kmer_size, concurrency)

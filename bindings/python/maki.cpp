@@ -67,6 +67,8 @@ PYBIND11_MODULE(_maki, m) {
 
   // build API
 
+  m.def("read_manifest", &readManifest);
+
   m.def("construct_cdbg",
         py::overload_cast<const GenomeManifest &, dbg::BuildOptions>(
             &cdbg::construct));

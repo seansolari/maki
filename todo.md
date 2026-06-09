@@ -16,6 +16,7 @@
 ## Planned updates
 
 ### Tue 2 Jun, 2026 - Database Benchmarking
+
   - Annotated genome graph construction benchmarking
     - **DONE** - Script to create datasets from manifest.
     - **DONE** - Create manifests, job script and parameter yaml.

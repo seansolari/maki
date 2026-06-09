@@ -63,6 +63,9 @@ jobs.mkdir(parents=True, exist_ok=True)
 results = out / "results"
 results.mkdir(parents=True, exist_ok=True)
 
+slurm_out = out / "slurm"
+slurm_out.mkdir(parents=True, exist_ok=True)
+
 # -------------------------
 # HELPER FUNCTIONS
 # -------------------------
@@ -87,7 +90,7 @@ def estimate_mem(k: int, s: int, threads: int, n: int):
 # LOAD TEMPLATE
 # -------------------------
 
-with open("job_template.sh", "r") as f:
+with open(Path(__file__).parent / "job_template.sh", "r") as f:
     template = f.read()
 
 # -------------------------
@@ -125,6 +128,7 @@ for i, pset in enumerate(params):
 
     script_content = template.format(
         job_name=job_id,
+        slurm_out=slurm_out,
         threads=pset.thread,
         time=time,
         mem=mem,
@@ -152,5 +156,5 @@ for i, pset in enumerate(params):
     
     job_count += 1
 
-print(f"\nGenerated jobs: {job_count}")
+print(f"Generated jobs: {job_count}")
 print(f"Submitted jobs: {submitted_count}")

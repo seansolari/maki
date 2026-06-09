@@ -1,14 +1,14 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
+from itertools import repeat
 import logging
 import multiprocessing
 import os
 import shutil
 from tempfile import TemporaryDirectory
+import time
 from typing import Callable, Dict, Iterable, List, Literal, Optional, Tuple, overload
-from urllib.request import urlretrieve
 
 import csv
 import tarfile
@@ -16,7 +16,9 @@ from maki.atb.gff import pjson_to_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData, GenomeRecord, SequencePackage
 from pathlib import Path
 
+import requests
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
 from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
@@ -99,19 +101,17 @@ class Manifest:
             writer.writerow(columns)
             writer.writerows(row_iter())
           
-    def batch(self, dispatch: Callable[[Dict[str, str], ], Tuple[RemoteBatchFile, BatchItem]]):
-        batches: Dict[RemoteBatchFile, List[BatchItem]] = {}
+    def batch(self, dispatch_: Callable[[Dict[str, str]], Tuple[RemoteBatchFile, BatchItem]], prefix_: Path, concurrency: int, desc: str):
+        batches: Dict[RemoteBatchFile, List[BatchItemPromise]] = {}
         unidentified_batches: List[Dict[str, str]] = []
         
-        for r in self.rows:
-            batch_key, batch_item = dispatch(r)
+        for result in process_map(batch_row, self.rows, repeat(dispatch_), repeat(prefix_), max_workers=concurrency, chunksize=100, desc=desc):
+            if isinstance(result, dict):
+                unidentified_batches.append(result)
+            else:
+                batch_key, promise = result
+                batches.setdefault(batch_key, []).append(promise)
             
-            if not all((batch_key.tar_xz, batch_key.tar_xz_url, batch_item.filename)):
-                unidentified_batches.append(r)
-                continue
-            
-            batches.setdefault(batch_key, []).append(batch_item)
-                
         if unidentified_batches:
             cols = list(unidentified_batches[0].keys())
             logger.error(
@@ -124,6 +124,17 @@ class Manifest:
         return batches
 
 
+def batch_row(r: Dict[str, str], dispatch_: Callable[[Dict[str, str]], Tuple[RemoteBatchFile, BatchItem]], prefix_: Path):
+    batch_key, batch_item = dispatch_(r)
+                
+    if not all((batch_key.tar_xz, batch_key.tar_xz_url, batch_item.filename)):
+        return r
+    
+    target = prefix_ / batch_item.filename
+    target_exists = False if not target.exists() else (True if not batch_item.md5 else md5sum(target) == batch_item.md5)
+    return batch_key, BatchItemPromise(batch_item, target, target_exists)
+
+
 @dataclass(frozen=False)
 class BatchItem:
     filename: str
@@ -131,6 +142,13 @@ class BatchItem:
     
     @staticmethod
     def dest(r: Dict[str, str]) -> str: ...
+    
+
+@dataclass(frozen=False)
+class BatchItemPromise:
+    item: BatchItem
+    target: Path
+    exists: bool
     
 
 class AssemblyItem(BatchItem):
@@ -151,26 +169,62 @@ class BaktaItem(BatchItem):
     @classmethod
     def from_row(cls, r: Dict[str, str]) -> Tuple[RemoteBatchFile, BaktaItem]:
         return RemoteBatchFile(r[BAKTA_SCHEMA.tar_xz], r[BAKTA_BATCH_SCHEMA.tar_xz_url], r[BAKTA_BATCH_SCHEMA.tar_xz_md5], r[BAKTA_BATCH_SCHEMA.tar_xz_size_MB]), BaktaItem(filename=cls.dest(r), md5=r[BAKTA_SCHEMA.file_md5])
-
-
-def missing_batch_items(items: List[BatchItem], output_dir: Path):
-    queries: Dict[str, BatchItem] = {}
-        
-    for item in items:
-        target = output_dir / item.filename
-        
-        if target.exists():
-            if item.md5:
-                if md5sum(target) == item.md5:
-                    continue
-            else:
-                continue
-        
-        queries[item.filename] = item
-
-    return queries
   
+
+def try_download(url: str, dest_path: Path, urlmd5: str, retries: int = 3, timeout: int = 10):
+    """
+    Download a file from a URL with retry support and safe cleanup.
+
+    Args:
+        url (str): Source URL.
+        dest_path (str): Destination file path.
+        retries (int): Maximum number of retry attempts.
+        timeout (int): Request timeout (seconds).
+
+    Raises:
+        Exception: If all retries fail.
+    """
+
+    temp_path = dest_path.with_suffix(f"{dest_path.suffix}.part")
+
+    # Always ensure no leftover partial file exists before starting
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+
+    for attempt in range(1, retries + 1):
+        logger.info("Downloading remote archive %s to %s (attempt=%d).", url, dest_path, attempt)
+        
+        try:
+            with requests.get(url, stream=True, timeout=timeout) as response:
+                response.raise_for_status()
+
+                with temp_path.open("wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+
+            # Check MD5
+            if md5sum(temp_path) != urlmd5:
+                logger.error("Download %s failed, invalid MD5 (attempt=%d).", url, attempt)
+                raise RuntimeError(f"Download {url} failed, invalid MD5.")
+
+            # Download completed — atomically move into place
+            os.replace(temp_path, dest_path)
+            return
+
+        except Exception as e:
+            # Clean up partial file if something went wrong
+            temp_path.unlink(missing_ok=True)
+
+            if attempt == retries:
+                raise Exception(
+                    f"Failed to download after {retries} attempts: {url}"
+                ) from e
+
+            # Small backoff before retrying
+            time.sleep(2 ** (attempt - 1))
   
+
 def ensure_archive(batch_rec: RemoteBatchFile, dest: Path):
     if dest.exists():
         if md5sum(dest) != batch_rec.tar_xz_md5:
@@ -180,24 +234,19 @@ def ensure_archive(batch_rec: RemoteBatchFile, dest: Path):
             logger.info("Archive %s already exists with valid MD5. Continuing...", dest)
             return dest
 
-    logger.info("Downloading remote archive %s to %s.", batch_rec.tar_xz_url, dest)
-    urlretrieve(batch_rec.tar_xz_url, dest)
-    
-    if md5sum(dest) != batch_rec.tar_xz_md5:
-        logger.error("Download %s failed, invalid MD5.", batch_rec.tar_xz_url)
-        raise RuntimeError(f"Download {batch_rec.tar_xz_url} failed, invalid MD5.")
-    
+    try_download(batch_rec.tar_xz_url, dest, batch_rec.tar_xz_md5)
     return dest
 
 
-def download_batch_local(batch_rec: RemoteBatchFile, items: List[BatchItem], output_dir: Path):
-    queries = missing_batch_items(items, output_dir)
+def download_batch_local(batch_rec: RemoteBatchFile, items: List[BatchItemPromise], output_dir: Path) -> int:      
+    queries = {pm.item.filename: pm for pm in items if not pm.exists}
     
     if not queries:
         return 0
     
     local_archive = ensure_archive(batch_rec, output_dir / batch_rec.tar_xz)
-    extracted = 0
+    
+    extracted: int = 0
     
     with tarfile.open(local_archive, mode="r:*") as tar:
         tar_recnames: List[str] = []
@@ -208,29 +257,29 @@ def download_batch_local(batch_rec: RemoteBatchFile, items: List[BatchItem], out
             if member.name not in queries:
                 continue
 
-            item = queries.pop(member.name)
-                    
-            target = output_dir / item.filename
-            target.parent.mkdir(parents=True, exist_ok=True)
+            pm = queries.pop(member.name)
+            pm.target.parent.mkdir(parents=True, exist_ok=True)
 
             extracted_file = tar.extractfile(member)
             if extracted_file is None:
                 continue
             
+            target_tmp = pm.target.with_suffix(f"{pm.target.suffix}.part")
             try:
-                with target.open("wb") as f:
+                with target_tmp.open("wb") as f:
                     while chunk := extracted_file.read(8192):
                         f.write(chunk)
                         
-                if item.md5 and md5sum(target) != item.md5:
-                    raise RuntimeError(f"MD5 mismatch: {target}")
-            except Exception as e:
-                logging.warning("Exception raised while writing %s, deleting...", target)
-                target.unlink(missing_ok=True)
-                raise e
+                if pm.item.md5 and md5sum(target_tmp) != pm.item.md5:
+                    raise RuntimeError(f"MD5 mismatch: {pm.target}")
+                  
+                os.replace(target_tmp, pm.target)
+            except Exception:
+                logging.warning("Exception raised while writing %s, deleting...", pm.target)
+                target_tmp.unlink(missing_ok=True)
+                raise
 
             extracted += 1
-    
     
     # check for unresolved queries
     if queries:
@@ -249,29 +298,28 @@ def download_batch_local_handle(args):
     return download_batch_local(rec, items, output_dir)
 
 
-def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItem]], output_dir: Path, concurrency: int = 6):
+def run_jobs_parallel(batches: Dict[RemoteBatchFile, List[BatchItemPromise]], output_dir: Path, concurrency: int, desc: str):
+    extracted: int = 0
+    
     if not batches:
         logger.info("Nothing to download")
-        return 0
+        return extracted
 
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Pre-allocate worker slots
-    total = 0
-    
     with multiprocessing.Pool(concurrency) as pool:
       
-        with tqdm(total=len(batches), position=0, desc="Batch") as pbar:
+        with tqdm(total=len(batches), position=0, desc=desc) as pbar:
             for result in pool.imap_unordered(
                 download_batch_local_handle,
                 ((rec, items, output_dir) for rec, items in batches.items()),
                 chunksize=1
             ):
               
-                total += result
+                extracted += result
                 pbar.update(1)
 
-    return total
+    return extracted
 
 
 class _MakiAtbData(SequencePackage):
@@ -366,19 +414,27 @@ class _MakiAtbManifest(Manifest):
         # assemblies
         assert self.has_assemblies, "Missing assembly metadata"
         logger.info("Preparing assembly batches...")
-        batches = self.batch(AssemblyItem.from_row)
+        batches = self.batch(AssemblyItem.from_row, output_dir / "fa", self.concurrency, "Batching FASTA")
 
-        total = run_jobs_parallel(batches, output_dir / "fa", self.concurrency)
-        logger.info("Extracted %d assemblies", total)
+        extracted = run_jobs_parallel(batches, output_dir / "fa", self.concurrency, "Downloading FASTA")
+        logger.info("Extracted %d assemblies", extracted)
 
         if self.has_annotations:
             logger.info("Preparing annotation batches...")
-            batches = self.batch(BaktaItem.from_row)
+            batches = self.batch(BaktaItem.from_row, output_dir / "bakta", self.concurrency, "Batching Bakta")
         
-            total = run_jobs_parallel(batches, output_dir / "bakta", self.concurrency)
-            logger.info("Extracted %d annotations", total)
+            extracted = run_jobs_parallel(batches, output_dir / "bakta", self.concurrency, "Downloading Bakta")
+            logger.info("Extracted %d annotations", extracted)
             
-            pjson_to_gff([f.filename for files in batches.values() for f in files], output_dir, self.concurrency)
+            self._extract_json(batches, output_dir / "gff")
+            
+    def _extract_json(self, batches: Dict[RemoteBatchFile, List[BatchItemPromise]], base: Path):
+        jobs = [
+            (pm.target, (base / pm.item.filename).with_suffix(".gff"))
+            for promises in batches.values()
+            for pm in promises
+        ]
+        pjson_to_gff(jobs, self.concurrency)
 
 
 class LightAtbManifest(_MakiAtbManifest, DatabasePackage):

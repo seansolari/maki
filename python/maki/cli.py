@@ -85,10 +85,8 @@ def classify(
 @app.command(hidden=True)
 def to_graph(manifest: str, k: int, s: int, threads: int, database_path: str):
     import maki.core as mx
-    
-    manifest = mx.read_manifest(manifest, 0, ",", mx.FileType.GFF3)
+    manifest = mx.read_manifest(manifest, mx.FileType.GFF3)
     opts = mx.build_opts(k, s, database_path, threads)
-    
     mx.construct_cdbg(manifest, opts)
 
 
