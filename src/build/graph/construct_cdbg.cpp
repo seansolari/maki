@@ -10,6 +10,7 @@
 #include "maki/core/seq/io.hpp"
 #include "maki/core/utils/logging.hpp"
 #include <filesystem>
+#include <oneapi/tbb/global_control.h>
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
 #include <stdexcept>
@@ -168,6 +169,10 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
 
 ColouredGraphFiles construct(const GenomeManifest &im,
                              dbg::BuildOptions params) {
+
+  oneapi::tbb::global_control global_limit(
+      oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
+
   switch (im.type) {
   case InputFileType::Gff3FileType: {
     Colours colours;

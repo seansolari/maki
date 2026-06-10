@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include <indicators/progress_bar.hpp>
+// #include <indicators/progress_bar.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <zstr.hpp>
 
@@ -426,24 +426,24 @@ std::vector<ReturnType> parse(const std::vector<std::string> &files,
   std::size_t N = files.size();
   std::vector<ReturnType> result(N);
 
-  indicators::ProgressBar pbar{
-      indicators::option::BarWidth{50},
-      indicators::option::Start{"["},
-      indicators::option::Fill{"="},
-      indicators::option::Lead{">"},
-      indicators::option::Remainder{" "},
-      indicators::option::End{"]"},
-      indicators::option::PrefixText{" Parsing genomes "},
-      indicators::option::ForegroundColor{indicators::Color::green},
-      indicators::option::ShowElapsedTime{true},
-      indicators::option::ShowRemainingTime{true},
-      indicators::option::FontStyles{
-          std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
-      indicators::option::MaxProgress{N}};
+  //indicators::ProgressBar pbar{
+  //    indicators::option::BarWidth{50},
+  //    indicators::option::Start{"["},
+  //    indicators::option::Fill{"="},
+  //    indicators::option::Lead{">"},
+  //    indicators::option::Remainder{" "},
+  //    indicators::option::End{"]"},
+  //    indicators::option::PrefixText{" Parsing genomes "},
+  //    indicators::option::ForegroundColor{indicators::Color::green},
+  //    indicators::option::ShowElapsedTime{true},
+  //    indicators::option::ShowRemainingTime{true},
+  //    indicators::option::FontStyles{
+  //        std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
+  //    indicators::option::MaxProgress{N}};
 
   tbb::parallel_for((std::size_t)0, N, (std::size_t)1, [&](std::size_t i) {
     result[i] = fn(files[i], args...);
-    pbar.tick();
+  //  pbar.tick();
   });
 
   return result;

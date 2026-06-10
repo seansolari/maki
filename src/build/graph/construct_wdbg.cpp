@@ -4,6 +4,7 @@
 #include "maki/build/kmers/construct_terminals.hpp"
 #include "maki/core/graph/archive/counts.hpp"
 #include "maki/core/utils/logging.hpp"
+#include <oneapi/tbb/global_control.h>
 
 namespace wdbg {
 
@@ -147,7 +148,13 @@ WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
 }
 
 WeightedGraphFiles construct(const DataFilePair &fp, dbg::BuildOptions params) {
-  auto chunks = chunkReads(detail::parsePairedFastq(fp, params.kmer_size, params.kmer_size, params.threads), 10 * params.threads);
+  oneapi::tbb::global_control global_limit(
+      oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
+
+  auto chunks =
+      chunkReads(detail::parsePairedFastq(fp, params.kmer_size,
+                                          params.kmer_size, params.threads),
+                 10 * params.threads);
   auto view = toView(chunks);
   return construct(view, params);
 }

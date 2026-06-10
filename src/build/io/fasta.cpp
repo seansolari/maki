@@ -10,7 +10,6 @@
 #include <ranges>
 #include <string_view>
 
-#include <indicators/progress_bar.hpp>
 #include <oneapi/tbb.h>
 #include <seqan3/alphabet/views/complement.hpp>
 #include <seqan3/io/sequence_file/all.hpp>
