@@ -10,7 +10,8 @@ from typing import List
 parser = ArgumentParser()
 parser.add_argument("--config", type=str)
 parser.add_argument("--out", type=str)
-parser.add_argument("--env-init", type=str, default=None, required=False)
+parser.add_argument("--env-init", type=str, default=None)
+parser.add_argument("--limit", type=int, default=-1)
 parser.add_argument("--no-run", action="store_true")
 parser.add_argument("--force", action="store_true")
 args = parser.parse_args()
@@ -71,19 +72,11 @@ slurm_out.mkdir(parents=True, exist_ok=True)
 # -------------------------
 
 def estimate_time(k: int, s: int, threads: int, n: int) -> str:
-    if n <= 100:
-        return "00:30:00"
-    elif n <= 500:
-        return "02:00:00"
-    else:
-        return "05:00:00"
+    return "10:00:00" if s >= 6 else "02:00:00"
 
 
 def estimate_mem(k: int, s: int, threads: int, n: int):
-    if n <= 100:
-        return "50G"
-    else:
-        return "256G"
+    return "64G" if s >= 6 else "128G"
 
 
 # -------------------------
@@ -99,25 +92,27 @@ with open(Path(__file__).parent / "job_template.sh", "r") as f:
 
 job_count = 0
 submitted_count = 0
+submitted_limit = args.limit if args.limit > -1 else len(params)
 
 for i, pset in enumerate(params):
+    if submitted_count >= submitted_limit:
+        break
+  
     job_id = f"run_{i:04d}"
     job_results = results / job_id
 
     # Skip completed runs
-    launch = not (job_results / "done.flag").exists()
     
-    if not launch:
+    if (job_results / "done.flag").exists():
         stat = (job_results / "done.flag").read_text().strip()
         if (stat == "submitted"):
             if args.force:
-                launch = True
+                print(f"Re-submitting job {job_id}.")
             else:
                 print(f"Skipping {job_id} (already submitted, to override add `--force`)")
                 continue
         else:
             assert stat == "complete"
-            
             print(f"Skipping {job_id} (already done)")
             continue
 
