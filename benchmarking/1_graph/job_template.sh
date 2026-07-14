@@ -2,6 +2,7 @@
 #SBATCH --job-name={job_name}
 #SBATCH --output={slurm_out}/{job_name}.out
 #SBATCH --error={slurm_out}/{job_name}.err
+{email_region}
 #SBATCH --tasks=1
 #SBATCH --cpus-per-task={threads}
 #SBATCH --time={time}

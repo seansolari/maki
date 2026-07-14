@@ -12,6 +12,7 @@ parser.add_argument("--config", type=str)
 parser.add_argument("--out", type=str)
 parser.add_argument("--env-init", type=str, default=None)
 parser.add_argument("--limit", type=int, default=-1)
+parser.add_argument("--email", type=str, default=None)
 parser.add_argument("--no-run", action="store_true")
 parser.add_argument("--force", action="store_true")
 args = parser.parse_args()
@@ -76,7 +77,7 @@ def estimate_time(k: int, s: int, threads: int, n: int) -> str:
 
 
 def estimate_mem(k: int, s: int, threads: int, n: int):
-    return "64G" if s >= 6 else "128G"
+    return "64G" if n < 1000 else "128G"
 
 
 # -------------------------
@@ -85,6 +86,11 @@ def estimate_mem(k: int, s: int, threads: int, n: int):
 
 with open(Path(__file__).parent / "job_template.sh", "r") as f:
     template = f.read()
+
+if args.email:
+    email_region = f"#SBATCH --mail-type=END,BEGIN,FAIL\n#SBATCH --mail-user={args.email}"
+else:
+    email_region = ""
 
 # -------------------------
 # GENERATE JOBS
@@ -124,6 +130,7 @@ for i, pset in enumerate(params):
     script_content = template.format(
         job_name=job_id,
         slurm_out=slurm_out,
+        email_region=email_region,
         threads=pset.thread,
         time=time,
         mem=mem,

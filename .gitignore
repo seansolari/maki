@@ -35,6 +35,7 @@
 *.sif
 
 /build/
+/dist/
 
 .DS_Store
 
