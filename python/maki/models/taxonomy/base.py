@@ -1,7 +1,29 @@
 
 from abc import abstractmethod
+from dataclasses import dataclass
+from enum import Enum
+import logging
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
+
+
+logger = logging.getLogger(__name__)
+
+
+class Ranks(str, Enum):
+    Species = "species"
+    Genus = "genus"
+    Family = "family"
+    Order = "order"
+    Class = "class"
+    Phylum = "phylum"
+    Domain = "domain"
+
+
+@dataclass(frozen=True)
+class TaxidSearchResult:
+    result: str
+    found: bool
 
 
 class BaseTaxonomy:
@@ -18,7 +40,7 @@ class BaseTaxonomy:
         pass
 
     @abstractmethod
-    def resolve_taxid(self, value: str) -> str:
+    def resolve_taxid(self, value: str) -> TaxidSearchResult:
         """
         Accepts taxid OR name.
         Returns taxid.
@@ -34,21 +56,17 @@ class BaseTaxonomy:
         pass
       
       
+class TaxonomyUnresolvedRankException(Exception):
+    pass
+      
+      
 def resolve_accession_taxids(records: Iterable[Tuple[str, str]], taxonomy: BaseTaxonomy):
     result: Dict[str, str] = {}
 
-    unresolved = []
-
     for acc, taxid in records:
-        try:
-            result[acc] = taxonomy.resolve_taxid(taxid)
-        except Exception as e:
-            print(f"[warning] {acc}: {e}")
-            unresolved.append(acc)
-
-    if unresolved:
-        print(f"\n[warning] {len(unresolved)} genomes could not be resolved:")
-        for u in unresolved[:10]:
-            print(f" - {u}")
+        qry = taxonomy.resolve_taxid(taxid)
+        if not qry.found:
+            logger.warning(f"Could not resolve {acc} taxid {taxid}, using {qry.result}")
+        result[acc] = qry.result
 
     return result

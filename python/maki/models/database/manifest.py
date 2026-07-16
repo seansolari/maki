@@ -85,7 +85,7 @@ class GenomeSchema:
     gff: Optional[str]
 
     def parse_row(self, r: Dict[str, str]) -> GenomeData:
-        return GenomeData(accession=r[self.accession], taxonomy=r[self.taxonomy], taxid=None, fasta=r[self.taxonomy], gff=None if not self.gff else r[self.gff])
+        return GenomeData(accession=r[self.accession], taxonomy=r[self.taxonomy], taxid=None, fasta=r[self.fasta], gff=None if not self.gff else r[self.gff])
 
 
 class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):

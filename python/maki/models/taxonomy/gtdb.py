@@ -1,10 +1,10 @@
 
-from difflib import get_close_matches
 from pathlib import Path
+import re
 from typing import Optional
 
 from ete4 import GTDBTaxa
-from .base import BaseTaxonomy
+from .base import BaseTaxonomy, TaxidSearchResult, TaxonomyUnresolvedRankException
 
 
 class GTDBTaxonomy(BaseTaxonomy):
@@ -25,23 +25,45 @@ class GTDBTaxonomy(BaseTaxonomy):
         # Direct exact match
         res = self.gtdb.get_name_lineage([value])
         if res:
-            return value
-          
-        # Check prefixes
-        for prefixed in self._check_hierarchy(value):
-            res = self.gtdb.get_name_lineage([prefixed])
-            if res:
-                return prefixed
-
-        raise ValueError(f"Could not resolve GTDB taxonomy for: '{value}'")
+            return TaxidSearchResult(value, True)
+        else:
+            return self._normalise_name(value)
+        
+    def _normalise_name(self, name: str):
+        assert self.gtdb, "Missing taxonomy data."
+        
+        name = " ".join(name.split())
+        words = name.count(" ") + 1
+        
+        if words > 1:
+            genus, species, *_ = name.split(" ")
+            revised = f"s__{genus} {species}"
+            return TaxidSearchResult(revised, bool(self.gtdb.get_name_lineage([revised])))
+        else:
+            uname = name.split(" ")[0]
+            for prefix in ("g", "f", "o", "c", "p", "d"):
+                prefixed = f"{prefix}__{uname}"
+                res = self.gtdb.get_name_lineage([prefixed])
+                if res:
+                    return TaxidSearchResult(prefixed, True)
+            else:
+                return TaxidSearchResult(f"u__{uname}", False)
 
     def get_lineage(self, taxid):
         assert self.gtdb, "Missing taxonomy data."
         
         l = self.gtdb.get_name_lineage([taxid])
-        assert l, f"Could not identify taxid: {taxid}"
-        
-        return l[0][taxid]
+        if l:
+            return l[0][taxid]
+        else:
+            uname = re.findall(r"(?:\S__)?(\S+)", taxid)[0]
+            for prefix in ("g", "f", "o", "c", "p", "d"):
+                prefixed = f"{prefix}__{uname}"
+                l = self.gtdb.get_name_lineage([prefixed])
+                if l:
+                    return l[0][prefixed]
+            else:
+                return []            
 
     def get_ancestor_at_rank(self, taxid, rank):
         assert self.gtdb, "Missing taxonomy data."
@@ -53,19 +75,4 @@ class GTDBTaxonomy(BaseTaxonomy):
             if ranks.get(t) == rank:
                 return t
 
-        raise ValueError(f"No ancestor at rank '{rank}' for taxid {taxid}")
-      
-    ## Taxonomy helpers
-    
-    @staticmethod
-    def _check_hierarchy(name: str):
-        name = " ".join(name.split())
-        words = name.count(" ") + 1
-        
-        if words > 1:
-            genus, species, *_ = name.split(" ")
-            yield f"s__{genus} {species}"
-        
-        uname = name.split(" ")[0]
-        for prefix in ("g", "f", "o", "c", "p", "d"):
-            yield f"{prefix}__{uname}"
+        raise TaxonomyUnresolvedRankException(f"No ancestor at rank '{rank}' for taxid {taxid}")

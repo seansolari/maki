@@ -3,13 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import json
+import logging
 from pathlib import Path
 from typing import Dict, List
 
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy
-from maki.models.taxonomy.base import resolve_accession_taxids
+from maki.models.taxonomy.base import TaxonomyUnresolvedRankException, resolve_accession_taxids
 from .archive import XzArchive, RawArchive
 from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, read_manifest
+
+
+logger = logging.getLogger(__name__)
 
 
 class UpdateMode(Enum):
@@ -115,10 +119,12 @@ class WriteableDatabase(_Database):
         groups = self._group_by_rank(package, taxids)
         
         for cluster_id, accessions in groups:
+            logger.info(f"Inserting {len(accessions)} into cluster {cluster_id}: {",".join(accessions[:5])}{"..." if len(accessions) > 5 else ""}")
+        
             # fetch cluster
             new_cluster = cluster_id not in self.clusters
             
-            print(f"[insert] retrieving cluster {cluster_id}")
+            logger.info(f"Retrieving cluster {cluster_id}")
             cluster = self.clusters.get_or_create(cluster_id)
             
             if (not new_cluster) and (not cluster.updateable):
@@ -126,17 +132,17 @@ class WriteableDatabase(_Database):
             
             # build cluster
             with package.retrieve_data(accessions) as data:
-                print(f"[insert] inserting sequences into cluster {cluster.root}")
+                logger.info(f"Inserting sequences into cluster {cluster.root}")
                 cluster.insert(data.genomes())
                 
-                print(f"[insert] constructing cluster index {cluster.root}")
+                logger.info(f"Constructing cluster index {cluster.root}")
                 cluster.build(self.kmer_size, concurrency)
                 
                 if cluster.updateable or self.update_mode == UpdateMode.updateable:
-                    print(f"[insert] persisting sources at {cluster.source_dir}")
+                    logger.info(f"Persisting sources at {cluster.source_dir}")
                     cluster.persist_sources()
                 else:
-                    print(f"[insert] clearing sources at {cluster.source_dir}")
+                    logger.info(f"Clearing sources at {cluster.source_dir}")
                     cluster.remove_sources()
                 
                 # update manifest
@@ -157,9 +163,19 @@ class WriteableDatabase(_Database):
         
         for record in package.records():
             taxid = taxids.get(record.accession)
-            ancestor = record.taxonomy if not taxid else self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
             
-            key = "/".join(self.taxonomy.get_lineage(ancestor))
+            if taxid:
+                try:
+                    ancestor = self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
+                except TaxonomyUnresolvedRankException:
+                    logger.warning(f"Could not resolve ancestor of {taxid} at {self.rank}, using {taxid}")
+                    ancestor = taxid
+            else:
+                logger.warning(f"Taxid not found for {record.accession}, grouping by taxonomy ({record.taxonomy})")
+                ancestor = record.taxonomy
+            
+            l = self.taxonomy.get_lineage(ancestor)
+            key = "unknown" if not l else "/".join(l)
             grouped.setdefault(key, []).append(record.accession)
 
         return list(grouped.items())

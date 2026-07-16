@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Annotated
 
+from maki.models.taxonomy.base import Ranks
 import typer
 import maki.models.database as mdb
 from maki.classify.sample_manifest import SampleManifest
@@ -26,7 +28,7 @@ def build(
     manifest_path: Path = typer.Option(..., help="Genome manifest CSV"),
     db_path: Path = typer.Option(..., help="Database output path"),
     kmer_size: int = typer.Option(31),
-    rank: str = typer.Option(..., help="Taxonomic rank"),
+    rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
     threads: int = typer.Option(4),
     mode: str = typer.Option(
         "fixed",
