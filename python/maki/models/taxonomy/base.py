@@ -17,7 +17,7 @@ class Ranks(str, Enum):
     Order = "order"
     Class = "class"
     Phylum = "phylum"
-    Domain = "domain"
+    SuperKingdom = "superkingdom"
 
 
 @dataclass(frozen=True)

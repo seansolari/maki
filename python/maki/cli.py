@@ -28,22 +28,18 @@ def build(
     manifest_path: Path = typer.Option(..., help="Genome manifest CSV"),
     db_path: Path = typer.Option(..., help="Database output path"),
     kmer_size: int = typer.Option(31),
+    suffix_size: int = typer.Option(6),
     rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
     threads: int = typer.Option(4),
-    mode: str = typer.Option(
-        "fixed",
-        help="Database mode: fixed or updatable"
-    ),
-    taxonomy: str = typer.Option(
-        "gtdb",
-        help="Database mode: gtdb or ncbi"
-    ),
-    force: bool = False
+    mode: Annotated[mdb.UpdateMode, typer.Option(help="Build mode")] = mdb.UpdateMode.fixed,
+    taxonomy: Annotated[mdb.TaxonomySource, typer.Option(help="Taxonomy database")] = mdb.TaxonomySource.gtdb,
+    force: bool = False,
+    dry_run: bool = False
 ):
     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
-    return build_impl(manifest, db_path, kmer_size, rank, threads, mdb.UpdateMode[mode.lower()], mdb.TaxonomySource[taxonomy.lower()], force)
+    return build_impl(manifest, db_path, kmer_size, suffix_size, rank, threads, mode, taxonomy, force, dry_run)
 
 
 @app.command(help="""
@@ -56,12 +52,13 @@ Update an existing database with new genomes.
 def update(
     manifest_path: Path = typer.Option(..., help="New genome manifest"),
     db_path: Path = typer.Option(..., help="Existing database"),
+    suffix_size: int = typer.Option(6),
     threads: int = typer.Option(4, help="Parallel threads")
 ):
     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
-    return update_impl(manifest, db_path, threads)
+    return update_impl(manifest, db_path, suffix_size, threads)
 
 
 @app.command(help="""

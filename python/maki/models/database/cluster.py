@@ -173,12 +173,12 @@ class ReadWriteCluster(Cluster, SequenceSourceDir):
 
         shutil.rmtree(self.source_dir)
     
-    def build(self, k: int, threads: int):
-        with NamedTemporaryFile(suffix=".txt", dir=self.root) as fh:
+    def build(self, k: int, s: int, threads: int):
+        with NamedTemporaryFile(suffix=".txt", dir=self.root, mode="wt") as fh:
             self.write_manifest(fh)
           
             manifest = mx.read_manifest(fh.name, mx.FileType.GFF3)
-            opts = mx.build_opts(k, 7, self.index_dir, threads)
+            opts = mx.build_opts(k, s, self.index_dir, threads)
             
             mx.construct_cdbg(manifest, opts)
 

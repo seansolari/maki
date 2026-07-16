@@ -16,14 +16,14 @@ from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, r
 logger = logging.getLogger(__name__)
 
 
-class UpdateMode(Enum):
-    fixed = 0
-    updateable = 1
+class UpdateMode(str, Enum):
+    fixed = "fixed"
+    updateable = "updateable"
     
 
-class TaxonomySource(Enum):
-    gtdb = 0
-    ncbi = 1
+class TaxonomySource(str, Enum):
+    gtdb = "gtdb"
+    ncbi = "ncbi"
 
 
 @dataclass(frozen=True)
@@ -113,14 +113,16 @@ class WriteableDatabase(_Database):
         
     def compress(self) -> StaticDatabase:
         return StaticDatabase(self.root, self.kmer_size, self.rank, self.update_mode, self.clusters.compress(), self.taxonomy, self.manifest)
-      
-    def insert(self, package: DatabasePackage, concurrency: int):
+    
+    def insert(self, package: DatabasePackage, suffix_size: int, concurrency: int, dry_run: bool = False):
         taxids = self._get_taxids(package)
         groups = self._group_by_rank(package, taxids)
         
         for cluster_id, accessions in groups:
             logger.info(f"Inserting {len(accessions)} into cluster {cluster_id}: {",".join(accessions[:5])}{"..." if len(accessions) > 5 else ""}")
-        
+            if dry_run:
+                continue
+            
             # fetch cluster
             new_cluster = cluster_id not in self.clusters
             
@@ -136,7 +138,7 @@ class WriteableDatabase(_Database):
                 cluster.insert(data.genomes())
                 
                 logger.info(f"Constructing cluster index {cluster.root}")
-                cluster.build(self.kmer_size, concurrency)
+                cluster.build(self.kmer_size, suffix_size, concurrency)
                 
                 if cluster.updateable or self.update_mode == UpdateMode.updateable:
                     logger.info(f"Persisting sources at {cluster.source_dir}")
@@ -175,7 +177,7 @@ class WriteableDatabase(_Database):
                 ancestor = record.taxonomy
             
             l = self.taxonomy.get_lineage(ancestor)
-            key = "unknown" if not l else "/".join(l)
+            key = "unknown" if not l else "/".join(l).replace(" ", "_")
             grouped.setdefault(key, []).append(record.accession)
 
         return list(grouped.items())

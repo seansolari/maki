@@ -1,33 +1,37 @@
 
+import logging
 from pathlib import Path
 import maki.models.database as mdb
 from maki.models.database.manifest import DatabasePackage
 
 
-def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, rank: str, threads: int, mode: mdb.UpdateMode, taxonomy: mdb.TaxonomySource, force: bool = False):
+logger = logging.getLogger(__name__)
+
+
+def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, suffix_size: int, rank: str, threads: int, mode: mdb.UpdateMode, taxonomy: mdb.TaxonomySource, force: bool = False, dry_run: bool = False):
     if db_path.exists() and not force:
-        print(f"[error] Build directory {db_path} already exists.")
+        logger.error("Build directory %s already exists.", db_path)
         return 1
   
     opts = mdb.DatabaseOptions(db_path, kmer_size, rank, mode, taxonomy)
     db = mdb.StaticDatabase.create(opts)
-    print(f"Database initialised at {db_path}.")
+    logger.info("Database initialised at %s.", db_path)
     
     db = db.decompress()
-    db.insert(manifest, threads)
+    db.insert(manifest, suffix_size, threads, dry_run)
     
-    print("Compressing database.")
+    logger.info("Compressing database.")
     db = db.compress()
-    print("Database build complete.")
+    logger.info("Database build complete.")
     
     return 0
 
 
-def update(manifest: DatabasePackage, db_path: Path, threads: int):
+def update(manifest: DatabasePackage, db_path: Path, suffix_size: int, threads: int):
     db = mdb.StaticDatabase.load(db_path).decompress()
     
-    db.insert(manifest, threads)
+    db.insert(manifest, suffix_size, threads)
     db.compress()
-    print("Update complete.")
+    logger.info("Update complete.")
     
     return 0
