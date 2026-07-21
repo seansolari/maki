@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional
 
 from ete4 import NCBITaxa
-from .base import BaseTaxonomy, TaxidSearchResult
+from .base import BaseTaxonomy, TaxidNotFound
 
 
 class NCBITaxonomy(BaseTaxonomy):
@@ -27,19 +27,17 @@ class NCBITaxonomy(BaseTaxonomy):
       
         if value.isdigit():
             name = self.ncbi.get_taxid_translator([value])
-            
             if not name:
-                raise ValueError(f"Could not identify taxid: '{value}'")
+                raise TaxidNotFound(value)
             
-            return TaxidSearchResult(value, True)
+            return value
 
         # resolve name → taxid
         res = self.ncbi.get_name_translator([value])
-
         if not res:
-            raise ValueError(f"Could not resolve taxonomy name: '{value}'")
+            raise TaxidNotFound(value)
 
-        return TaxidSearchResult(res[value][0], True)
+        return res[value][0]
 
     def get_lineage(self, taxid):
         assert self.ncbi, "Missing taxonomy data."

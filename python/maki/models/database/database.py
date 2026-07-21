@@ -5,10 +5,11 @@ from enum import Enum
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy
 from maki.models.taxonomy.base import TaxonomyUnresolvedRankException, resolve_accession_taxids
+from maki.models.taxonomy.gtdb import GTDBRelease
 from .archive import XzArchive, RawArchive
 from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, read_manifest
 
@@ -33,6 +34,7 @@ class DatabaseOptions:
     rank: str
     update_mode: UpdateMode
     tax: TaxonomySource
+    tax_releases: Optional[str]
 
 
 class _Database:
@@ -69,26 +71,44 @@ class StaticDatabase(_Database):
         return StaticDatabase(root, meta["kmer_size"], meta["rank"], UpdateMode[meta["update_mode"]], XzArchive(root / "clusters.tar.xz"), cls._init_taxonomy(root, TaxonomySource[meta["taxonomy_source"]]), cls.read_manifest(root))
   
     @classmethod
-    def create(cls, db_otps: DatabaseOptions):
-        db_otps.root.mkdir(parents=True, exist_ok=True)
+    def create(cls, db_opts: DatabaseOptions):
+        db_opts.root.mkdir(parents=True, exist_ok=True)
         
-        clusters = XzArchive(db_otps.root / "clusters.tar.xz")
-        taxonomy = cls._init_taxonomy(db_otps.root, db_otps.tax)
+        clusters = XzArchive(db_opts.root / "clusters.tar.xz")
+        taxonomy = cls._init_taxonomy(db_opts.root, db_opts.tax, db_opts.tax_releases)
         manifest = Manifest[GenomeRecord]()
         
-        result = cls(db_otps.root, db_otps.kmer_size, db_otps.rank, db_otps.update_mode, clusters, taxonomy, manifest)
+        result = cls(db_opts.root, db_opts.kmer_size, db_opts.rank, db_opts.update_mode, clusters, taxonomy, manifest)
         result.preserve()
         
         return result
     
     @staticmethod
-    def _init_taxonomy(root: Path, source: TaxonomySource) -> BaseTaxonomy:
+    def _init_taxonomy(root: Path, source: TaxonomySource, release_str: Optional[str] = None) -> BaseTaxonomy:
         if source == TaxonomySource.ncbi:
             taxonomy = NCBITaxonomy(root)
         else:
-            taxonomy = GTDBTaxonomy(root)
+            versions = []
+            
+            if release_str:
+                release_str = release_str.strip()
+                if ',' in release_str:
+                    requested_releases = release_str.split(',')
+                elif ' ' in release_str:
+                    requested_releases = release_str.split()
+                else:
+                    requested_releases = [release_str]
+                
+                for request in requested_releases:
+                    try:
+                        versions.append(GTDBRelease[request])
+                    except KeyError:
+                        err = f"Unrecognised taxonomy release ({request}), available values are: {','.join(m.name for m in GTDBRelease)}"
+                        logger.error(err)
+                        raise ValueError(err)
+            
+            taxonomy = GTDBTaxonomy(root, releases=versions or None)
 
-        taxonomy.ensure_downloaded()
         return taxonomy
       
     def preserve(self):
@@ -164,18 +184,8 @@ class WriteableDatabase(_Database):
         grouped: Dict[str, List[str]] = {}
         
         for record in package.records():
-            taxid = taxids.get(record.accession)
-            
-            if taxid:
-                try:
-                    ancestor = self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
-                except TaxonomyUnresolvedRankException:
-                    logger.warning(f"Could not resolve ancestor of {taxid} at {self.rank}, using {taxid}")
-                    ancestor = taxid
-            else:
-                logger.warning(f"Taxid not found for {record.accession}, grouping by taxonomy ({record.taxonomy})")
-                ancestor = record.taxonomy
-            
+            taxid = taxids[record.accession]
+            ancestor = self.taxonomy.get_ancestor_at_rank(taxid, self.rank)
             l = self.taxonomy.get_lineage(ancestor)
             key = "unknown" if not l else "/".join(l).replace(" ", "_")
             grouped.setdefault(key, []).append(record.accession)

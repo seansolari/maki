@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from maki.models.taxonomy.base import Ranks
 import typer
@@ -33,13 +33,14 @@ def build(
     threads: int = typer.Option(4),
     mode: Annotated[mdb.UpdateMode, typer.Option(help="Build mode")] = mdb.UpdateMode.fixed,
     taxonomy: Annotated[mdb.TaxonomySource, typer.Option(help="Taxonomy database")] = mdb.TaxonomySource.gtdb,
+    releases: Optional[str] = typer.Option(None, help="Taxonomy release to use"),
     force: bool = False,
     dry_run: bool = False
 ):
     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
-    return build_impl(manifest, db_path, kmer_size, suffix_size, rank, threads, mode, taxonomy, force, dry_run)
+    return build_impl(manifest, db_path, kmer_size, suffix_size, rank, threads, mode, taxonomy, releases, force, dry_run)
 
 
 @app.command(help="""

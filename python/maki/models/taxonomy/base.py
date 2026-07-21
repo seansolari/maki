@@ -1,10 +1,9 @@
 
 from abc import abstractmethod
-from dataclasses import dataclass
 from enum import Enum
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -18,12 +17,10 @@ class Ranks(str, Enum):
     Class = "class"
     Phylum = "phylum"
     SuperKingdom = "superkingdom"
-
-
-@dataclass(frozen=True)
-class TaxidSearchResult:
-    result: str
-    found: bool
+    
+    
+class TaxidNotFound(Exception):
+    pass
 
 
 class BaseTaxonomy:
@@ -35,12 +32,7 @@ class BaseTaxonomy:
         self.tax_root.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
-    def ensure_downloaded(self):
-        """Ensure taxonomy database exists locally (no re-download if present)."""
-        pass
-
-    @abstractmethod
-    def resolve_taxid(self, value: str) -> TaxidSearchResult:
+    def resolve_taxid(self, value: str) -> str:
         """
         Accepts taxid OR name.
         Returns taxid.
@@ -62,11 +54,16 @@ class TaxonomyUnresolvedRankException(Exception):
       
 def resolve_accession_taxids(records: Iterable[Tuple[str, str]], taxonomy: BaseTaxonomy):
     result: Dict[str, str] = {}
+    unresolved: List[str] = []
 
     for acc, taxid in records:
-        qry = taxonomy.resolve_taxid(taxid)
-        if not qry.found:
-            logger.warning(f"Could not resolve {acc} taxid {taxid}, using {qry.result}")
-        result[acc] = qry.result
+        try:
+            result[acc] = taxonomy.resolve_taxid(taxid)
+        except TaxidNotFound:
+            logger.warning(f"Could not resolve {acc} taxid {taxid}")
+            unresolved.append(taxid)
+    
+    if unresolved:
+        raise TaxidNotFound(f"{';'.join(unresolved[:5])}{'...' if len(unresolved) > 5 else ''}")
 
     return result

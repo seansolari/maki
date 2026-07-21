@@ -1,6 +1,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 import maki.models.database as mdb
 from maki.models.database.manifest import DatabasePackage
 
@@ -8,12 +9,12 @@ from maki.models.database.manifest import DatabasePackage
 logger = logging.getLogger(__name__)
 
 
-def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, suffix_size: int, rank: str, threads: int, mode: mdb.UpdateMode, taxonomy: mdb.TaxonomySource, force: bool = False, dry_run: bool = False):
+def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, suffix_size: int, rank: str, threads: int, mode: mdb.UpdateMode, taxonomy: mdb.TaxonomySource, tax_releases: Optional[str] = None, force: bool = False, dry_run: bool = False):
     if db_path.exists() and not force:
         logger.error("Build directory %s already exists.", db_path)
         return 1
   
-    opts = mdb.DatabaseOptions(db_path, kmer_size, rank, mode, taxonomy)
+    opts = mdb.DatabaseOptions(db_path, kmer_size, rank, mode, taxonomy, tax_releases)
     db = mdb.StaticDatabase.create(opts)
     logger.info("Database initialised at %s.", db_path)
     
