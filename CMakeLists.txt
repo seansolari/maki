@@ -20,7 +20,7 @@ include (maki-config-version)
 
 project (maki
          LANGUAGES CXX
-         VERSION 2.0.0
+         VERSION 2.0.1
          DESCRIPTION "metagenomics using an annotated k-mer index"
          HOMEPAGE_URL "https://github.com/seansolari/maki-engine"
          )

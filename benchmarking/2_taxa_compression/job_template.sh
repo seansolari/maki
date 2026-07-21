@@ -20,7 +20,16 @@ mkdir -p {outdir}
 # Run benchmark
 /usr/bin/time -v -o {outdir}/time.txt \
     bash -c "
-        maki to-graph {manifest} {k} {s} {threads} {outdir}/index \
+        maki build \
+            --manifest-path {manifest} \
+            --db-path {outdir}/index \
+            --kmer-size {k} \
+            --suffix-size {s} \
+            --rank {rank} \
+            --threads {threads} \
+            --taxonomy {taxonomy} \
+            --releases {releases} \
+            --force \
         > {outdir}/stdout.txt \
         2> {outdir}/stderr.txt
     "
@@ -32,7 +41,7 @@ du -bsh {outdir}/index > {outdir}/index-space.txt
 rm -rf {outdir}/index
 
 # Diagnostics
-echo {n} {k} {s} {threads} > {outdir}/params.txt
+echo {manifest} {k} {s} {rank} {threads} > {outdir}/params.txt
 hostname > {outdir}/host.txt
 date > {outdir}/date.txt
 
