@@ -8,6 +8,23 @@ version = "2.0.1"
 description = "Metagenomics using an Annotated K-mer Index"
 authors = [{name="Sean Solari"}]
 
+dependencies = [
+    "typer",
+    "tqdm",
+    "requests",
+    "ete4"
+]
+
+[project.optional-dependencies]
+benchmark = [
+    "psutil>=6.0"
+]
+
+benchmark-cloud = [
+    "psutil>=6.0",
+    "azure-storage-blob>=12.0"
+]
+
 [tool.scikit-build]
 wheel.packages = ["python/maki"]
 cmake.build-type = "Release"

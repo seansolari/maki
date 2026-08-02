@@ -3,7 +3,7 @@ from abc import abstractmethod
 from enum import Enum
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple
+from typing import Dict, Iterable, Set, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -46,12 +46,12 @@ class BaseTaxonomy:
     @abstractmethod
     def get_ancestor_at_rank(self, taxid: str, rank: str) -> str:
         pass
-      
-      
+
+
 class TaxonomyUnresolvedRankException(Exception):
     pass
-      
-      
+
+
 def resolve_accession_taxids(records: Iterable[Tuple[str, str]], taxonomy: BaseTaxonomy):
     result: Dict[str, str] = {}
     unresolved: Set[str] = set()
@@ -60,7 +60,7 @@ def resolve_accession_taxids(records: Iterable[Tuple[str, str]], taxonomy: BaseT
         try:
             result[acc] = taxonomy.resolve_taxid(taxid)
         except TaxidNotFound:
-            logger.warning(f"Could not resolve {acc} taxid {taxid}")
+            logger.warning("Could not resolve %s taxid %s", acc, taxid)
             unresolved.add(taxid)
     
     if unresolved:
