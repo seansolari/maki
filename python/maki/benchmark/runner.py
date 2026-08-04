@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import uuid
 
+from maki.benchmark.datasets.base import BenchmarkDataset
+from maki.benchmark.datasets.materializer import DatasetMaterializer
+
 from .metadata import collect_metadata
 from .metrics import MetricsCollector
-from .schema import BenchmarkMetrics, Dataset, PhaseBenchmarkResult, WorkflowBenchmarkResult
+from .schema import BenchmarkMetrics, PhaseBenchmarkResult, WorkflowBenchmarkResult
 from .stores.base import ResultStore
-from .workloads import BenchmarkWorkflow
+from .workflow import BenchmarkWorkflow
 
 
 class BenchmarkRunner:
@@ -14,9 +17,10 @@ class BenchmarkRunner:
     def run_workflow(
         self,
         workflow: BenchmarkWorkflow,
-        dataset: Dataset,
+        dataset: BenchmarkDataset,
         *,
         threads: int = 1,
+        materializer: DatasetMaterializer | None = None,
         store: ResultStore | None = None,
     ) -> WorkflowBenchmarkResult:
         """
@@ -40,16 +44,17 @@ class BenchmarkRunner:
         workflow_peak_rss = 0
 
         current = dataset
+        
+        if materializer is not None:
+            current = materializer.materialize(current)
 
         for phase in workflow.phases():
 
             collector = MetricsCollector()
-
+            
             collector.start()
 
-            current = phase.execute(
-                current
-            )
+            current = phase.execute(current)
 
             (
                 wall_time,
@@ -86,7 +91,7 @@ class BenchmarkRunner:
 
         result = WorkflowBenchmarkResult(
             workflow_name=workflow.name,
-            dataset_id=dataset.id,
+            dataset_id=dataset.dataset_id,
             phase_results=phase_results,
             total_metrics=total_metrics,
             metadata=metadata,

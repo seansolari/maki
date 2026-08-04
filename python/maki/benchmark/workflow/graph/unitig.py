@@ -1,5 +1,5 @@
-from maki.benchmark.workloads.base import BenchmarkPhase, BenchmarkWorkflow
-from maki.benchmark.workloads.graph.build import BuildGraphPhase
+from maki.benchmark.workflow.base import BenchmarkPhase, BenchmarkWorkflow
+from maki.benchmark.workflow.graph.build import BuildGraphPhase
 
 
 class UnitigTransformPhase(BenchmarkPhase):
@@ -7,10 +7,7 @@ class UnitigTransformPhase(BenchmarkPhase):
     def name(self):
         return "unitig_transform"
 
-    def execute(
-        self,
-        data,
-    ):
+    def execute(self, data,):
         return UnitigView(data)
       
 

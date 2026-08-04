@@ -1,4 +1,4 @@
-from maki.benchmark.workloads.base import BenchmarkPhase, BenchmarkWorkflow
+from maki.benchmark.workflow.base import BenchmarkPhase, BenchmarkWorkflow
 
 
 class BuildGraphPhase(BenchmarkPhase):

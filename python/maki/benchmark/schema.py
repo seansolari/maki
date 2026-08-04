@@ -4,16 +4,6 @@ from dataclasses import asdict, dataclass
 
 
 @dataclass(slots=True)
-class DatasetReference:
-    id: str
-
-
-@dataclass(slots=True)
-class Dataset:
-    id: DatasetReference
-
-
-@dataclass(slots=True)
 class BenchmarkMetrics:
     wall_time_seconds: float
     cpu_time_seconds: float
@@ -55,7 +45,7 @@ class WorkflowBenchmarkResult:
     Benchmark results for an entire workflow.
     """
     workflow_name: str
-    dataset_id: DatasetReference
+    dataset_id: str
     phase_results: list[PhaseBenchmarkResult]
     total_metrics: BenchmarkMetrics
     metadata: BenchmarkMetadata
@@ -65,7 +55,7 @@ class WorkflowBenchmarkResult:
     def to_dict(self) -> dict:
         return {
             "workflow_name": self.workflow_name,
-            "dataset_id": asdict(self.dataset_id),
+            "dataset_id": self.dataset_id,
             "phase_results": [
                 p.to_dict()
                 for p in self.phase_results
