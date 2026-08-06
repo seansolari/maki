@@ -2,26 +2,21 @@ from __future__ import annotations
 
 import uuid
 
-from maki.benchmark.datasets.base import BenchmarkDataset
-from maki.benchmark.datasets.materializer import DatasetMaterializer
-
 from .metadata import collect_metadata
 from .metrics import MetricsCollector
 from .schema import BenchmarkMetrics, PhaseBenchmarkResult, WorkflowBenchmarkResult
-from .stores.base import ResultStore
-from .workflow import BenchmarkWorkflow
 
 
 class BenchmarkRunner:
 
     def run_workflow(
         self,
-        workflow: BenchmarkWorkflow,
-        dataset: BenchmarkDataset,
+        workflow,
+        dataset=None,
         *,
-        threads: int = 1,
-        materializer: DatasetMaterializer | None = None,
-        store: ResultStore | None = None,
+        threads=1,
+        store=None,
+        materializer_registry=None,
     ) -> WorkflowBenchmarkResult:
         """
         Execute all workflow phases.
@@ -34,6 +29,17 @@ class BenchmarkRunner:
         metadata = collect_metadata(
             threads=threads,
         )
+        
+        current = dataset
+        dataset_id = None
+    
+        if dataset is not None:
+            dataset_id = getattr(dataset, "dataset_id", None)
+    
+            if materializer_registry is not None:
+                materializer = materializer_registry.get(dataset)
+                materialized = materializer.materialize(dataset)
+                current = materialized
 
         phase_results: list[
             PhaseBenchmarkResult
@@ -42,11 +48,6 @@ class BenchmarkRunner:
         workflow_wall = 0.0
         workflow_cpu = 0.0
         workflow_peak_rss = 0
-
-        current = dataset
-        
-        if materializer is not None:
-            current = materializer.materialize(current)
 
         for phase in workflow.phases():
 
@@ -91,7 +92,7 @@ class BenchmarkRunner:
 
         result = WorkflowBenchmarkResult(
             workflow_name=workflow.name,
-            dataset_id=dataset.dataset_id,
+            dataset_id=dataset_id,
             phase_results=phase_results,
             total_metrics=total_metrics,
             metadata=metadata,

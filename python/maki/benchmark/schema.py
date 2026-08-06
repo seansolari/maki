@@ -45,7 +45,7 @@ class WorkflowBenchmarkResult:
     Benchmark results for an entire workflow.
     """
     workflow_name: str
-    dataset_id: str
+    dataset_id: str | None
     phase_results: list[PhaseBenchmarkResult]
     total_metrics: BenchmarkMetrics
     metadata: BenchmarkMetadata
