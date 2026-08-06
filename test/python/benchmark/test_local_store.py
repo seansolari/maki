@@ -1,7 +1,7 @@
 import json
 
 from maki.benchmark import BenchmarkRunner
-from maki.benchmark.stores.local import LocalResultStore
+from maki.benchmark.results.stores.local import LocalResultStore
 
 
 def test_result_file_written(tmp_path):

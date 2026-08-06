@@ -1,4 +1,4 @@
-from maki.benchmark.metadata import collect_metadata
+from maki.benchmark.results.metadata import collect_metadata
 
 
 def test_metadata_populated():
