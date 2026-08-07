@@ -8,10 +8,14 @@ class UnitigTransformPhase(BenchmarkPhase):
         return "unitig_transform"
 
     def execute(self, data,):
-        return UnitigView(data)
+        ...
       
 
 class UnitigWorkflow(BenchmarkWorkflow):
+    @property
+    def compatible_data_types(self) -> list[str]:
+        return ["shotgun_metagenomic"]
+    
     @property
     def name(self):
         return "unitig_workflow"

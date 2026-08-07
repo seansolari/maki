@@ -10,15 +10,14 @@ class BuildGraphPhase(BenchmarkPhase):
         self,
         data,
     ):
-        return (
-            WeightedDeBruijnGraph
-            .build(
-                data.reads
-            )
-        )
+        ...
         
         
 class GraphBuildWorkflow(BenchmarkWorkflow):
+    @property
+    def compatible_data_types(self) -> list[str]:
+        return ["shotgun_metagenomic"]
+    
     @property
     def name(self):
         return "graph_build"

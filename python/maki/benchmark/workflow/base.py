@@ -44,6 +44,11 @@ class BenchmarkWorkflow(ABC):
     The framework executes phases sequentially
     and automatically propagates outputs.
     """
+    
+    @property
+    @abstractmethod
+    def compatible_data_types(self) -> list[str]:
+        ...
 
     @property
     @abstractmethod
