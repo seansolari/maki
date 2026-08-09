@@ -83,11 +83,14 @@ def classify(
 
 
 @app.command(hidden=True)
-def to_graph(manifest: str, k: int, s: int, threads: int, database_path: str):
+def to_graph(manifest: str, k: int, s: int, threads: int, database_path: str | Path):
     import maki.core as mx
-    manifest = mx.read_manifest(manifest, mx.FileType.GFF3)
+    obj = mx.read_manifest(manifest, mx.FileType.GFF3)
+    
+    database_path = Path(database_path)
     opts = mx.build_opts(k, s, database_path, threads)
-    mx.construct_cdbg(manifest, opts)
+    
+    mx.construct_cdbg(obj, opts)
 
 
 def main():
@@ -96,4 +99,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    

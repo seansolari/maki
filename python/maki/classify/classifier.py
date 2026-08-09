@@ -36,7 +36,7 @@ class ClassifyThread:
             rp = mx.read_pair(str(self.sample.forward), str(self.sample.reverse))
             opts = mx.build_opts(kmer_size, 7, self.graph_dir, threads)
             
-            mx.construct_cdbg(rp, opts)
+            mx.construct_wdbg(rp, opts)
             
             (self.graph_dir / "index" / ".ready").touch()
         
