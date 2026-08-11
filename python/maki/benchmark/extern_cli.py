@@ -4,8 +4,6 @@ from typing import List, Optional
 
 import typer
 
-from ..catalog.manager import DatasetManager
-
 
 app = typer.Typer(help="Benchmarking on real datasets")
 
@@ -23,6 +21,8 @@ def list_datasets(
     """
     List available datasets, optionally filtered by metadata fields.
     """
+    from maki.benchmark.data.catalog.manager import DatasetManager
+    
     lib = DatasetManager(manifest, Path.cwd())
 
     matches = lib.list_datasets(
@@ -73,6 +73,8 @@ def run(
     This is intentionally minimal. Extend this function with your own
     download, cache, validation, and analysis logic.
     """
+    from maki.benchmark.data.catalog.manager import DatasetManager
+    
     lib = DatasetManager(manifest, cache_dir or Path.cwd())
     dataset = lib.get_dataset(dataset_id)
 

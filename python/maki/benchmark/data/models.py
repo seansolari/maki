@@ -19,12 +19,16 @@ class DatasetFile:
 
 
 @dataclass
-class Dataset:
+class DatasetReference:
     id: str
     name: str
     description: str | None
     domain: str
     data_type: str
+
+
+@dataclass
+class Dataset(DatasetReference):
     organism: str | None
     assay: str | None
     source: str | None

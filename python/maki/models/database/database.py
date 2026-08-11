@@ -1,30 +1,20 @@
 
 from __future__ import annotations
 from dataclasses import dataclass
-from enum import Enum
 import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from maki.models.enums import TaxonomySource, UpdateMode
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy
-from maki.models.taxonomy.base import TaxonomyUnresolvedRankException, resolve_accession_taxids
+from maki.models.taxonomy.base import resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
 from .archive import XzArchive, RawArchive
 from .manifest import DatabasePackage, GenomeRecord, Manifest, ManifestSchema, read_manifest
 
 
 logger = logging.getLogger(__name__)
-
-
-class UpdateMode(str, Enum):
-    fixed = "fixed"
-    updateable = "updateable"
-    
-
-class TaxonomySource(str, Enum):
-    gtdb = "gtdb"
-    ncbi = "ncbi"
 
 
 @dataclass(frozen=True)

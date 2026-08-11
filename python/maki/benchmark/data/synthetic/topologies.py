@@ -5,6 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 import random
 
+
+__all__ = [
+    "generate_bubbles",
+    "generate_deep_branching",
+    "generate_high_degree_repeats",
+    "generate_linear_chains",
+    "generate_random_sequences"
+]
+
 _DNA = "ACGT"
 
 

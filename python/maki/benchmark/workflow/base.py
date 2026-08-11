@@ -45,20 +45,30 @@ class BenchmarkWorkflow(ABC):
     and automatically propagates outputs.
     """
     
-    @property
+    registry = {}
+    
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+
+        name = getattr(cls, "name", None)
+        if isinstance(name, str):
+            BenchmarkWorkflow.registry[name] = cls
+    
+    @classmethod
+    def from_name(cls, name: str) -> "BenchmarkWorkflow":
+        try:
+            return BenchmarkWorkflow.registry[name]()
+        except KeyError:
+            raise TypeError(f"Unrecognosed workflow name: {name}")
+    
+    @staticmethod
     @abstractmethod
-    def compatible_data_types(self) -> list[str]:
+    def compatible_data_types() -> list[str]:
         ...
 
-    @property
+    @staticmethod
     @abstractmethod
-    def name(self) -> str:
-        ...
-
-    @abstractmethod
-    def phases(
-        self,
-    ) -> Sequence[BenchmarkPhase]:
+    def phases() -> Sequence[BenchmarkPhase]:
         """
         Return ordered workflow phases.
         """

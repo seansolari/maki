@@ -1,13 +1,9 @@
 from pathlib import Path
 from typing import Annotated, Optional
-
-from maki.models.taxonomy.base import Ranks
 import typer
-import maki.models.database as mdb
-from maki.classify.sample_manifest import SampleManifest
-from maki.classify.classifier import Classifier
 
-from .db import build as build_impl, update as update_impl
+from maki.models.enums import Ranks, TaxonomySource, UpdateMode
+from maki.benchmark.cli import app as bmark_app
 
 
 app = typer.Typer(
@@ -31,12 +27,15 @@ def build(
     suffix_size: int = typer.Option(6),
     rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
     threads: int = typer.Option(4),
-    mode: Annotated[mdb.UpdateMode, typer.Option(help="Build mode")] = mdb.UpdateMode.fixed,
-    taxonomy: Annotated[mdb.TaxonomySource, typer.Option(help="Taxonomy database")] = mdb.TaxonomySource.gtdb,
+    mode: Annotated[UpdateMode, typer.Option(help="Build mode")] = UpdateMode.fixed,
+    taxonomy: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
     releases: Optional[str] = typer.Option(None, help="Taxonomy release to use"),
     force: bool = False,
     dry_run: bool = False
 ):
+    import maki.models.database as mdb
+    from .db import build as build_impl
+    
     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
@@ -56,6 +55,9 @@ def update(
     suffix_size: int = typer.Option(6),
     threads: int = typer.Option(4, help="Parallel threads")
 ):
+    import maki.models.database as mdb
+    from .db import update as update_impl
+    
     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
@@ -75,6 +77,10 @@ def classify(
     output: Path = typer.Option(..., help="Output directory"),
     threads: int = typer.Option(4, help="Parallel classification"),
 ):
+    from maki.classify.sample_manifest import SampleManifest
+    from maki.classify.classifier import Classifier
+    import maki.models.database as mdb
+    
     db = mdb.StaticDatabase.load(db_path)
     samples = SampleManifest.from_csv(samples_path)
 
@@ -83,7 +89,7 @@ def classify(
 
 
 @app.command(hidden=True)
-def to_graph(manifest: str, k: int, s: int, threads: int, database_path: str | Path):
+def to_graph(manifest: str, k: int, s: int, threads: int, database_path: Path):
     import maki.core as mx
     obj = mx.read_manifest(manifest, mx.FileType.GFF3)
     
@@ -91,6 +97,9 @@ def to_graph(manifest: str, k: int, s: int, threads: int, database_path: str | P
     opts = mx.build_opts(k, s, database_path, threads)
     
     mx.construct_cdbg(obj, opts)
+
+
+app.add_typer(bmark_app, name="benchmark")
 
 
 def main():

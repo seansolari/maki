@@ -24,7 +24,7 @@ from .sequencing import (
 )
 
 
-from .dataset import SyntheticBenchmarkDataset, generate_synthetic_benchmark
+from .dataset import SyntheticBenchmarkDataset
 
 
 __all__ = [
@@ -40,5 +40,4 @@ __all__ = [
     "ShortUnpairedSimulator",
     "LongReadSimulator",
     "SyntheticBenchmarkDataset",
-    "generate_synthetic_benchmark",
 ]

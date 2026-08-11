@@ -1,5 +1,6 @@
 from maki.benchmark.workflow.base import BenchmarkPhase, BenchmarkWorkflow
-from maki.benchmark.workflow.graph.build import BuildGraphPhase
+
+from .build import BuildGraphPhase
 
 
 class UnitigTransformPhase(BenchmarkPhase):
@@ -12,15 +13,14 @@ class UnitigTransformPhase(BenchmarkPhase):
       
 
 class UnitigWorkflow(BenchmarkWorkflow):
-    @property
-    def compatible_data_types(self) -> list[str]:
-        return ["shotgun_metagenomic"]
+    name = "unitig_workflow"
     
-    @property
-    def name(self):
-        return "unitig_workflow"
+    @staticmethod
+    def compatible_data_types() -> list[str]:
+        return ["paired-end"]
 
-    def phases(self):
+    @staticmethod
+    def phases():
         return [
             BuildGraphPhase(),
             UnitigTransformPhase(),

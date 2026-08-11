@@ -3,13 +3,14 @@ import logging
 from pathlib import Path
 from typing import Optional
 import maki.models.database as mdb
+from maki.models.enums import TaxonomySource, UpdateMode
 from maki.models.database.manifest import DatabasePackage
 
 
 logger = logging.getLogger(__name__)
 
 
-def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, suffix_size: int, rank: str, threads: int, mode: mdb.UpdateMode, taxonomy: mdb.TaxonomySource, tax_releases: Optional[str] = None, force: bool = False, dry_run: bool = False):
+def build(manifest: DatabasePackage, db_path: Path, kmer_size: int, suffix_size: int, rank: str, threads: int, mode: UpdateMode, taxonomy: TaxonomySource, tax_releases: Optional[str] = None, force: bool = False, dry_run: bool = False):
     if db_path.exists() and not force:
         logger.error("Build directory %s already exists.", db_path)
         return 1

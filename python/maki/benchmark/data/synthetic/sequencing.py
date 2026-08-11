@@ -11,6 +11,13 @@ from typing import Sequence
 
 from .topologies import SyntheticSequence
 
+__all__ = [
+    "LongReadSimulator",
+    "SequencingSimulator",
+    "ShortPairedEndSimulator",
+    "ShortUnpairedSimulator"
+]
+
 _COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
 
 
@@ -90,7 +97,7 @@ class ShortUnpairedSimulator(SequencingSimulator):
 
     @property
     def data_type(self) -> str:
-        return "unpaired_metagenome"
+        return "unpaired"
 
     def __init__(self, *, read_length: int = 150, read_count: int = 10_000, **kwargs) -> None:
         super().__init__(read_length=read_length, read_count=read_count, **kwargs)
@@ -111,7 +118,7 @@ class ShortPairedEndSimulator(SequencingSimulator):
 
     @property
     def data_type(self) -> str:
-        return "shotgun_metagenome"
+        return "paired-end"
 
     def __init__(
         self,
@@ -151,7 +158,7 @@ class LongReadSimulator(SequencingSimulator):
 
     @property
     def data_type(self) -> str:
-        return "long_read_metagenome"
+        return "long-read"
 
     def __init__(
         self,

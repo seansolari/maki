@@ -9,6 +9,7 @@ These steps ensure an up-to-date version of `cmake`, and `gxx` compiler (at leas
 ```{console}
 $ mamba create -n [NAME] -c anaconda -c conda-forge cmake gcc gxx zlib tbb tbb-devel pybind11
 $ mamba activate [NAME]
+$ python -m pip install -e .
 ```
 
 ### Build using cmake

@@ -1,22 +1,11 @@
 
 from abc import abstractmethod
-from enum import Enum
 import logging
 from pathlib import Path
 from typing import Dict, Iterable, Set, Tuple
 
 
 logger = logging.getLogger(__name__)
-
-
-class Ranks(str, Enum):
-    Species = "species"
-    Genus = "genus"
-    Family = "family"
-    Order = "order"
-    Class = "class"
-    Phylum = "phylum"
-    SuperKingdom = "superkingdom"
     
     
 class TaxidNotFound(Exception):

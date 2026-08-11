@@ -1,5 +1,5 @@
-from .runner import BenchmarkRunner
+from .runner import run_workflow
 
 __all__ = [
-    "BenchmarkRunner",
+    "run_workflow",
 ]
