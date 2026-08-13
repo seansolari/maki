@@ -16,7 +16,7 @@ def list_workflows():
     from .workflow import BenchmarkWorkflow
     
     for workflow in BenchmarkWorkflow.registry.values():
-        typer.echo(f"{workflow.name}\t[{";".join(phase.name for phase in workflow.phases())}]\tsupports: {";".join(workflow.compatible_data_types())}")
+        typer.echo(f"{workflow.name}\t[{";".join(workflow.phase_names)}]\tsupports: {";".join(workflow.compatible_data_types)}")
 
 
 if __name__ == "__main__":

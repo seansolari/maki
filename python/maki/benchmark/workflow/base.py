@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Sequence
+from typing import Any, List, Sequence, Tuple
 
 
 class BenchmarkPhase(ABC):
@@ -12,16 +12,13 @@ class BenchmarkPhase(ABC):
     Implementations only perform computation.
     """
 
-    @property
-    @abstractmethod
-    def name(self) -> str:
-        """Human-readable phase identifier."""
+    name: str
 
     @abstractmethod
-    def execute(
+    def transform(
         self,
         data: Any,
-    ) -> Any:
+    ) -> Tuple[List[str], Any]:
         """
         Execute the phase.
 
@@ -47,6 +44,10 @@ class BenchmarkWorkflow(ABC):
     
     registry = {}
     
+    name: str
+    phase_names: list[str]
+    compatible_data_types: list[str]
+    
     def __init_subclass__(cls, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
 
@@ -55,20 +56,30 @@ class BenchmarkWorkflow(ABC):
             BenchmarkWorkflow.registry[name] = cls
     
     @classmethod
-    def from_name(cls, name: str) -> "BenchmarkWorkflow":
+    def from_name(cls, name: str, workflow_args: dict) -> "BenchmarkWorkflow":
         try:
-            return BenchmarkWorkflow.registry[name]()
+            workflow_type = BenchmarkWorkflow.registry[name]
         except KeyError:
             raise TypeError(f"Unrecognosed workflow name: {name}")
+        
+        workflow_args, missing_args, extra_args = workflow_type.validate_args(workflow_args)
+        if missing_args:
+            raise RuntimeError(f"Workflow {name} requires the following missing arguments: {", ".join(f"{arg}<{arg_type}>" for arg, arg_type in missing_args)}")
+        elif extra_args:
+            raise RuntimeError(f"Workflow {name} received unrecognised arguments: {", ".join(extra_args)}")
+        else:
+            return workflow_type(**workflow_args)
     
     @staticmethod
     @abstractmethod
-    def compatible_data_types() -> list[str]:
-        ...
+    def validate_args(args: dict) -> Tuple[dict, List[Tuple[str, str]], List[str]]:
+        """
+        Identify missing CLI arguments.
+        """
 
-    @staticmethod
     @abstractmethod
-    def phases() -> Sequence[BenchmarkPhase]:
+    def phases(self) -> Sequence[BenchmarkPhase]:
         """
         Return ordered workflow phases.
         """
+        

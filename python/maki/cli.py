@@ -91,12 +91,33 @@ def classify(
 @app.command(hidden=True)
 def to_graph(manifest: str, k: int, s: int, threads: int, database_path: Path):
     import maki.core as mx
-    obj = mx.read_manifest(manifest, mx.FileType.GFF3)
     
-    database_path = Path(database_path)
+    obj = mx.read_manifest(manifest, mx.FileType.GFF3)
     opts = mx.build_opts(k, s, database_path, threads)
     
     mx.construct_cdbg(obj, opts)
+    
+    return 0
+    
+
+@app.command(hidden=True)
+def sample_to_debruijn(forward: str, reverse: str, k: int, s: int, threads: int, out: Path):
+    import os
+    import maki.core as mx
+    
+    if not os.path.exists(forward):
+        typer.echo(f"Error: file does not exist: {forward}", err=True)
+        return 1
+    
+    if not os.path.exists(reverse):
+        typer.echo(f"Error: file does not exist: {reverse}", err=True)
+        return 1
+    
+    rp = mx.read_pair(forward, reverse)
+    opts = mx.build_opts(k, s, out, threads)
+    mx.construct_wdbg(rp, opts)
+    
+    return 0
 
 
 app.add_typer(bmark_app, name="benchmark")

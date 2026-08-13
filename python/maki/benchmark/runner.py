@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Optional
 import uuid
 
@@ -28,49 +29,34 @@ def run_workflow(
     current = dataset
     dataset_id = None
     
-    if (None if not dataset else dataset.data_type) not in workflow.compatible_data_types():
+    if (None if not dataset else dataset.data_type) not in workflow.compatible_data_types:
         raise RuntimeError(
             f"Workflow [{getattr(workflow, "name", "")}] is incompatible with dataset type "
             f"{None if not dataset else dataset.data_type}, requires one "
-            f"of [{", ".join(workflow.compatible_data_types())}]."
+            f"of [{", ".join(workflow.compatible_data_types)}]."
         )
 
     if dataset is not None:
         dataset_id = dataset.id
         
         mgr = materialise.DatasetMaterialiser.from_dataset(dataset)(**kwargs)
-        materialised = mgr.materialise(dataset)
-        current = materialised
+        current = mgr.materialise(dataset)
 
     metadata = collect_metadata(
         threads=threads,
     )
     
+    time_cmd = TimeWrapper()
     phase_results: list[PhaseBenchmarkResult] = []
     
-    workflow_wall = 0.0
-    workflow_cpu = 0.0
-    workflow_peak_rss = 0
-
     for phase in workflow.phases():
-
-        collector = MetricsCollector()
+        cmd, next_data = phase.transform(current)
         
-        collector.start()
-
-        current = phase.execute(current)
-
-        (
-            wall_time,
-            cpu_time,
-            peak_rss,
-        ) = collector.stop()
-
-        metrics = BenchmarkMetrics(
-            wall_time_seconds=wall_time,
-            cpu_time_seconds=cpu_time,
-            peak_rss_bytes=peak_rss,
-        )
+        if isinstance(current, AbstractContextManager):
+            with current:
+                metrics = time_cmd.run(cmd)
+        else:
+            metrics = time_cmd.run(cmd)
 
         phase_results.append(
             PhaseBenchmarkResult(
@@ -78,20 +64,10 @@ def run_workflow(
                 metrics=metrics,
             )
         )
-
-        workflow_wall += wall_time
-        workflow_cpu += cpu_time
-
-        workflow_peak_rss = max(
-            workflow_peak_rss,
-            peak_rss,
-        )
-
-    total_metrics = BenchmarkMetrics(
-        wall_time_seconds=workflow_wall,
-        cpu_time_seconds=workflow_cpu,
-        peak_rss_bytes=workflow_peak_rss,
-    )
+        
+        current = next_data
+    
+    total_metrics = BenchmarkMetrics.aggregate(r.metrics for r in phase_results)
 
     result = WorkflowBenchmarkResult(
         workflow_name=getattr(workflow, "name", ""),

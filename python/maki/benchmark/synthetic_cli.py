@@ -16,6 +16,16 @@ from maki.benchmark.data.enums import SyntheticSequencingDatasetType
 from maki.benchmark.workflow.cli import Workflow
 
 
+def parse_workflow_args(ctx: typer.Context):
+    extra_options = {}
+    it = iter(ctx.args)
+    for item in it:
+        if item.startswith("-"):
+            key = item.lstrip("-").replace("-", "_")
+            extra_options[key] = next(it, True)
+    return extra_options
+
+
 app = typer.Typer(
     help="Lightweight synthetic sequence data for graph benchmarks.",
     no_args_is_help=True,
@@ -25,7 +35,7 @@ app = typer.Typer(
 SEQUENCING_OPTS_PANEL = "Sequencing Simulation Options"
 SequencingKind = Annotated[
     SyntheticSequencingDatasetType,
-    typer.Option("--sequencing", "-s",
+    typer.Option("--sequencing",
                  help="Sequencing output type: paired-end, unpaired, or long-read.",
                  rich_help_panel=SEQUENCING_OPTS_PANEL)
 ]
@@ -67,9 +77,9 @@ SequenceCount = Annotated[
                  help="Number of linear sequences to generate.",
                  rich_help_panel=GENERATION_OPTS_PANEL),
 ]
-KmerSize = Annotated[
+GenKmerSize = Annotated[
     int,
-    typer.Option("-k", "--kmer-size",
+    typer.Option("--gen-kmer-size",
                  help="Intended graph k-mer size.",
                  rich_help_panel=GENERATION_OPTS_PANEL),
 ]
@@ -119,8 +129,9 @@ OutputPrefix = Annotated[
 ]
 
 
-@app.command("linear-chain")
+@app.command("linear-chain", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def linear_chain(
+    ctx: typer.Context,
     workflow: Workflow,
     sequence_count: SequenceCount = 4,
     length: SequenceLength = 2_000,
@@ -134,14 +145,17 @@ def linear_chain(
     output_dir: OutputDir = None,
     prefix: OutputPrefix = "synthetic_linear_chain",
 ) -> None:
+    """Generate long linear chains that favour simple graph paths."""
+    
     from maki.benchmark.data.materialise.synthetic import SyntheticDatasetToken
     from maki.benchmark.data.synthetic.sequencing_registry import SequencingSimulatorOptions
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
     
-    """Generate long linear chains that favour simple graph paths."""
-    workflow_mgr = BenchmarkWorkflow.from_name(workflow)
+    extra_args = parse_workflow_args(ctx)
+    workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
+    
     token = SyntheticDatasetToken(
         id="linear-chain",
         name="Linear Chain",
@@ -164,10 +178,11 @@ def linear_chain(
     print(result.to_json())
 
 
-@app.command("bubble")
+@app.command("bubble", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def bubble(
+    ctx: typer.Context,
     workflow: Workflow,
-    k: KmerSize = 31,
+    k: GenKmerSize = 31,
     sequence_count: SequenceCount = 4,
     branch_length: BranchLength = 120,
     topology_seed: TopologySeed = 1,
@@ -187,7 +202,10 @@ def bubble(
     from maki.benchmark.workflow.base import BenchmarkWorkflow
     
     """Generate shared-flank divergent branches that form graph bubbles."""
-    workflow_mgr = BenchmarkWorkflow.from_name(workflow)
+
+    extra_args = parse_workflow_args(ctx)
+    workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
+    
     token = SyntheticDatasetToken(
         id="bubble",
         name="Bubble",
@@ -210,10 +228,11 @@ def bubble(
     print(result.to_json())
 
 
-@app.command("deep-branching")
+@app.command("deep-branching", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def deep_branching(
+    ctx: typer.Context,
     workflow: Workflow,
-    k: KmerSize = 31,
+    k: GenKmerSize = 31,
     sequence_count: SequenceCount = 4,
     branch_count: BranchCount = 4,
     branch_length: BranchLength = 120,
@@ -234,7 +253,10 @@ def deep_branching(
     from maki.benchmark.workflow.base import BenchmarkWorkflow
         
     """Generate recursively shared anchors with nested branch segments."""
-    workflow_mgr = BenchmarkWorkflow.from_name(workflow)
+    
+    extra_args = parse_workflow_args(ctx)
+    workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
+        
     token = SyntheticDatasetToken(
         id="deep-branching",
         name="Deep Branching",
@@ -257,10 +279,11 @@ def deep_branching(
     print(result.to_json())
 
 
-@app.command("high-degree-repeat")
+@app.command("high-degree-repeat", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def high_degree_repeat(
+    ctx: typer.Context,
     workflow: Workflow,
-    k: KmerSize = 31,
+    k: GenKmerSize = 31,
     sequence_count: SequenceCount = 4,
     branch_length: BranchLength = 120,
     repeat_count: RepeatCount = 8,
@@ -281,7 +304,10 @@ def high_degree_repeat(
     from maki.benchmark.workflow.base import BenchmarkWorkflow
     
     """Generate repeated cores with unique spacers to create high-degree merges."""
-    workflow_mgr = BenchmarkWorkflow.from_name(workflow)
+    
+    extra_args = parse_workflow_args(ctx)
+    workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
+        
     token = SyntheticDatasetToken(
         id="high-degree-repeat",
         name="High Degree Repeat",
@@ -304,8 +330,9 @@ def high_degree_repeat(
     print(result.to_json())
 
 
-@app.command("random")
+@app.command("random", context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def random_sequences(
+    ctx: typer.Context,
     workflow: Workflow,
     sequence_count: SequenceCount = 4,
     length: SequenceLength = 2_000,
@@ -326,7 +353,10 @@ def random_sequences(
     from maki.benchmark.workflow.base import BenchmarkWorkflow
     
     """Generate random control sequences with no deliberate graph motif."""
-    workflow_mgr = BenchmarkWorkflow.from_name(workflow)
+    
+    extra_args = parse_workflow_args(ctx)
+    workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
+        
     token = SyntheticDatasetToken(
         id="random",
         name="Random",

@@ -119,6 +119,8 @@ WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
 
   LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
   LOG_INFO() << "Input chunks: " << data.size();
+
+  std::filesystem::create_directories(params.out);
   LOG_INFO() << "Output directory: " << params.out;
 
   TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",

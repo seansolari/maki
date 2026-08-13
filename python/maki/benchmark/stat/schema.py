@@ -1,13 +1,101 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from typing import Iterable
 
 
 @dataclass(slots=True)
 class BenchmarkMetrics:
-    wall_time_seconds: float
-    cpu_time_seconds: float
-    peak_rss_bytes: int
+    """
+    Statistics returned by GNU /usr/bin/time.
+    """
+
+    elapsed_seconds: float
+    user_seconds: float
+    system_seconds: float
+    cpu_percent: float
+
+    max_rss_kb: int
+
+    major_page_faults: int
+    minor_page_faults: int
+
+    voluntary_context_switches: int
+    involuntary_context_switches: int
+
+    filesystem_inputs: int
+    filesystem_outputs: int
+
+    exit_code: int
+
+    samples: int = 1
+
+    def __add__(self, other: "BenchmarkMetrics") -> "BenchmarkMetrics":
+        if not isinstance(other, BenchmarkMetrics):
+            return NotImplemented
+
+        total_samples = self.samples + other.samples
+
+        return BenchmarkMetrics(
+            elapsed_seconds=self.elapsed_seconds + other.elapsed_seconds,
+            user_seconds=self.user_seconds + other.user_seconds,
+            system_seconds=self.system_seconds + other.system_seconds,
+            cpu_percent=(
+                (self.cpu_percent * self.samples)
+                + (other.cpu_percent * other.samples)
+            )
+            / total_samples,
+            max_rss_kb=max(self.max_rss_kb, other.max_rss_kb),
+            major_page_faults=self.major_page_faults + other.major_page_faults,
+            minor_page_faults=self.minor_page_faults + other.minor_page_faults,
+            voluntary_context_switches=(
+                self.voluntary_context_switches
+                + other.voluntary_context_switches
+            ),
+            involuntary_context_switches=(
+                self.involuntary_context_switches
+                + other.involuntary_context_switches
+            ),
+            filesystem_inputs=(
+                self.filesystem_inputs + other.filesystem_inputs
+            ),
+            filesystem_outputs=(
+                self.filesystem_outputs + other.filesystem_outputs
+            ),
+            exit_code=other.exit_code,
+            samples=total_samples,
+        )
+
+    def __iadd__(self, other: "BenchmarkMetrics") -> "BenchmarkMetrics":
+        combined = self + other
+        self.__dict__.update(combined.__dict__)
+        return self
+
+    @classmethod
+    def aggregate(cls, stats: Iterable["BenchmarkMetrics"]) -> "BenchmarkMetrics":
+        iterator = iter(stats)
+
+        try:
+            result = next(iterator)
+        except StopIteration:
+            raise ValueError("No statistics supplied")
+
+        for item in iterator:
+            result = result + item
+
+        return result
+
+    @property
+    def average_elapsed_seconds(self) -> float:
+        return self.elapsed_seconds / self.samples
+
+    @property
+    def average_user_seconds(self) -> float:
+        return self.user_seconds / self.samples
+
+    @property
+    def average_system_seconds(self) -> float:
+        return self.system_seconds / self.samples
 
 
 @dataclass(slots=True)
