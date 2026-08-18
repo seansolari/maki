@@ -66,14 +66,12 @@ def run_workflow(
         )
         
         current = next_data
-    
-    total_metrics = BenchmarkMetrics.aggregate(r.metrics for r in phase_results)
 
     result = WorkflowBenchmarkResult(
         workflow_name=getattr(workflow, "name", ""),
         dataset_id=dataset_id,
         phase_results=phase_results,
-        total_metrics=total_metrics,
+        total_metrics=BenchmarkMetrics.aggregate(r.metrics for r in phase_results),
         metadata=metadata,
         run_id=str(uuid.uuid4()),
     )

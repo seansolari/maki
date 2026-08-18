@@ -7,7 +7,7 @@ from .synthetic_cli import app as synthetic_app
 app = typer.Typer(help="Benchmarking module")
 
 
-app.add_typer(real_data_app, name="dataset", help="Run benchmark on real dataset")
+app.add_typer(real_data_app)
 app.add_typer(synthetic_app, name="synthetic", help="Run synthetic benchmark")
 
 

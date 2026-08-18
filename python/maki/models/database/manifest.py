@@ -6,7 +6,7 @@ from dataclasses import dataclass, astuple, fields
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, Optional, Tuple, overload
 
-from maki.utils.io import open_maybe_gzip, write_maybe_gzip
+from maki.utils.io import open_maybe_gzip
 
 
 @dataclass
@@ -124,7 +124,7 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
             print(f"[warning] no records, not saving to {path}")
             return
       
-        with write_maybe_gzip(path) as f:
+        with open_maybe_gzip(path, "wt") as f:
             fh = csv.writer(f)
             
             fh.writerow((f.name for f in fields(first_record)))
@@ -142,7 +142,7 @@ def read_manifest[T: (ManifestSchema, GenomeSchema)](path: Path, schema: T) -> M
     T = GenomeData if isinstance(schema, GenomeSchema) else GenomeRecord
     result = Manifest[T]()
     
-    with open_maybe_gzip(path) as f:
+    with open_maybe_gzip(path, "rt") as f:
         reader = csv.DictReader(f)
         
         if not reader.fieldnames:

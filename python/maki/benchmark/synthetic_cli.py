@@ -16,16 +16,6 @@ from maki.benchmark.data.enums import SyntheticSequencingDatasetType
 from maki.benchmark.workflow.cli import Workflow
 
 
-def parse_workflow_args(ctx: typer.Context):
-    extra_options = {}
-    it = iter(ctx.args)
-    for item in it:
-        if item.startswith("-"):
-            key = item.lstrip("-").replace("-", "_")
-            extra_options[key] = next(it, True)
-    return extra_options
-
-
 app = typer.Typer(
     help="Lightweight synthetic sequence data for graph benchmarks.",
     no_args_is_help=True,
@@ -152,6 +142,7 @@ def linear_chain(
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
+    from maki.benchmark.workflow.cli import parse_workflow_args
     
     extra_args = parse_workflow_args(ctx)
     workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
@@ -200,6 +191,7 @@ def bubble(
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
+    from maki.benchmark.workflow.cli import parse_workflow_args
     
     """Generate shared-flank divergent branches that form graph bubbles."""
 
@@ -251,6 +243,7 @@ def deep_branching(
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
+    from maki.benchmark.workflow.cli import parse_workflow_args
         
     """Generate recursively shared anchors with nested branch segments."""
     
@@ -302,6 +295,7 @@ def high_degree_repeat(
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
+    from maki.benchmark.workflow.cli import parse_workflow_args
     
     """Generate repeated cores with unique spacers to create high-degree merges."""
     
@@ -351,6 +345,7 @@ def random_sequences(
     from maki.benchmark.data.synthetic import topologies
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
+    from maki.benchmark.workflow.cli import parse_workflow_args
     
     """Generate random control sequences with no deliberate graph motif."""
     

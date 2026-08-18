@@ -12,8 +12,13 @@ class DatasetMaterialiser(ABC):
         super().__init_subclass__(**kwargs)
 
         dtype = getattr(cls, "input_type", None)
-        if isinstance(dtype, Type):
-            DatasetMaterialiser.registry[dtype] = cls
+        
+        if not dtype:
+            raise TypeError(f"DatasetMaterialiser {cls} does not declare required `input_type` property.")
+        elif not isinstance(dtype, Type):
+            raise TypeError(f"DatasetMaterialiser {cls} `input_type` does not point to a type.")
+        
+        DatasetMaterialiser.registry[dtype] = cls
     
     @classmethod
     def from_type(cls, dtype: Type["DatasetReference"]) -> Type["DatasetMaterialiser"]:

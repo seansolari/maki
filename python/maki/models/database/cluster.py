@@ -38,7 +38,7 @@ def write_record_to(record: GenomeData, file: Path):
     with gzip.open(file, "wt") as f:
         # Write GFF
         if record.gff:
-            with open_maybe_gzip(Path(record.gff)) as gff:
+            with open_maybe_gzip(Path(record.gff), "rt") as gff:
                 for line in gff:
                     if "\tbakta\tregion\t" in line:
                         f.write(f"#{line}")
@@ -56,7 +56,7 @@ def write_record_to(record: GenomeData, file: Path):
         if not record.fasta:
             raise RuntimeError(f"No FASTA sequence supplied for {record.accession}")
         else:
-            with open_maybe_gzip(Path(record.fasta)) as fna:
+            with open_maybe_gzip(Path(record.fasta), "rt") as fna:
                 f.writelines(fna)
 
 

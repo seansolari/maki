@@ -21,7 +21,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 from .models import ASSEMBLY_SCHEMA, ASSEMBLY_BATCH_SCHEMA, BAKTA_BATCH_SCHEMA, BAKTA_SCHEMA
-from ..utils.io import open_maybe_gzip, md5sum, write_maybe_gzip
+from ..utils.io import open_maybe_gzip, md5sum
 from .lists import RemoteBatchFile
 
 
@@ -61,7 +61,7 @@ class Manifest:
         
     @classmethod
     def from_csv(cls, path: Path, *args, **kwargs):
-        with open_maybe_gzip(path) as f:
+        with open_maybe_gzip(path, "rt") as f:
             fieldnames: Optional[List[str]] = None
             
             # Parse metadata
@@ -96,7 +96,7 @@ class Manifest:
                     res.append(str((file.parent / "gff" / BaktaItem.dest(row)).with_suffix(".gff")))
                 yield res
         
-        with write_maybe_gzip(file) as f:
+        with open_maybe_gzip(file, "wt") as f:
             writer = csv.writer(f)
             writer.writerow(columns)
             writer.writerows(row_iter())

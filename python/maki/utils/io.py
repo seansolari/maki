@@ -1,7 +1,9 @@
 import gzip
 import hashlib
+import io
 import re
 from pathlib import Path
+from typing import Literal, overload
 
 
 def infer_delimiter(file_path: Path):
@@ -13,16 +15,22 @@ def infer_delimiter(file_path: Path):
       return "\t" if sfx[0] == "tsv" else ","
 
 
-def open_maybe_gzip(file_path: Path):
-    if file_path.suffix == ".gz":
-        return gzip.open(file_path, "rt")
-    return open(file_path, "r")
+@overload
+def open_maybe_gzip(path, mode: Literal["wt"]) -> io.TextIOWrapper:
+    ...
+    
+@overload
+def open_maybe_gzip(path, mode: Literal["rt"]) -> io.TextIOWrapper:
+    ...
 
-
-def write_maybe_gzip(file_path: Path):
-    if file_path.suffix == ".gz":
-        return gzip.open(file_path, "wt")
-    return open(file_path, "w")
+def open_maybe_gzip(path, mode="rt"):
+    """
+    Open plain text or gzip-compressed files based on filename suffix.
+    """
+    path = str(path)
+    if path.endswith(".gz"):
+        return gzip.open(path, mode)
+    return open(path, mode)
 
 
 def md5sum(path: Path, chunk_size: int = 8192):

@@ -23,6 +23,9 @@ print(paths)
 """
 
 
+LATEST_CATALOGUE = Path(__file__).parent.absolute() / "catalogue-AUG2026.json"
+
+
 class DatasetNotFoundError(Exception):
     pass
 
