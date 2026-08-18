@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "maki"
-version = "2.0.1"
+version = "2.0.2"
 description = "Metagenomics using an Annotated K-mer Index"
 authors = [{name="Sean Solari"}]
 

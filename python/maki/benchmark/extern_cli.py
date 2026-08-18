@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -35,6 +36,14 @@ Seed = Annotated[
                  rich_help_panel=DATASET_OPTS_PANEL)
 ]
 
+IO_OPTS_PANEL = "I/O Parameters"
+StatsFile = Annotated[
+    Path,
+    typer.Option("--stats-out",
+                 help="File to write stats.",
+                 rich_help_panel=IO_OPTS_PANEL)
+]
+
 
 @app.command(
     "run-pe",
@@ -49,6 +58,7 @@ def run_paired_end(
     forward: ForwardFile,
     reverse: ReverseFile,
     workflow: Workflow,
+    stats_out: StatsFile = Path("stats.json"),
     subsample: Subsample = None,
     seed: int = 1
 ):
@@ -80,7 +90,9 @@ def run_paired_end(
     )
     
     result = run_workflow(workflow_mgr, token, cleanup_on_exit=True)
-    print(result.to_json())
+    
+    with stats_out.open("wt") as f:
+        json.dump(result.to_dict(), f)
     
 
 if __name__ == "__main__":
