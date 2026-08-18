@@ -14,7 +14,6 @@ def run_workflow(
     workflow: "workflow.BenchmarkWorkflow",
     dataset: Optional["DatasetReference"] = None,
     *,
-    threads: int = 1,
     store = None,
     **kwargs
 ) -> WorkflowBenchmarkResult:
@@ -43,7 +42,7 @@ def run_workflow(
         current = mgr.materialise(dataset)
 
     metadata = collect_metadata(
-        threads=threads,
+        threads=getattr(workflow, "threads", 1),
     )
     
     time_cmd = TimeWrapper()

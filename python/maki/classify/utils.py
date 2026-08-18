@@ -15,8 +15,8 @@ class SampleNameComponents:
 
 def fastq_sample_name(file: Path):
     matches = re.match(
-        r"^(?P<sample_name>.+?)(?:[_.-](?P<lane>L\d+))?[_.-](?P<orientation>R?[12])"
-        r"(?:[_.-](?P<fragment>\d+))?(?P<suffix>\.(?:f(?:ast)?q)(?:\.gz)?)$",
+        r"^(?P<sample_name>.+?)(?:[_.-](?P<lane>L\d\d\d))?[_.-](?P<orientation>R?[12])"
+        r"(?:[_.-](?P<fragment>\d\d\d))?(?P<suffix>\.(?:f(?:ast)?q)(?:\.gz)?)$",
         file.name
     )
     

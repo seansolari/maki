@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import platform
 import socket
 import subprocess
@@ -13,7 +14,8 @@ def _git_value(args: list[str]) -> str | None:
     try:
         return subprocess.check_output(
             args,
-            text=True
+            text=True,
+            cwd=Path(__file__).parent
         ).strip()
     except Exception:
         return None

@@ -66,7 +66,6 @@ def run_paired_end(
     from maki.benchmark.runner import run_workflow
     from maki.benchmark.workflow.base import BenchmarkWorkflow
     from maki.benchmark.workflow.cli import parse_workflow_args
-    from maki.classify.utils import fastq_sample_name
     
     extra_args = parse_workflow_args(ctx)
     workflow_mgr = BenchmarkWorkflow.from_name(workflow, extra_args)
@@ -75,21 +74,8 @@ def run_paired_end(
         typer.echo(f"Workflow {workflow_mgr.name} does not accept paired-end data.", err=True)
         return 1
     
-    name_data = fastq_sample_name(forward)
-    
-    token = PairedEndDatasetToken(
-        id=name_data.sample_name,
-        name=name_data.sample_name,
-        description=None,
-        domain="metagenomics",
-        forward=forward,
-        reverse=reverse,
-        suffix=name_data.suffix,
-        subsample=subsample,
-        seed=seed
-    )
-    
-    result = run_workflow(workflow_mgr, token, cleanup_on_exit=True)
+    token = PairedEndDatasetToken.from_local("metagenomics", forward, reverse, subsample, seed)
+    result = run_workflow(workflow_mgr, token)
     
     with stats_out.open("wt") as f:
         json.dump(result.to_dict(), f)

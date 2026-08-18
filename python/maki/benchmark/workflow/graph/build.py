@@ -19,7 +19,7 @@ def validate_graph_build_extra_args(args: dict):
         try:
             parsed[arg] = arg_type(args[arg])
         except KeyError:
-            parsed[arg] = None
+            pass
     
     extra_args = [arg for arg in args if arg not in parsed]
     
@@ -81,12 +81,12 @@ class GraphBuildWorkflow(BenchmarkWorkflow):
     def validate_args(args: dict):
         return validate_graph_build_extra_args(args)
     
-    def __init__(self, k: int, s: int, threads: Optional[int] = None, graph_out: Optional[str] = None) -> None:
+    def __init__(self, k: int, s: int, threads: int = 1, graph_out: Optional[str] = None) -> None:
         super().__init__()
         
         self.k = k
         self.s = s
-        self.threads = threads or 1
+        self.threads = threads
         self.outdir = graph_out
 
     def phases(self):

@@ -8,6 +8,7 @@ from typing import Optional
 from maki.benchmark.data.local.dataset import LocalBenchmarkDataset
 from maki.benchmark.data.materialise.materialiser import DatasetMaterialiser
 from maki.benchmark.data.models import DatasetFile, DatasetReference
+from maki.classify.utils import fastq_sample_name
 from maki.utils.io import open_maybe_gzip
 
 
@@ -129,10 +130,33 @@ class PairedEndDatasetToken(DatasetReference):
     forward: Path
     reverse: Path
     suffix: str
-    data_type: str = "paired-end"
     
     subsample: Optional[int] = None
     seed: int = 1
+    
+    @classmethod
+    def from_local(
+        cls,
+        domain: str,
+        forward: Path,
+        reverse: Path,
+        subsample: Optional[int] = None,
+        seed: int = 1
+    ):
+        name_data = fastq_sample_name(forward)
+        
+        return cls(
+            id=name_data.sample_name,
+            name=name_data.sample_name,
+            description=None,
+            domain=domain,
+            data_type="paired-end",
+            forward=forward,
+            reverse=reverse,
+            suffix=name_data.suffix,
+            subsample=subsample,
+            seed=seed
+        )
     
     
 class LocalDatasetMaterialiser(DatasetMaterialiser):
