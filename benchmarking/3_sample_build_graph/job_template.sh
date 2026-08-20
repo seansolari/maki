@@ -5,8 +5,8 @@
 {email_region}
 #SBATCH --tasks=1
 #SBATCH --cpus-per-task={threads}
-#SBATCH --time=12:00:00
-#SBATCH --mem=128G
+#SBATCH --time=04:00:00
+#SBATCH --mem=64G
 
 set -euo pipefail
 

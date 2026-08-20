@@ -12,7 +12,8 @@ dependencies = [
     "typer",
     "tqdm",
     "requests",
-    "ete4"
+    "ete4",
+    "sourmash>=4.9,<5",
 ]
 
 [project.optional-dependencies]

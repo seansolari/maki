@@ -4,6 +4,7 @@ import typer
 
 from maki.models.enums import Ranks, TaxonomySource, UpdateMode
 from maki.benchmark.cli import app as bmark_app
+from maki.workflows.build import build_app
 
 
 app = typer.Typer(
@@ -11,6 +12,8 @@ app = typer.Typer(
          "Supports taxonomy-aware clustering, incremental updates, "
          "and parallel classification."
 )
+
+app.add_typer(build_app)
 
 
 @app.command(help="""
@@ -42,26 +45,26 @@ def build(
     return build_impl(manifest, db_path, kmer_size, suffix_size, rank, threads, mode, taxonomy, releases, force, dry_run)
 
 
-@app.command(help="""
-Update an existing database with new genomes.
-
-- Performs incremental diff vs current manifest
-- Only rebuilds affected clusters
-- Preserves unchanged indices
-""")
-def update(
-    manifest_path: Path = typer.Option(..., help="New genome manifest"),
-    db_path: Path = typer.Option(..., help="Existing database"),
-    suffix_size: int = typer.Option(6),
-    threads: int = typer.Option(4, help="Parallel threads")
-):
-    import maki.models.database as mdb
-    from .db import update as update_impl
-    
-    manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
-    typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
-    
-    return update_impl(manifest, db_path, suffix_size, threads)
+# @app.command(help="""
+# Update an existing database with new genomes.
+# 
+# - Performs incremental diff vs current manifest
+# - Only rebuilds affected clusters
+# - Preserves unchanged indices
+# """)
+# def update(
+#     manifest_path: Path = typer.Option(..., help="New genome manifest"),
+#     db_path: Path = typer.Option(..., help="Existing database"),
+#     suffix_size: int = typer.Option(6),
+#     threads: int = typer.Option(4, help="Parallel threads")
+# ):
+#     import maki.models.database as mdb
+#     from .db import update as update_impl
+#     
+#     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
+#     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
+#     
+#     return update_impl(manifest, db_path, suffix_size, threads)
 
 
 @app.command(help="""
