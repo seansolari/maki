@@ -3,14 +3,18 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 import csv
 from dataclasses import asdict
+from itertools import repeat
 import json
+import os
 from pathlib import Path
-from typing import Iterable, Iterator, Mapping, Sequence
+from typing import Iterator, Mapping, Sequence
 
+from maki.models.database.manifest import DatabasePackage, GenomeData
 from sourmash import MinHash, SourmashSignature
 
 from .core import (
     FORMAT_VERSION,
+    GenomeSketchRecord,
     SketchParameters,
     load_one_signature,
     new_minhash,
@@ -18,35 +22,42 @@ from .core import (
     save_one_signature,
     validate_signature
 )
-from maki.utils.io import read_fasta
+from maki.utils.io import read_fasta, read_fasta_from_gff
 
 
-def _sketch_worker(args: tuple[GenomeInput, SketchParameters, str]):
+def _sketch_worker(args: tuple[GenomeData, SketchParameters, str | Path]):
     genome, params, output_dir = args
 
-    sketch_name = safe_filename(genome.genome_id) + ".sig"
+    sketch_name = safe_filename(genome.accession) + ".sig"
     sketch_path = Path(output_dir) / sketch_name
 
     mh = new_minhash(params)
-
-    for _, sequence in read_fasta(genome.fasta_path):
+    
+    if genome.fasta:
+        it = read_fasta(genome.fasta)
+    elif genome.gff:
+        it = read_fasta_from_gff(genome.gff)
+    else:
+        raise RuntimeError(f"Genome record {genome.accession} did not supply FASTA or GFF data.")
+    
+    for _, sequence in it:
         # force=True skips k-mers containing ambiguous characters rather than
         # failing the complete genome.
         mh.add_sequence(sequence, force=True)
 
     if len(mh) == 0:
         raise ValueError(
-            f"Genome {genome.genome_id!r} produced an empty sketch"
+            f"Genome {genome.accession!r} produced an empty sketch"
         )
 
     signature = SourmashSignature(
         mh,
-        name=genome.genome_id,
-        filename=str(genome.fasta_path),
+        name=genome.accession,
+        filename=str(genome.fasta),
     )
     save_one_signature(signature, sketch_path)
 
-    return genome.genome_id, genome.fasta_path, str(sketch_path)
+    return genome.accession, genome.fasta, str(sketch_path)
 
 
 class GenomeClusterBuilder:
@@ -110,27 +121,15 @@ class GenomeClusterBuilder:
 
     def build(
         self,
-        genomes: Iterable[GenomeInput | tuple[str, str]],
-    ) -> list:
-        genome_inputs = [
-            item if isinstance(item, GenomeInput)
-            else GenomeInput(genome_id=item[0], fasta_path=item[1])
-            for item in genomes
-        ]
-
-        if not genome_inputs:
-            raise ValueError("No genomes were supplied")
-
-        genome_ids = [g.genome_id for g in genome_inputs]
+        data: DatabasePackage,
+    ) -> list[GenomeSketchRecord]:
+        genome_ids = [g.accession for g in data.records()]
         if len(genome_ids) != len(set(genome_ids)):
             raise ValueError("genome_id values must be unique")
 
         self.genome_sketch_dir.mkdir(parents=True, exist_ok=True)
 
-        sketch_jobs = [
-            (genome, self.params, str(self.genome_sketch_dir))
-            for genome in genome_inputs
-        ]
+        sketch_jobs = zip(data.iter_all(), repeat(self.params), repeat(self.genome_sketch_dir))
 
         with ProcessPoolExecutor(max_workers=self.processes) as executor:
             sketched = list(executor.map(_sketch_worker, sketch_jobs))
@@ -143,14 +142,14 @@ class GenomeClusterBuilder:
     def _cluster_sketches(
         self,
         sketched: Sequence[tuple[str, str, str]],
-    ) -> list:
+    ) -> list[GenomeSketchRecord]:
         # cluster_id -> representative signature
         representatives: dict[int, SourmashSignature] = {}
 
         # band key -> cluster IDs
         band_index: dict[tuple[int, ...], list[int]] = defaultdict(list)
 
-        records: list[GenomeRecord] = []
+        records: list[GenomeSketchRecord] = []
         next_cluster_id = 0
 
         for genome_id, fasta_path, sketch_path in sketched:
@@ -198,9 +197,8 @@ class GenomeClusterBuilder:
                 )
 
             records.append(
-                GenomeRecord(
+                GenomeSketchRecord(
                     genome_id=genome_id,
-                    fasta_path=fasta_path,
                     sketch_path=sketch_path,
                     cluster_id=best_cluster,
                 )
@@ -212,7 +210,7 @@ class GenomeClusterBuilder:
         self,
         mh: MinHash,
         band_index: Mapping[tuple[int, ...], list[int]],
-    ) -> list:
+    ) -> list[int]:
         counts: dict[int, int] = defaultdict(int)
 
         for key in self._band_keys(mh):
@@ -271,20 +269,19 @@ class GenomeClusterBuilder:
         x = (2.0 * jaccard) / (1.0 + jaccard)
         return x ** (1.0 / ksize)
 
-    def _write_outputs(self, assignments: Sequence[GenomeRecord]) -> None:
+    def _write_outputs(self, assignments: Sequence[GenomeSketchRecord]) -> None:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         with self.assignments_path.open("wt", newline="") as fp:
             writer = csv.writer(fp, delimiter="\t")
             writer.writerow(
-                ["genome_id", "fasta_path", "sketch_path", "cluster_id"]
+                ["genome_id", "sketch_path", "cluster_id"]
             )
 
             for record in assignments:
                 writer.writerow(
                     [
                         record.genome_id,
-                        record.fasta_path,
                         record.sketch_path,
                         record.cluster_id,
                     ]

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 from abc import ABC, abstractmethod
 import csv
@@ -65,6 +64,10 @@ class DatabasePackage(ABC):
     @abstractmethod
     def retrieve_data(self, accessions: Iterable[str]) -> SequencePackage:
         pass
+    
+    @abstractmethod
+    def iter_all(self) -> Iterator[GenomeData]:
+        pass
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,11 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
         return Manifest(self._records[acc] for acc in accessions)
       
     def genomes(self):
+        for v in self.records():
+            if isinstance(v, GenomeData):
+                yield v
+
+    def iter_all(self):
         for v in self.records():
             if isinstance(v, GenomeData):
                 yield v

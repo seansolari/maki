@@ -22,26 +22,30 @@ def cluster(
     max_candidates: int = typer.Option(128),
     processes: int = typer.Option(32)
 ):
+    from maki.models.database import read_manifest, GenomeSchema
     from maki.models.database.sketch.cluster import (
         GenomeClusterBuilder,
         SketchParameters,
     )
 
     builder = GenomeClusterBuilder(
-        output_dir="/db/build",
+        output_dir=output,
         sketch_params=SketchParameters(
-            ksize=31,
-            scaled=2000,
-            seed=42,
+            ksize=kmer_size,
+            scaled=scaled,
+            seed=seed,
         ),
-        ani_threshold=0.95,
-        lsh_hashes=64,
-        band_size=4,
-        max_candidates=128,
-        processes=32,
+        ani_threshold=ani_threshold,
+        lsh_hashes=lsh_hashes,
+        band_size=band_size,
+        max_candidates=max_candidates,
+        processes=processes,
     )
-
-    records = builder.build(genomes)
+    
+    manifest = read_manifest(manifest_path, GenomeSchema("accession", "taxonomy", "fasta", "gff"))
+    typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
+    
+    records = builder.build(manifest)
 
     print(f"Clustered {len(records)} genomes")
     print(f"Clusters: {len({r.cluster_id for r in records})}")

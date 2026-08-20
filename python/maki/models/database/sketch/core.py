@@ -42,6 +42,13 @@ class SketchParameters:
             
             
 @dataclass(frozen=True)
+class GenomeSketchRecord:
+    genome_id: str
+    sketch_path: str
+    cluster_id: int
+
+
+@dataclass(frozen=True)
 class ContainmentHit:
     cluster_id: int
     containment: float
