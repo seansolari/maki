@@ -1,63 +1,12 @@
 from __future__ import annotations
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
-import csv
 from dataclasses import asdict
-from itertools import repeat
-import json
-import os
-from pathlib import Path
-from typing import Iterator, Mapping, Sequence
+from typing import Mapping
 
-from maki.models.database.manifest import DatabasePackage, GenomeData
-from sourmash import MinHash, SourmashSignature
+from sourmash import SourmashSignature
 
-from .core import (
-    FORMAT_VERSION,
-    GenomeSketchRecord,
-    SketchParameters,
-    load_one_signature,
-    new_minhash,
-    safe_filename,
-    save_one_signature,
-    validate_signature
-)
-from maki.utils.io import read_fasta, read_fasta_from_gff
-
-
-def _sketch_worker(args: tuple[GenomeData, SketchParameters, str | Path]):
-    genome, params, output_dir = args
-
-    sketch_name = safe_filename(genome.accession) + ".sig"
-    sketch_path = Path(output_dir) / sketch_name
-
-    mh = new_minhash(params)
-    
-    if genome.fasta:
-        it = read_fasta(genome.fasta)
-    elif genome.gff:
-        it = read_fasta_from_gff(genome.gff)
-    else:
-        raise RuntimeError(f"Genome record {genome.accession} did not supply FASTA or GFF data.")
-    
-    for _, sequence in it:
-        # force=True skips k-mers containing ambiguous characters rather than
-        # failing the complete genome.
-        mh.add_sequence(sequence, force=True)
-
-    if len(mh) == 0:
-        raise ValueError(
-            f"Genome {genome.accession!r} produced an empty sketch"
-        )
-
-    signature = SourmashSignature(
-        mh,
-        name=genome.accession,
-        filename=str(genome.fasta),
-    )
-    save_one_signature(signature, sketch_path)
-
-    return genome.accession, genome.fasta, str(sketch_path)
+from .core import FORMAT_VERSION, ClusterAssignment, SketchParameters, downsample_signature
+from .store import SourmashSketchStore
 
 
 class GenomeClusterBuilder:
@@ -80,89 +29,42 @@ class GenomeClusterBuilder:
 
     def __init__(
         self,
-        output_dir: str | Path,
         *,
-        sketch_params: SketchParameters = SketchParameters(),
         ani_threshold: float = 0.95,
-        lsh_hashes: int = 64,
-        band_size: int = 4,
+        downsample_factor: int = 10,
         max_candidates: int = 128,
-        processes: int | None = None,
     ):
-        sketch_params.validate()
-
         if not 0.0 < ani_threshold <= 1.0:
             raise ValueError("ani_threshold must be in (0, 1]")
-        if lsh_hashes <= 0:
-            raise ValueError("lsh_hashes must be positive")
-        if band_size <= 0:
-            raise ValueError("band_size must be positive")
-        if lsh_hashes < band_size:
-            raise ValueError("lsh_hashes must be >= band_size")
+        if downsample_factor < 1:
+            raise ValueError("downsample_factor must be >=1")
         if max_candidates <= 0:
             raise ValueError("max_candidates must be positive")
 
-        self.output_dir = Path(output_dir)
-        self.genome_sketch_dir = self.output_dir / "genome_sketches"
-        self.params = sketch_params
         self.ani_threshold = ani_threshold
-        self.lsh_hashes = lsh_hashes
-        self.band_size = band_size
+        self.downsample_factor = downsample_factor
         self.max_candidates = max_candidates
-        self.processes = processes or os.cpu_count() or 1
 
-    @property
-    def metadata_path(self) -> Path:
-        return self.output_dir / "build_metadata.json"
-
-    @property
-    def assignments_path(self) -> Path:
-        return self.output_dir / "genome_clusters.tsv"
-
-    def build(
+    def cluster(
         self,
-        data: DatabasePackage,
-    ) -> list[GenomeSketchRecord]:
-        genome_ids = [g.accession for g in data.records()]
-        if len(genome_ids) != len(set(genome_ids)):
-            raise ValueError("genome_id values must be unique")
-
-        self.genome_sketch_dir.mkdir(parents=True, exist_ok=True)
-
-        sketch_jobs = zip(data.iter_all(), repeat(self.params), repeat(self.genome_sketch_dir))
-
-        with ProcessPoolExecutor(max_workers=self.processes) as executor:
-            sketched = list(executor.map(_sketch_worker, sketch_jobs))
-
-        assignments = self._cluster_sketches(sketched)
-        self._write_outputs(assignments)
-
-        return assignments
-
-    def _cluster_sketches(
-        self,
-        sketched: Sequence[tuple[str, str, str]],
-    ) -> list[GenomeSketchRecord]:
+        sketches: SourmashSketchStore,
+    ) -> tuple[list[ClusterAssignment], dict]:
+        
         # cluster_id -> representative signature
         representatives: dict[int, SourmashSignature] = {}
 
-        # band key -> cluster IDs
-        band_index: dict[tuple[int, ...], list[int]] = defaultdict(list)
+        # key -> cluster IDs
+        reverse_index: dict[int, int] = {}
 
-        records: list[GenomeSketchRecord] = []
+        records: list[ClusterAssignment] = []
         next_cluster_id = 0
 
-        for genome_id, fasta_path, sketch_path in sketched:
-            signature = load_one_signature(sketch_path)
-            validate_signature(
-                signature,
-                self.params,
-                allow_finer_scaled=False,
-            )
+        for genome_id in sketches.accessions():
+            signature = sketches.load_signature(genome_id)
 
-            candidates = self._candidate_clusters(
-                signature.minhash,
-                band_index,
+            candidates, signature_lsh = self._candidate_clusters(
+                signature,
+                reverse_index
             )
 
             best_cluster: int | None = None
@@ -178,7 +80,7 @@ class GenomeClusterBuilder:
                 )
                 ani = self.jaccard_to_ani(
                     jaccard,
-                    self.params.ksize,
+                    sketches.params.ksize,
                 )
 
                 if ani >= self.ani_threshold and ani > best_ani:
@@ -192,66 +94,55 @@ class GenomeClusterBuilder:
                 representatives[best_cluster] = signature
                 self._index_representative(
                     best_cluster,
-                    signature.minhash,
-                    band_index,
+                    signature_lsh,
+                    reverse_index,
                 )
 
             records.append(
-                GenomeSketchRecord(
+                ClusterAssignment(
                     genome_id=genome_id,
-                    sketch_path=sketch_path,
                     cluster_id=best_cluster,
                 )
             )
 
-        return records
+        return records, self._summarise_metadata(records, sketches.params)
 
     def _candidate_clusters(
         self,
-        mh: MinHash,
-        band_index: Mapping[tuple[int, ...], list[int]],
-    ) -> list[int]:
+        signature: SourmashSignature,
+        reverse_index: Mapping[int, int],
+    ) -> tuple[list[int], list[int]]:
+        subsig = downsample_signature(signature, self.downsample_factor * signature.minhash.scaled)
+        subhashes = list(subsig.minhash.hashes)
+        
         counts: dict[int, int] = defaultdict(int)
 
-        for key in self._band_keys(mh):
-            for cluster_id in band_index.get(key, []):
-                counts[cluster_id] += 1
+        for hash_value in subhashes:
+            try:
+                counts[reverse_index[hash_value]] += 1
+            except KeyError:
+                continue
 
         # Highest number of matching bands first. Capping this bound keeps an
         # exceptionally repetitive genome from causing a very large comparison
         # burst.
-        ordered = sorted(
-            counts,
+        top_matches = sorted(
+            filter(lambda cluster_id: cluster_id > -1, counts),
             key=lambda cluster_id: (-counts[cluster_id], cluster_id),
         )
-        return ordered[: self.max_candidates]
+        return top_matches[: self.max_candidates], subhashes
 
     def _index_representative(
         self,
         cluster_id: int,
-        mh: MinHash,
-        band_index: dict[tuple[int, ...], list[int]],
+        hashes: list[int],
+        reverse_index: dict[int, int],
     ) -> None:
-        for key in self._band_keys(mh):
-            band_index[key].append(cluster_id)
-
-    def _band_keys(self, mh: MinHash) -> Iterator[tuple[int, ...]]:
-        selected = sorted(mh.hashes)[: self.lsh_hashes]
-
-        # Very small or highly repetitive assemblies may have fewer available
-        # hashes. They still receive a key, although discrimination is lower.
-        if len(selected) < self.band_size:
-            if selected:
-                yield tuple(selected)
-            return
-
-        limit = len(selected) - self.band_size + 1
-
-        # Non-overlapping bands reduce index size. Offset is included to avoid
-        # treating an identical tuple at distinct positions as the same band.
-        for start in range(0, limit, self.band_size):
-            band = selected[start:start + self.band_size]
-            yield (start, *band)
+        for hash_value in hashes:
+            if hash_value in reverse_index:
+                reverse_index[hash_value] = -1
+            else:
+                reverse_index[hash_value] = cluster_id
 
     @staticmethod
     def jaccard_to_ani(jaccard: float, ksize: int) -> float:
@@ -269,35 +160,21 @@ class GenomeClusterBuilder:
         x = (2.0 * jaccard) / (1.0 + jaccard)
         return x ** (1.0 / ksize)
 
-    def _write_outputs(self, assignments: Sequence[GenomeSketchRecord]) -> None:
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        with self.assignments_path.open("wt", newline="") as fp:
-            writer = csv.writer(fp, delimiter="\t")
-            writer.writerow(
-                ["genome_id", "sketch_path", "cluster_id"]
-            )
-
-            for record in assignments:
-                writer.writerow(
-                    [
-                        record.genome_id,
-                        record.sketch_path,
-                        record.cluster_id,
-                    ]
-                )
-
+    def _summarise_metadata(
+        self,
+        assignments: list[ClusterAssignment],
+        params: SketchParameters
+    ) -> dict:
         n_clusters = 1 + max(r.cluster_id for r in assignments)
 
         metadata = {
             "format_version": FORMAT_VERSION,
             "phase": "genome_clustering",
-            "sketch": asdict(self.params),
+            "sketch": asdict(params),
             "clustering": {
                 "method": "streaming_greedy_lsh",
                 "ani_threshold": self.ani_threshold,
-                "lsh_hashes": self.lsh_hashes,
-                "band_size": self.band_size,
+                "downsample_factor": self.downsample_factor,
                 "max_candidates": self.max_candidates,
                 "representative": "first_genome",
             },
@@ -305,6 +182,5 @@ class GenomeClusterBuilder:
             "cluster_count": n_clusters,
         }
 
-        with self.metadata_path.open("wt") as fp:
-            json.dump(metadata, fp, indent=2, sort_keys=True)
+        return metadata
             

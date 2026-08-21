@@ -1,4 +1,5 @@
 from __future__ import annotations
+import bz2
 from dataclasses import dataclass
 import hashlib
 import os
@@ -7,7 +8,7 @@ from pathlib import Path
 from sourmash import (
     MinHash,
     SourmashSignature,
-    load_file_as_signatures,
+    load_signatures_from_json,
     save_signatures
 )
 
@@ -42,10 +43,49 @@ class SketchParameters:
             
             
 @dataclass(frozen=True)
-class GenomeSketchRecord:
+class ClusterAssignment:
     genome_id: str
-    sketch_path: str
     cluster_id: int
+
+    
+@dataclass(frozen=True)
+class Assignment:
+    """
+    Result returned by ThreePassClusterer.assign().
+
+    Attributes
+    ----------
+    representative_id:
+        Identifier of the selected or newly created representative.
+    is_new_cluster:
+        True when the query became a new representative.
+    score:
+        Final query/representative similarity. It is 1.0 for a newly
+        created representative.
+    union_containment:
+        Query-in-union containment observed during pass 1.
+    candidates_examined:
+        Number of representatives compared using full verification sketches.
+    index_candidates:
+        Number of distinct representatives returned by the inverted index.
+    pass_used:
+        One of:
+            "initial"
+            "union-negative"
+            "inverted-index"
+            "exhaustive-no-index-match"
+            "exhaustive-candidate-failure"
+            "new-after-index"
+            "new-after-exhaustive"
+    """
+
+    representative_id: int
+    is_new_cluster: bool
+    score: float
+    union_containment: float
+    candidates_examined: int
+    index_candidates: int
+    pass_used: str
 
 
 @dataclass(frozen=True)
@@ -86,23 +126,29 @@ def new_minhash(params: SketchParameters) -> MinHash:
 
 def save_one_signature(
     signature: SourmashSignature,
-    output_path: str | Path,
+    output_path: str | Path
 ) -> None:
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if output_path.suffix != ".bz2":
+        raise RuntimeError(f"Filename must have .bz2 suffix: {output_path}")
 
     # Write atomically so an interrupted worker does not leave a valid-looking
     # partial signature.
     tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
 
-    with tmp_path.open("wt") as fp:
+    with bz2.open(tmp_path, "wt") as fp:
         save_signatures([signature], fp=fp)
 
     os.replace(tmp_path, output_path)
 
 
 def load_one_signature(path: str | Path) -> SourmashSignature:
-    signatures = list(load_file_as_signatures(str(path)))
+    with bz2.open(path, "rt") as fp:
+        data = fp.read()
+    
+    signatures = list(load_signatures_from_json(data))
 
     if len(signatures) != 1:
         raise ValueError(
