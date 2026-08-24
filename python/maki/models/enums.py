@@ -11,11 +11,6 @@ class Ranks(str, Enum):
     Phylum = "phylum"
     SuperKingdom = "superkingdom"
     
-    
-class UpdateMode(str, Enum):
-    fixed = "fixed"
-    updateable = "updateable"
-    
 
 class TaxonomySource(str, Enum):
     gtdb = "gtdb"

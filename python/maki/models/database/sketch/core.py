@@ -40,8 +40,8 @@ class SketchParameters:
                 "Reference sketches should not track abundance; "
                 "cluster sketches represent sets of reference k-mers."
             )
-            
-            
+
+
 @dataclass(frozen=True)
 class ClusterAssignment:
     genome_id: str

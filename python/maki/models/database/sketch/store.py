@@ -1,13 +1,8 @@
 from __future__ import annotations
-
-from dataclasses import asdict
 import hashlib
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
-import json
-import os
 from pathlib import Path
-from typing import Optional
 
 from maki.utils.io import read_fasta, read_fasta_from_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData
@@ -41,7 +36,7 @@ def _worker_create_signature(
 
     _, relpath = _compute_storage_path(item.accession)
 
-    outfile = root / "sigs" / relpath
+    outfile = root / relpath
     outfile.parent.mkdir(parents=True, exist_ok=True)
     
     # setch file
@@ -94,60 +89,11 @@ class SourmashSketchStore:
         self,
         root_dir: str | Path,
         *,
-        params: Optional[SketchParameters] = None
+        params: SketchParameters
     ):
         self.root = Path(root_dir)
-        self.root.mkdir(parents=True, exist_ok=True)
-        
-        self.sigroot = self.root / "sigs"
-        self.dbfile = self.root / "accessions.csv"
-
-        self.params = self._read_sketch_parameters(params)
-        self.records = self._read_manifest()
-
+        self.params = params
         self.params.validate()
-        
-        self.sigroot.mkdir(parents=True, exist_ok=True)
-    
-    def _read_sketch_parameters(self, params: Optional[SketchParameters]):
-        param_file = self.root / "params.json"
-        
-        if not param_file.exists():
-            if not params:
-                raise RuntimeError(f"Missing parameter file at {param_file}")
-            else:
-                with param_file.open("wt") as f:
-                    json.dump(asdict(params), f)
-                
-                return params
-        
-        with param_file.open("rt") as f:
-            current_params = SketchParameters(**json.load(f))
-            
-        if params and (current_params != params):
-            raise RuntimeError(f"Parameter mismatch! Existing params: {asdict(current_params)}")
-            
-        return current_params
-        
-    def _read_manifest(self):
-        recs: dict[str, str] = {}
-        
-        if self.dbfile.exists():
-            with self.dbfile.open("rt") as f:
-                for line in f:
-                    data = line.strip().split(",")
-                    if data:
-                        recs[data[0]] = data[1]
-                    
-        return recs
-    
-    def _write_manifest(self):
-        with self.dbfile.open("wt") as f:
-            for accn, sig_path in self.records.items():
-                f.write(f"{accn},{sig_path}\n")
-
-    def accessions(self):
-        yield from self.records
 
     # --------------------------------------------------
     # batch sketching
@@ -156,40 +102,30 @@ class SourmashSketchStore:
     def sketch_many(
         self,
         package: DatabasePackage,
+        accessions: tuple[str, ...],
         *,
-        workers: int | None = None,
-        skip_existing: bool = False
+        workers: int | None = None
     ):
         """Sketch many FASTA files in parallel.
         """
-        # Check existing records
+        new_accessions = {
+            accession
+            for accession in accessions
+            if not self._sketch_exists(accession)
+        }
         
-        new_accessions: set[str] = set()
-        existing_accessions: set[str] = set()
-        
-        for rec in package.records():
-            if rec.accession in self.records:
-                existing_accessions.add(rec.accession)
-            else:
-                new_accessions.add(rec.accession)
-        
-        if existing_accessions and not skip_existing:
-            raise RuntimeError(f"{len(existing_accessions)} accessions already in sketch store, use `--skip-existing` if you want to skip these.")
+        if new_accessions:
+            with package.retrieve_data(new_accessions) as data:
+                sketch_jobs = zip(data.genomes(), repeat(self.params), repeat(self.root))
                 
-        # Import sketches
-        
-        with package.retrieve_data(new_accessions) as data:
-            sketch_jobs = zip(data.genomes(), repeat(self.params), repeat(self.root))
-            
-            with ProcessPoolExecutor(max_workers=workers) as executor:
-                sketched = list(executor.map(_worker_create_signature, sketch_jobs))
-                
-        # Update manifest
-        
-        for accn, sig_file in sketched:
-            self.records[accn] = sig_file
-            
-        self._write_manifest()
+                with ProcessPoolExecutor(max_workers=workers) as executor:
+                    list(executor.map(_worker_create_signature, sketch_jobs))
+
+        return accessions
+    
+    def _sketch_exists(self, accession: str):
+        _, relpath = _compute_storage_path(accession)
+        return (self.root / relpath).exists()
 
     # --------------------------------------------------
     # loading
@@ -202,7 +138,13 @@ class SourmashSketchStore:
         """
         Load a SourmashSignature object.
         """
-        sketch_path = self.sigroot / self.records[accession]
+        _, relpath = _compute_storage_path(accession)
+        sketch_path = self.root / relpath
+        
+        if not sketch_path.exists():
+            raise ValueError(
+                f"No sketch found for {accession} within {self.root}."
+            )
         
         sig = load_one_signature(sketch_path)
         validate_signature(sig, self.params, allow_finer_scaled=False)
