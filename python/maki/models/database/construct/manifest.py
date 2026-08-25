@@ -26,17 +26,48 @@ class ManifestRecord:
     reserved_at: str
     completed_at: str | None
     error: str | None
+    
+    
+@dataclass(frozen=True, slots=True)
+class ReservationPlan:
+    package_id: str
+    reserved_accessions: tuple[str, ...]
+    cleanup_accessions: tuple[str, ...]
+    
+    def __bool__(self):
+        return any(self.reserved_accessions) or any(self.cleanup_accessions)
+
+    @property
+    def all_accessions(self) -> tuple[str, ...]:
+        return self.reserved_accessions + self.cleanup_accessions
 
 
 class ManifestError(RuntimeError):
     """Base exception for manifest operations."""
 
 
-class AccessionsAlreadyExistError(ManifestError):
-    def __init__(self, accessions: Iterable[str]):
+class ManifestErrorWithIds(ManifestError):
+    TRUNC = 10
+    
+    def __init__(self, msg: str, accessions: Iterable[str]) -> None:
         self.accessions = tuple(sorted(accessions))
-        joined = ", ".join(self.accessions)
-        super().__init__(f"Accessions already exist in the manifest: {joined}")
+        joined = ", ".join(self.accessions[:self.TRUNC])
+        super().__init__(f"{msg}: {joined}{"..." if len(self.accessions) > self.TRUNC else ""}")
+
+
+class AccessionsAlreadyExistError(ManifestErrorWithIds):
+    def __init__(self, accessions: Iterable[str]):
+        super().__init__("Accessions already exist in the manifest", accessions)
+
+
+class AccessionsOccupiedError(ManifestErrorWithIds):
+    def __init__(self, accessions: Iterable[str]):
+        super().__init__("Accessions already occupied by another process", accessions)
+
+
+class CleanupOwnershipError(ManifestErrorWithIds):
+    def __init__(self, accessions: Iterable[str]) -> None:
+        super().__init__("Cleanup ownership was not found for", accessions)
 
 
 class SQLiteManifest:
@@ -107,6 +138,7 @@ class SQLiteManifest:
                     taxid       TEXT NOT NULL,
                     state       TEXT NOT NULL
                                 CHECK (state IN (
+                                    'cleaning',
                                     'reserved',
                                     'complete',
                                     'failed'
@@ -114,6 +146,7 @@ class SQLiteManifest:
                     package_id  TEXT NOT NULL,
                     reserved_at TEXT NOT NULL,
                     completed_at TEXT,
+                    cleanup_started_at TEXT,
                     error       TEXT
                 );
 
@@ -186,67 +219,99 @@ class SQLiteManifest:
                 "Unsupported manifest schema version "
                 f"{version}; expected {self.SCHEMA_VERSION}"
             )
-
+    
     def reserve(
         self,
         records: Sequence[tuple[str, str]],
         *,
         package_id: str | None = None,
-        fail_if_exists: bool = True,
-    ) -> tuple[str, tuple[str, ...]]:
+        fail_if_complete: bool = True,
+    ) -> ReservationPlan:
         """
-        Atomically reserve accessions.
+        Atomically reserve new accessions and claim failed accessions for cleanup.
 
-        Returns:
-            A tuple containing:
-              - the package ID
-              - accessions newly reserved by this call
+        New accessions are inserted as 'reserved'.
 
-        If fail_if_exists is True, the entire operation fails when any
-        accession is already present.
+        Existing failed accessions are transitioned to 'cleaning' and assigned
+        to this package. The actual filesystem cleanup happens after this
+        transaction commits.
 
-        If fail_if_exists is False, existing accessions are skipped and only
-        previously unseen accessions are reserved.
+        Existing 'reserved' or 'cleaning' entries are always considered busy.
         """
         normalized = self._validate_records(records)
         package_id = package_id or str(uuid.uuid4())
 
         if not normalized:
-            return package_id, ()
+            return ReservationPlan(package_id, (), ())
 
-        requested = {accession for accession, _ in normalized}
-        placeholders = ",".join("?" for _ in requested)
+        requested_taxids = dict(normalized)
+        requested_accessions = tuple(requested_taxids)
 
+        placeholders = ",".join("?" for _ in requested_accessions)
         connection = self._connect()
 
         try:
-            # BEGIN IMMEDIATE obtains the write reservation before checking
-            # uniqueness. Another writer waits instead of racing between
-            # SELECT and INSERT.
             connection.execute("BEGIN IMMEDIATE")
 
             rows = connection.execute(
                 f"""
-                SELECT accession
+                SELECT accession, taxid, state, package_id
                 FROM accessions
                 WHERE accession IN ({placeholders})
                 """,
-                tuple(requested),
+                requested_accessions,
             ).fetchall()
 
-            existing = {row["accession"] for row in rows}
+            existing = {
+                row["accession"]: row
+                for row in rows
+            }
 
-            if existing and fail_if_exists:
-                raise AccessionsAlreadyExistError(existing)
+            complete = []
+            busy = []
+            failed = []
+            new = []
 
-            new_records = [
+            for accession, taxid in normalized:
+                row = existing.get(accession)
+
+                if row is None:
+                    new.append((accession, taxid))
+                    continue
+
+                if row["state"] == "complete":
+                    complete.append(accession)
+                elif row["state"] in {"reserved", "cleaning"}:
+                    busy.append(accession)
+                elif row["state"] == "failed":
+                    failed.append((accession, taxid))
+                else:
+                    raise ManifestError(
+                        f"Unknown state for {accession}: {row['state']!r}"
+                    )
+
+            if busy:
+                raise AccessionsOccupiedError(busy)
+
+            if complete and fail_if_complete:
+                raise AccessionsAlreadyExistError(complete)
+
+            # If complete accessions may be skipped, remove them from this plan.
+            complete_set = set(complete)
+            new = [
                 (accession, taxid)
-                for accession, taxid in normalized
-                if accession not in existing
+                for accession, taxid in new
+                if accession not in complete_set
+            ]
+            failed = [
+                (accession, taxid)
+                for accession, taxid in failed
+                if accession not in complete_set
             ]
 
-            reserved_at = utc_now()
+            now = utc_now()
 
+            # Ordinary, previously unseen accessions.
             connection.executemany(
                 """
                 INSERT INTO accessions (
@@ -256,22 +321,187 @@ class SQLiteManifest:
                     package_id,
                     reserved_at,
                     completed_at,
+                    cleanup_started_at,
                     error
                 )
-                VALUES (?, ?, 'reserved', ?, ?, NULL, NULL)
+                VALUES (?, ?, 'reserved', ?, ?, NULL, NULL, NULL)
                 """,
                 [
-                    (accession, taxid, package_id, reserved_at)
-                    for accession, taxid in new_records
+                    (accession, taxid, package_id, now)
+                    for accession, taxid in new
                 ],
             )
 
+            # Claim failed accessions for this process. Updating instead of
+            # deleting means there is never a moment when another process can
+            # see the accession as unowned.
+            for accession, requested_taxid in failed:
+                cursor = connection.execute(
+                    """
+                    UPDATE accessions
+                    SET state = 'cleaning',
+                        taxid = ?,
+                        package_id = ?,
+                        reserved_at = ?,
+                        completed_at = NULL,
+                        cleanup_started_at = ?,
+                        error = NULL
+                    WHERE accession = ?
+                    AND state = 'failed'
+                    """,
+                    (
+                        requested_taxid,
+                        package_id,
+                        now,
+                        now,
+                        accession,
+                    ),
+                )
+
+                if cursor.rowcount != 1:
+                    raise ManifestError(
+                        "Failed to claim accession for cleanup: "
+                        f"{accession}"
+                    )
+
             connection.execute("COMMIT")
 
-            return (
-                package_id,
-                tuple(accession for accession, _ in new_records),
+            return ReservationPlan(
+                package_id=package_id,
+                reserved_accessions=tuple(
+                    accession for accession, _ in new
+                ),
+                cleanup_accessions=tuple(
+                    accession for accession, _ in failed
+                ),
             )
+
+        except Exception:
+            try:
+                connection.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            connection.close()
+            
+    def assert_cleanup_ownership(
+        self,
+        accessions: Iterable[str],
+        *,
+        package_id: str,
+    ) -> None:
+        accession_list = tuple(dict.fromkeys(accessions))
+
+        if not accession_list:
+            return
+
+        placeholders = ",".join("?" for _ in accession_list)
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT accession
+                FROM accessions
+                WHERE accession IN ({placeholders})
+                AND state = 'cleaning'
+                AND package_id = ?
+                """,
+                (*accession_list, package_id),
+            ).fetchall()
+
+        owned = {row["accession"] for row in rows}
+        missing = set(accession_list) - owned
+
+        if missing:
+            raise CleanupOwnershipError(missing)
+    
+    def finish_cleanup(
+        self,
+        accessions: Iterable[str],
+        *,
+        package_id: str,
+    ) -> None:
+        accession_list = tuple(dict.fromkeys(accessions))
+
+        if not accession_list:
+            return
+
+        connection = self._connect()
+
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+
+            for accession in accession_list:
+                cursor = connection.execute(
+                    """
+                    UPDATE accessions
+                    SET state = 'reserved',
+                        cleanup_started_at = NULL,
+                        error = NULL
+                    WHERE accession = ?
+                    AND package_id = ?
+                    AND state = 'cleaning'
+                    """,
+                    (accession, package_id),
+                )
+
+                if cursor.rowcount != 1:
+                    raise ManifestError(
+                        "Could not finish cleanup for accession "
+                        f"{accession}; the cleanup claim is no longer owned "
+                        f"by package {package_id}"
+                    )
+
+            connection.execute("COMMIT")
+
+        except Exception:
+            try:
+                connection.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
+            raise
+        finally:
+            connection.close()
+            
+    def fail_cleanup(
+        self,
+        accessions: Iterable[str],
+        *,
+        package_id: str,
+        error: str,
+    ) -> None:
+        accession_list = tuple(dict.fromkeys(accessions))
+
+        if not accession_list:
+            return
+
+        connection = self._connect()
+
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+
+            for accession in accession_list:
+                cursor = connection.execute(
+                    """
+                    UPDATE accessions
+                    SET state = 'failed',
+                        cleanup_started_at = NULL,
+                        error = ?
+                    WHERE accession = ?
+                    AND package_id = ?
+                    AND state = 'cleaning'
+                    """,
+                    (error, accession, package_id),
+                )
+
+                if cursor.rowcount != 1:
+                    raise ManifestError(
+                        "Could not mark cleanup as failed for "
+                        f"{accession}"
+                    )
+
+            connection.execute("COMMIT")
 
         except Exception:
             try:
@@ -467,14 +697,11 @@ class SQLiteManifest:
 
         return int(row["count"])
 
-    def export_taxonomy_tsv(
+    def iter_taxonomy(
         self,
-        destination: str | Path,
         *,
         complete_only: bool = True,
-        include_header: bool = False,
-        overwrite: bool = False,
-    ) -> Path:
+    ) -> Iterator[tuple[str, str]]:
         """
         Export accession-to-taxid mappings.
 
@@ -484,12 +711,6 @@ class SQLiteManifest:
         The file is written to a temporary sibling and atomically renamed into
         place, so readers never observe a partially written export.
         """
-        destination = Path(destination)
-
-        if destination.exists() and not overwrite:
-            raise FileExistsError(destination)
-
-        destination.parent.mkdir(parents=True, exist_ok=True)
 
         query = "SELECT accession, taxid FROM accessions"
         params: tuple[object, ...] = ()
@@ -500,124 +721,11 @@ class SQLiteManifest:
 
         query += " ORDER BY accession"
 
-        temporary = self._temporary_sibling(destination)
-
-        try:
-            with self._connect() as connection, temporary.open(
-                "w",
-                encoding="utf-8",
-                newline="",
-            ) as output:
-                writer = csv.writer(
-                    output,
-                    delimiter="\t",
-                    lineterminator="\n",
-                )
-
-                if include_header:
-                    writer.writerow(("accession", "taxid"))
-
-                cursor = connection.execute(query, params)
-
-                for row in cursor:
-                    writer.writerow((row["accession"], row["taxid"]))
-
-                output.flush()
-                os.fsync(output.fileno())
-
-            os.replace(temporary, destination)
-        except Exception:
-            temporary.unlink(missing_ok=True)
-            raise
-
-        return destination
-
-    def export_manifest_tsv(
-        self,
-        destination: str | Path,
-        *,
-        complete_only: bool = False,
-        include_header: bool = True,
-        overwrite: bool = False,
-    ) -> Path:
-        """
-        Export the complete audit manifest, including state information.
-        """
-        destination = Path(destination)
-
-        if destination.exists() and not overwrite:
-            raise FileExistsError(destination)
-
-        destination.parent.mkdir(parents=True, exist_ok=True)
-
-        query = """
-            SELECT
-                accession,
-                taxid,
-                state,
-                package_id,
-                reserved_at,
-                completed_at,
-                error
-            FROM accessions
-        """
-        params: tuple[object, ...] = ()
-
-        if complete_only:
-            query += " WHERE state = ?"
-            params = ("complete",)
-
-        query += " ORDER BY accession"
-
-        temporary = self._temporary_sibling(destination)
-
-        try:
-            with self._connect() as connection, temporary.open(
-                "w",
-                encoding="utf-8",
-                newline="",
-            ) as output:
-                writer = csv.writer(
-                    output,
-                    delimiter="\t",
-                    lineterminator="\n",
-                )
-
-                if include_header:
-                    writer.writerow(
-                        (
-                            "accession",
-                            "taxid",
-                            "state",
-                            "package_id",
-                            "reserved_at",
-                            "completed_at",
-                            "error",
-                        )
-                    )
-
-                for row in connection.execute(query, params):
-                    writer.writerow(
-                        (
-                            row["accession"],
-                            row["taxid"],
-                            row["state"],
-                            row["package_id"],
-                            row["reserved_at"],
-                            row["completed_at"] or "",
-                            row["error"] or "",
-                        )
-                    )
-
-                output.flush()
-                os.fsync(output.fileno())
-
-            os.replace(temporary, destination)
-        except Exception:
-            temporary.unlink(missing_ok=True)
-            raise
-
-        return destination
+        with self._connect() as connection:
+            cursor = connection.execute(query, params)
+            
+            for row in cursor:
+                yield row["accession"], row["taxid"]
 
     def integrity_check(self) -> None:
         with self._connect() as connection:
@@ -648,7 +756,7 @@ class SQLiteManifest:
 
             if isinstance(taxid, bool) or not isinstance(taxid, str):
                 raise TypeError(
-                    f"Taxid for {accession} must be an integer"
+                    f"Taxid for {accession} must be a string"
                 )
 
             seen.add(accession)

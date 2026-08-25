@@ -15,10 +15,9 @@ class TaxidNotFound(Exception):
 class BaseTaxonomy:
     name: str
   
-    def __init__(self, db_root: Path):
-        self.db_root = db_root
-        self.tax_root = db_root / "taxonomy" / self.name
-        self.tax_root.mkdir(parents=True, exist_ok=True)
+    def __init__(self, root: Path):
+        self.root = root / self.name
+        self.root.mkdir(parents=True, exist_ok=True)
 
     @abstractmethod
     def resolve_taxid(self, value: str) -> str:

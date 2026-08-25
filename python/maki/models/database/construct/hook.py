@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 import uuid
 
+from maki.models.database.clustering import ClusterManager, DictClusterRefinement
 from maki.models.database.manifest import DatabasePackage
 from maki.models.database.sketch import SourmashSketchStore, SketchParameters
 from maki.models.enums import TaxonomySource
@@ -41,9 +42,9 @@ class DatabaseParameters:
         )
     
     @classmethod
-    def from_dict(cls, data: dict):
-        data["taxonomy_database"] = TaxonomySource[data["taxonomy_database"]]
-        return cls(**data)
+    def from_dict(cls, **kwargs):
+        kwargs["taxonomy_database"] = TaxonomySource[kwargs["taxonomy_database"]]
+        return cls(**kwargs)
 
     def __post_init__(self) -> None:
         if self.kmer_size <= 0:
@@ -77,6 +78,7 @@ class DatabaseHook:
 
     METADATA_FILE = "metadata.json"
     MANIFEST_FILE = "manifest.sqlite3"
+    CLUSTER_FILE = "clusters.json.bz2"
     DATA_DIRECTORY = "data"
     TAXONOMY_DIRECTORY = "taxonomy"
     SKETCH_DIRECTORY = "sketch"
@@ -94,6 +96,7 @@ class DatabaseHook:
 
         self.metadata_path = self.root / self.METADATA_FILE
         self.manifest_path = self.root / self.MANIFEST_FILE
+        self.cluster_file = self.root / self.CLUSTER_FILE
         self.data_root = self.root / self.DATA_DIRECTORY
         self.taxonomy_root = self.root / self.TAXONOMY_DIRECTORY
         self.sketch_root = self.data_root / self.SKETCH_DIRECTORY
@@ -140,6 +143,12 @@ class DatabaseHook:
         
         # Sketch records
         self.sketch_db = SourmashSketchStore(self.sketch_root, params=self.metadata.sketch_params)
+        
+        # Clusters
+        if self.cluster_file.exists():
+            self.clusters = ClusterManager(self.cluster_file)
+        else:
+            self.clusters = None
 
     @classmethod
     def init(
@@ -228,86 +237,134 @@ class DatabaseHook:
         self,
         package: DatabasePackage,
         *,
-        fail_if_exists: bool = False,
+        fail_if_complete: bool = False,
         workers: int | None = None
     ) -> tuple[str, ...]:
         """
         Reserve, retrieve, publish, and finalize a package.
 
-        Returns the accessions inserted by this call. When fail_if_exists is
-        False, accessions already present in the manifest are skipped.
+        Returns the accessions inserted by this call. When fail_if_complete is
+        False, accessions already sketched are skipped.
         """
         
         # Reserve accessions
         
         records = self._assign_taxids(package)
 
-        package_id, reserved_accessions = self.manifest.reserve(
+        plan = self.manifest.reserve(
             records,
-            fail_if_exists=fail_if_exists,
+            fail_if_complete=fail_if_complete,
         )
 
-        if not reserved_accessions:
+        if not plan:
             return ()
         
-        sketched_accessions = self.sketch_db.sketch_many(
-            package,
-            reserved_accessions,
-            workers=workers
-        )
+        # Clean old failed accessions
+        if plan.cleanup_accessions:
+            try:
+                self.sketch_db.cleanup_accessions(plan.cleanup_accessions)
+                
+                self.manifest.finish_cleanup(
+                    plan.cleanup_accessions,
+                    package_id=plan.package_id
+                )
+                
+            except Exception as exc:
+                cleanup_error = f"{type(exc).__name__}: {exc}"
+                
+                try:
+                    self.manifest.fail_cleanup(
+                        plan.cleanup_accessions,
+                        package_id=plan.package_id,
+                        error=cleanup_error,
+                    )
+                    
+                except Exception as manifest_exc:
+                    exc.add_note(
+                        "Additionally failed to restore cleanup entries to "
+                        f"'failed': {manifest_exc}"
+                    )
+                    
+                # New accessions were reserved in the same initial transaction.
+                # Since this package will not proceed, mark those as failed too.
+                try:
+                    self.manifest.mark_failed(
+                        plan.reserved_accessions,
+                        package_id=plan.package_id,
+                        error=(
+                            "Package aborted because cleanup of another accession "
+                            f"failed: {cleanup_error}"
+                        ),
+                    )
+                    
+                except Exception as manifest_exc:
+                    exc.add_note(
+                        "Additionally failed to mark new reservations as failed: "
+                        f"{manifest_exc}"
+                    )
+                    
+                raise
         
-        self.manifest.mark_complete(
-            sketched_accessions,
-            package_id=package_id,
-        )
+        # At this point, both new entries and cleaned entries are reserved and
+        # owned by this package.
+        insertion_accessions = plan.all_accessions
+        
+        try:
+            sketched_accessions = self.sketch_db.sketch_many(
+                package,
+                insertion_accessions,
+                workers=workers
+            )
+            
+            self.manifest.mark_complete(
+                sketched_accessions,
+                package_id=plan.package_id,
+            )
+            
+        except Exception as exc:
+            
+            try:
+                self.manifest.mark_failed(
+                    insertion_accessions,
+                    package_id=plan.package_id,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+            except Exception as manifest_exc:
+                exc.add_note(
+                    "Additionally failed to mark the insertion as failed: "
+                    f"{manifest_exc}"
+                )
+            
+            raise
 
         return sketched_accessions
     
-    # Manifest I/O
-    # ------------
-
-    def export_taxonomy_tsv(
-        self,
-        destination: str | Path | None = None,
-        *,
-        include_header: bool = False,
-        overwrite: bool = False,
-    ) -> Path:
-        """
-        Export mappings for complete accessions.
-
-        By default this creates database-root/taxonomy.tsv.
-        """
-        if destination is None:
-            destination = self.root / "taxonomy.tsv"
-
-        return self.manifest.export_taxonomy_tsv(
-            destination,
-            complete_only=True,
-            include_header=include_header,
-            overwrite=overwrite,
+    # Cluster by taxonomy
+    # -------------------
+    
+    def initialise_clusters_by_rank(self, rank: str):
+        if self.clusters is not None:
+            assert isinstance(self.clusters, ClusterManager)
+            raise RuntimeError(f"Clustering already defined!")
+        
+        # Initialise clusters
+        
+        data = list(self.manifest.iter_taxonomy(complete_only=True))
+        
+        self.clusters = ClusterManager(
+            self.cluster_file,
+            accessions=list(map(lambda v: v[0], data))
         )
+        
+        # Refine by rank
 
-    def export_manifest_tsv(
-        self,
-        destination: str | Path | None = None,
-        *,
-        complete_only: bool = False,
-        overwrite: bool = False,
-    ) -> Path:
-        """
-        Export the full manifest, including processing state and audit fields.
-        """
-        if destination is None:
-            destination = self.root / "manifest.tsv"
-
-        return self.manifest.export_manifest_tsv(
-            destination,
-            complete_only=complete_only,
-            include_header=True,
-            overwrite=overwrite,
+        ancestors = self._group_by_rank(data, rank)
+        
+        self.clusters.refine_clusters(
+            DictClusterRefinement(rank, ancestors),
+            persist=True
         )
-                
+        
     # Taxonomy helpers
     # ----------------
 
@@ -349,3 +406,12 @@ class DatabaseHook:
             (r.accession, r.taxid or taxids[r.accession])
             for r in package.records()
         ]
+        
+    def _group_by_rank(self, recs: list[tuple[str, str]], rank: str):
+        ancestors: dict[str, str] = {}
+        
+        for accn, taxid in recs:
+            ancestor = self.taxonomy.get_ancestor_at_rank(taxid, rank)
+            ancestors[accn] = ancestor
+        
+        return ancestors

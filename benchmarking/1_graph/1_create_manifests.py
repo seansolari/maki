@@ -9,7 +9,7 @@ import random
 from typing import Dict, List, Set
 
 from maki.atb.downloader import DiskAtbManifest
-from maki.models.database.cluster import SequenceSourceDir
+from maki.models.database.clustering import SequenceSourceDir
 
 
 GENOME_COUNTS = [100, 500, 1000]

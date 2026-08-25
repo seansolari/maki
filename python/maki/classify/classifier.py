@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from maki.classify.sample_manifest import Sample, SampleManifest
-from maki.models.database.cluster import ClusterHandle
+from maki.models.database.clustering import ClusterHandle
 from maki.models.database.database import StaticDatabase
 import maki.core as mx
 

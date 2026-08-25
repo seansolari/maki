@@ -1,10 +1,12 @@
-from pathlib import Path
-from typing import Annotated, Optional
-import typer
 
-from maki.models.enums import Ranks, TaxonomySource, UpdateMode
-from maki.benchmark.cli import app as bmark_app
-from maki.workflows.build import build_app
+from __future__ import annotations
+from pathlib import Path
+from typing import Annotated, List
+
+from maki.benchmark import bmark_app
+from maki.models.enums import Ranks, TaxonomySource
+
+import typer
 
 
 app = typer.Typer(
@@ -13,82 +15,93 @@ app = typer.Typer(
          "and parallel classification."
 )
 
-app.add_typer(build_app)
-
 
 @app.command(help="""
-Build a new database.
-
-Modes:
-- fixed: minimal size, cannot be updated
-- updatable: stores compressed source data to allow updates
+Initialise a database and download taxonomy.
 """)
-def build(
-    manifest_path: Path = typer.Option(..., help="Genome manifest CSV"),
-    db_path: Path = typer.Option(..., help="Database output path"),
-    kmer_size: int = typer.Option(31),
-    suffix_size: int = typer.Option(6),
-    rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
-    threads: int = typer.Option(4),
-    mode: Annotated[UpdateMode, typer.Option(help="Build mode")] = UpdateMode.fixed,
-    taxonomy: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
-    releases: Optional[str] = typer.Option(None, help="Taxonomy release to use"),
-    force: bool = False,
-    dry_run: bool = False
+def init(
+    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
+    kmer_size: Annotated[int, typer.Option("-k", "--kmer-size", help="K-mer size for database")],
+    taxonomy_database: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
+    taxonomy_release: str = typer.Option("latest", help="Taxonomy release to use"),
+    scale: int = typer.Option(1000, help="Sketching scale parameter"),
+    seed: int = typer.Option(42, help="Seed for sketching"),
+    permissive: Annotated[bool, typer.Option("--permissive", "-p", help="Do not fail if one already exists")] = False
 ):
-    import maki.models.database as mdb
-    from .db import build as build_impl
+    from maki.models.database import DatabaseHook, DatabaseParameters
     
-    manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
+    DatabaseHook.init(
+        db_path,
+        DatabaseParameters(
+            kmer_size,
+            taxonomy_database,
+            taxonomy_release,
+            scale,
+            seed
+        ),
+        exist_ok=permissive
+    )
+    
+    
+@app.command(help="""
+Add sketches to database.             
+""")
+def add_sketches(
+    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
+    manifest_path: Annotated[Path, typer.Option("-i", "--manifest", help="Genome manifest CSV")],
+    workers: Annotated[int, typer.Option("-w", "--workers", help="Number of Sourmash sketching workers to run in parallel.")]
+):
+    from maki.models.database import DatabaseHook, GenomeSchema, read_manifest
+    
+    manifest = read_manifest(manifest_path, GenomeSchema("accession", "taxonomy", "fasta", "gff"))
     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
     
-    return build_impl(manifest, db_path, kmer_size, suffix_size, rank, threads, mode, taxonomy, releases, force, dry_run)
+    db = DatabaseHook(db_path)
+    sketched = db.sketch_package(manifest, fail_if_complete=True, workers=workers)
+    typer.echo(f"Inserted {len(sketched)} sketches into database {db_path}.")
+    
 
-
-# @app.command(help="""
-# Update an existing database with new genomes.
-# 
-# - Performs incremental diff vs current manifest
-# - Only rebuilds affected clusters
-# - Preserves unchanged indices
-# """)
-# def update(
-#     manifest_path: Path = typer.Option(..., help="New genome manifest"),
-#     db_path: Path = typer.Option(..., help="Existing database"),
-#     suffix_size: int = typer.Option(6),
-#     threads: int = typer.Option(4, help="Parallel threads")
-# ):
-#     import maki.models.database as mdb
-#     from .db import update as update_impl
-#     
-#     manifest = mdb.read_manifest(manifest_path, mdb.GenomeSchema("accession", "taxonomy", "fasta", "gff"))
-#     typer.echo(f"{len(manifest)} records parsed from manifest {manifest_path}.")
-#     
-#     return update_impl(manifest, db_path, suffix_size, threads)
+@app.command(help="""
+Initialise genome clusters at taxonomic rank.
+""")
+def init_clusters(
+    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
+    rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
+):
+    from maki.models.database import DatabaseHook
+    
+    db = DatabaseHook(db_path)
+    
+    if db.clusters is not None:
+        typer.echo(f"Database {db_path} already has clusters defined.", err=True)
+        return 1
+    
+    db.initialise_clusters_by_rank(rank)
 
 
 @app.command(help="""
-Classify paired-end sequencing samples.
-
-- Runs filter cluster first
-- Classifies reads against genome clusters
-- Outputs per-sample results
+Refine clustering at multiple levels
 """)
-def classify(
-    samples_path: Path = typer.Option(..., help="CSV sample manifest"),
-    db_path: Path = typer.Option(..., help="Database path"),
-    output: Path = typer.Option(..., help="Output directory"),
-    threads: int = typer.Option(4, help="Parallel classification"),
+def refine_clusters(
+    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
+    ani: Annotated[List[float], typer.Option("-a", "--ani", help="Clustering ANI thresholds")],
+    workers: Annotated[int, typer.Option("-w", "--workers", help="Number of Sourmash sketching workers to run in parallel.")],
 ):
-    from maki.classify.sample_manifest import SampleManifest
-    from maki.classify.classifier import Classifier
-    import maki.models.database as mdb
+    from maki.models.database import DatabaseHook
+    from maki.models.database.sketch.core import pairwise_comparison
+        
+    db = DatabaseHook(db_path)
     
-    db = mdb.StaticDatabase.load(db_path)
-    samples = SampleManifest.from_csv(samples_path)
-
-    classifier = Classifier(db, threads)
-    classifier.run(samples, output)
+    if db.clusters is None:
+        typer.echo(f"Database {db_path} has not had clusters initialised. Run `maki init-clusters...`.", err=True)
+        return 1
+    
+    for cluster in db.clusters.iter_clusters():
+        if len(cluster) > 1 and len(cluster) < 100:
+            sigs = db.sketch_db.load_many(cluster)
+            pw = pairwise_comparison(sigs.values(), Path.cwd(), workers)
+            print(pw[:10])
+            break
 
 
 @app.command(hidden=True)

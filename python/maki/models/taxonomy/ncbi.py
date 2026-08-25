@@ -11,7 +11,7 @@ class NCBITaxonomy(BaseTaxonomy):
 
     def __init__(self, db_root: Path):
         super().__init__(db_root)
-        self.dbfile = self.tax_root / "ncbi.sqlite"
+        self.dbfile = self.root / "ncbi.sqlite"
         self.ncbi: Optional[NCBITaxa] = None
 
     def ensure_downloaded(self):

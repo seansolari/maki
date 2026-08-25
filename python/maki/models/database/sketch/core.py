@@ -1,9 +1,14 @@
 from __future__ import annotations
 import bz2
+import csv
 from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
+import subprocess
+import sys
+from tempfile import TemporaryDirectory
+from typing import Iterable, List
 
 from sourmash import (
     MinHash,
@@ -11,6 +16,7 @@ from sourmash import (
     load_signatures_from_json,
     save_signatures
 )
+from sourmash.sourmash_args import SaveSignaturesToLocation
 
 
 FORMAT_VERSION = 1
@@ -157,6 +163,97 @@ def load_one_signature(path: str | Path) -> SourmashSignature:
         )
 
     return signatures[0]
+
+
+def zip_signatures(signatures: Iterable[SourmashSignature], zip_file: Path):
+    assert zip_file.suffix == ".zip"
+    
+    tmp_zip = zip_file.with_suffix(".zip.tmp")
+    
+    try:
+        with SaveSignaturesToLocation(tmp_zip) as zar:
+            for sig in signatures:
+                zar.add(sig)
+                
+    except Exception:
+        tmp_zip.unlink(missing_ok=True)
+        
+        raise
+
+    finally:
+        os.replace(tmp_zip, zip_file)
+        
+        
+def build_rocksdb_index(
+    signatures: List[SourmashSignature],
+    index_dir: str | Path,
+    processes: int = 8,
+):
+    """
+    Build a RocksDB sourmash index from a zip containing signatures.
+
+    Parameters
+    ----------
+    sig_zip : str
+        Path to zip containing *.sig files.
+    index_dir : str
+        Output RocksDB database directory.
+    processes : int
+        Parallel workers.
+    """
+    
+    index_dir = Path(index_dir)
+    assert index_dir.suffix == ".rocksdb"
+    
+    tmp_zip = index_dir.with_suffix(".zip")
+    zip_signatures(signatures, tmp_zip)
+    
+    # Build database
+    try:
+        cmd = [
+            sys.executable, "-m",
+            "sourmash",
+            "scripts",
+            "index", "-F", "rocksdb",
+            str(index_dir),
+            tmp_zip,
+            "--cores", str(processes),
+        ]
+
+        subprocess.run(cmd, check=True)
+    
+    finally:
+        tmp_zip.unlink()
+
+    return index_dir
+
+
+def pairwise_comparison(
+    signatures: Iterable[SourmashSignature],
+    tmp_prefix: str | Path,
+    processes: int = 8,
+):
+    with TemporaryDirectory(dir=tmp_prefix) as tmp:
+        root = Path(tmp)
+        
+        zip_file = root / "signatures.zip"
+        zip_signatures(signatures, zip_file)
+        
+        # pairwise comparisons
+        stat_file = root / "pairwise.csv"
+
+        cmd = [
+            sys.executable, "-m",
+            "sourmash", "scripts", "pairwise",
+            zip_file,
+            "-o", stat_file,
+            "--cores", str(processes),
+        ]
+        subprocess.run(cmd, check=True)
+        
+        with stat_file.open("wt", encoding='utf-8') as fh:
+            reader = csv.DictReader(fh)
+            return list(reader)
 
 
 def signature_params(signature: SourmashSignature) -> SketchParameters:

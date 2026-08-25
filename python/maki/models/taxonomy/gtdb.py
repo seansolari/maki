@@ -40,14 +40,14 @@ class GTDBTaxonomy(BaseTaxonomy):
         self.gtdb: Mapping[GTDBRelease, GTDBTaxa] = {rel: self._ensure_release(rel) for rel in releases}
         
     def list_releases(self):
-        for p in self.tax_root.iterdir():
+        for p in self.root.iterdir():
             try:
                 yield GTDBRelease[p.name]
             except KeyError:
                 continue
             
     def _ensure_release(self, rel: GTDBRelease) -> GTDBTaxa:
-        rel_base = self.tax_root / rel.name
+        rel_base = self.root / rel.name
         rel_base.mkdir(parents=True, exist_ok=True)
         
         sql = rel_base / f"{rel.value}.sqlite"

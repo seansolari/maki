@@ -3,6 +3,7 @@ import hashlib
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from pathlib import Path
+from typing import Iterable
 
 from maki.utils.io import read_fasta, read_fasta_from_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData
@@ -39,7 +40,7 @@ def _worker_create_signature(
     outfile = root / relpath
     outfile.parent.mkdir(parents=True, exist_ok=True)
     
-    # setch file
+    # sketch file
     
     mh = new_minhash(params)
     if item.fasta:
@@ -126,6 +127,13 @@ class SourmashSketchStore:
     def _sketch_exists(self, accession: str):
         _, relpath = _compute_storage_path(accession)
         return (self.root / relpath).exists()
+    
+    def cleanup_accessions(self, accessions: Iterable[str]):
+        for accession in accessions:
+            _, relpath = _compute_storage_path(accession)
+            sigpath = self.root / relpath
+            sigpath.unlink(missing_ok=True)
+            sigpath.with_suffix(sigpath.suffix + ".tmp").unlink(missing_ok=True)
 
     # --------------------------------------------------
     # loading

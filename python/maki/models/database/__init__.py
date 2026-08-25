@@ -1,3 +1,8 @@
 
-from .manifest import Manifest, read_manifest, ManifestSchema, GenomeSchema
-from .database import DatabaseOptions, UpdateMode, TaxonomySource, StaticDatabase, WriteableDatabase
+from .construct.hook import DatabaseParameters, DatabaseHook
+from .manifest import GenomeSchema, read_manifest
+
+__all__ = [
+    "DatabaseParameters",
+    "DatabaseHook"
+]
