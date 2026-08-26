@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from typing import Iterable, List
+from typing import Any, Dict, Iterable, List, Sequence
 
 from sourmash import (
     MinHash,
@@ -49,58 +49,9 @@ class SketchParameters:
 
 
 @dataclass(frozen=True)
-class ClusterAssignment:
-    genome_id: str
-    cluster_id: int
-
-    
-@dataclass(frozen=True)
-class Assignment:
-    """
-    Result returned by ThreePassClusterer.assign().
-
-    Attributes
-    ----------
-    representative_id:
-        Identifier of the selected or newly created representative.
-    is_new_cluster:
-        True when the query became a new representative.
-    score:
-        Final query/representative similarity. It is 1.0 for a newly
-        created representative.
-    union_containment:
-        Query-in-union containment observed during pass 1.
-    candidates_examined:
-        Number of representatives compared using full verification sketches.
-    index_candidates:
-        Number of distinct representatives returned by the inverted index.
-    pass_used:
-        One of:
-            "initial"
-            "union-negative"
-            "inverted-index"
-            "exhaustive-no-index-match"
-            "exhaustive-candidate-failure"
-            "new-after-index"
-            "new-after-exhaustive"
-    """
-
-    representative_id: int
-    is_new_cluster: bool
-    score: float
-    union_containment: float
-    candidates_examined: int
-    index_candidates: int
-    pass_used: str
-
-
-@dataclass(frozen=True)
-class ContainmentHit:
-    cluster_id: int
-    containment: float
-    intersect_hashes: int | None = None
-    query_hashes: int | None = None
-    cluster_hashes: int | None = None
+class PairwiseResults:
+    fieldnames: list[str]
+    data: list[dict[str, str]]
 
 
 # ---------------------------------------------------------------------------
@@ -171,16 +122,16 @@ def zip_signatures(signatures: Iterable[SourmashSignature], zip_file: Path):
     tmp_zip = zip_file.with_suffix(".zip.tmp")
     
     try:
-        with SaveSignaturesToLocation(tmp_zip) as zar:
+        with SaveSignaturesToLocation(str(tmp_zip)) as zar:
             for sig in signatures:
                 zar.add(sig)
-                
+    
     except Exception:
         tmp_zip.unlink(missing_ok=True)
         
         raise
 
-    finally:
+    else:
         os.replace(tmp_zip, zip_file)
         
         
@@ -251,9 +202,38 @@ def pairwise_comparison(
         ]
         subprocess.run(cmd, check=True)
         
-        with stat_file.open("wt", encoding='utf-8') as fh:
+        with stat_file.open("rt", encoding='utf-8') as fh:
             reader = csv.DictReader(fh)
-            return list(reader)
+            assert reader.fieldnames
+            return PairwiseResults(list(reader.fieldnames), list(reader))
+        
+
+def cluster_from_pairwise(
+    csv_file: str | Path,
+    ani: float,
+    cores: int = 8
+) -> list[list[str]]:
+    csv_file = Path(csv_file)
+    
+    result_file = csv_file.with_suffix(f"-clusters_{round(ani * 1.0e6, 6)}.csv")
+    
+    cmd = [
+        sys.executable, "-m",
+        "sourmash", "scripts", "cluster",
+        "-o", result_file,
+        "--similarity-column", "average_containment_ani",
+        "-t", str(ani),
+        "-c", str(cores),
+        csv_file,
+    ]
+    subprocess.run(cmd, check=True)
+    
+    with result_file.open("rt", encoding='utf-8') as fh:
+        reader = csv.DictReader(fh)
+        return [
+            r["nodes"].split(";")
+            for r in reader
+        ]
 
 
 def signature_params(signature: SourmashSignature) -> SketchParameters:

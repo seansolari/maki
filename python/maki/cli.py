@@ -85,23 +85,22 @@ Refine clustering at multiple levels
 def refine_clusters(
     db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
     ani: Annotated[List[float], typer.Option("-a", "--ani", help="Clustering ANI thresholds")],
-    workers: Annotated[int, typer.Option("-w", "--workers", help="Number of Sourmash sketching workers to run in parallel.")],
+    parallel: Annotated[int, typer.Option("-p", "--parallel", help="Sourmash cores/workers parameter.")],
+    dry_run: Annotated[bool, typer.Option(help="Do not persist new clusters, just report statistics.")] = False
 ):
     from maki.models.database import DatabaseHook
-    from maki.models.database.sketch.core import pairwise_comparison
-        
+    
     db = DatabaseHook(db_path)
     
     if db.clusters is None:
         typer.echo(f"Database {db_path} has not had clusters initialised. Run `maki init-clusters...`.", err=True)
         return 1
     
-    for cluster in db.clusters.iter_clusters():
-        if len(cluster) > 1 and len(cluster) < 100:
-            sigs = db.sketch_db.load_many(cluster)
-            pw = pairwise_comparison(sigs.values(), Path.cwd(), workers)
-            print(pw[:10])
-            break
+    taxa_clusters = db.ensure_pairwise(parallel)
+    
+    for cid in taxa_clusters:
+        print(db.pairwise.cluster_recursive(cid, ani, parallel))
+        return
 
 
 @app.command(hidden=True)

@@ -9,9 +9,11 @@ from typing import Optional
 import uuid
 
 from maki.models.database.clustering import ClusterManager, DictClusterRefinement
+from maki.models.database.clustering.pairwise import PairwiseManager
 from maki.models.database.manifest import DatabasePackage
 from maki.models.database.sketch import SourmashSketchStore, SketchParameters
-from maki.models.enums import TaxonomySource
+from maki.models.database.sketch.core import pairwise_comparison
+from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
 from .manifest import SQLiteManifest
@@ -79,6 +81,7 @@ class DatabaseHook:
     METADATA_FILE = "metadata.json"
     MANIFEST_FILE = "manifest.sqlite3"
     CLUSTER_FILE = "clusters.json.bz2"
+    PAIRWISE_FILE = "pairwise.json.bz2"
     DATA_DIRECTORY = "data"
     TAXONOMY_DIRECTORY = "taxonomy"
     SKETCH_DIRECTORY = "sketch"
@@ -97,6 +100,7 @@ class DatabaseHook:
         self.metadata_path = self.root / self.METADATA_FILE
         self.manifest_path = self.root / self.MANIFEST_FILE
         self.cluster_file = self.root / self.CLUSTER_FILE
+        self.pairwise_file = self.root / self.PAIRWISE_FILE
         self.data_root = self.root / self.DATA_DIRECTORY
         self.taxonomy_root = self.root / self.TAXONOMY_DIRECTORY
         self.sketch_root = self.data_root / self.SKETCH_DIRECTORY
@@ -149,6 +153,9 @@ class DatabaseHook:
             self.clusters = ClusterManager(self.cluster_file)
         else:
             self.clusters = None
+        
+        # Pairwise distances within root clusters
+        self.pairwise = PairwiseManager(self.pairwise_file)
 
     @classmethod
     def init(
@@ -343,9 +350,7 @@ class DatabaseHook:
     # -------------------
     
     def initialise_clusters_by_rank(self, rank: str):
-        if self.clusters is not None:
-            assert isinstance(self.clusters, ClusterManager)
-            raise RuntimeError(f"Clustering already defined!")
+        assert isinstance(self.clusters, ClusterManager)
         
         # Initialise clusters
         
@@ -415,3 +420,57 @@ class DatabaseHook:
             ancestors[accn] = ancestor
         
         return ancestors
+    
+    # Pairwise comparison within taxonomy
+    # -----------------------------------
+    
+    def ensure_pairwise(self, workers: int):
+        assert isinstance(self.clusters, ClusterManager)
+        
+        # Get base taxonomic clusters
+        taxa_tag = self._extract_taxa_tag()
+        
+        taxa_clusters = {
+            c.cluster_id
+            for c in self.clusters.iter_tag(taxa_tag)
+        }
+        
+        # Identify taxa that have not undergone sketch-based pairwise comparison
+        existing_pairwise = set(self.pairwise.group_ids())
+        to_do = taxa_clusters - existing_pairwise
+        
+        if to_do:
+            _changed = False
+            
+            for cluster_id in to_do:
+                cluster = self.clusters.get_cluster(cluster_id)
+                
+                # No need to compare singletons
+                if len(cluster) > 1:
+                    sigs = self.sketch_db.load_many(cluster)
+                    
+                    pw = pairwise_comparison(
+                        sigs.values(),
+                        self.root,
+                        workers
+                    )
+                    
+                    self.pairwise.insert_results(cluster_id, pw)
+                    _changed = True
+            
+            if _changed:
+                self.pairwise.save()
+                
+        return sorted(taxa_clusters)
+        
+    def _extract_taxa_tag(self):
+        assert isinstance(self.clusters, ClusterManager)
+        
+        candidates = set(r.value for r in Ranks) & self.clusters.tags
+        
+        if not candidates:
+            raise RuntimeError("Taxonomic clustering tag could not be identified.")
+        elif len(candidates) > 1:
+            raise RuntimeError("Multiple taxonomic clustering tags identified.")
+        
+        return candidates.pop()

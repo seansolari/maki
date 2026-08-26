@@ -6,7 +6,7 @@ import uuid
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Sequence
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence
 
 
 # ============================================================================
@@ -132,6 +132,7 @@ class ClusterManager:
                 node_id: asdict(node)
                 for node_id, node in self.nodes.items()
             },
+            "tags": list(self.tags)
         }
 
         with bz2.open(self.storage_path, "wt", encoding="utf-8") as fh:
@@ -141,13 +142,15 @@ class ClusterManager:
         with bz2.open(self.storage_path, "rt", encoding="utf-8") as fh:
             data = json.load(fh)
 
-        self.root_id = data["root_id"]
+        self.root_id: str = data["root_id"]
 
         self.nodes: Dict[str, ClusterNode] = {
             node_id: ClusterNode(**node_data)
             for node_id, node_data in data["nodes"].items()
         }
-
+        
+        self.tags: set[str] = set(data["tags"])
+        
     def _create_new(self, tag: str, accessions: Sequence[str]) -> None:
         root_id = self._new_cluster_id()
 
@@ -160,6 +163,7 @@ class ClusterManager:
         }
 
         self.root_id = root_id
+        self.tags = {tag}
 
     # ---------------------------------------------------------------------
     # Query Methods
@@ -234,6 +238,15 @@ class ClusterManager:
 
         if persist:
             self.save()
+            
+    def stats(
+        self,
+        clusters: Iterable[str]
+    ):
+        cluster_sizes = [len(self.nodes[cid].child_ids) for cid in clusters]
+        cluster_sizes.sort()
+        
+        return cluster_sizes[0], cluster_sizes[len(cluster_sizes)//2], cluster_sizes[-1]
 
     # ---------------------------------------------------------------------
     # Internal
