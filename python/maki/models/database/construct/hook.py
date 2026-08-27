@@ -8,11 +8,11 @@ from pathlib import Path
 from typing import Optional
 import uuid
 
-from maki.models.database.clustering import ClusterManager, DictClusterRefinement
+from maki.models.database.clustering import ClusterManager
 from maki.models.database.clustering.pairwise import PairwiseManager
 from maki.models.database.manifest import DatabasePackage
 from maki.models.database.sketch import SourmashSketchStore, SketchParameters
-from maki.models.database.sketch.core import pairwise_comparison
+from maki.models.database.sketch.core import pairwise_ani_comparison
 from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
@@ -63,19 +63,7 @@ class DatabaseParameters:
 
 
 class DatabaseHook:
-    """
-    Lightweight interface to a metagenomic database preparation directory.
-
-    Directory layout:
-
-        database-root/
-            metadata.json
-            manifest.sqlite3
-            data/
-                GCF/
-                    GCF_000001405.40/
-                        ...
-            working/
+    """Lightweight interface to a metagenomic database preparation directory.
     """
 
     METADATA_FILE = "metadata.json"
@@ -350,25 +338,19 @@ class DatabaseHook:
     # -------------------
     
     def initialise_clusters_by_rank(self, rank: str):
-        assert isinstance(self.clusters, ClusterManager)
-        
-        # Initialise clusters
-        
-        data = list(self.manifest.iter_taxonomy(complete_only=True))
-        
-        self.clusters = ClusterManager(
-            self.cluster_file,
-            accessions=list(map(lambda v: v[0], data))
-        )
+        self.clusters = ClusterManager(self.cluster_file)
         
         # Refine by rank
 
+        data = list(self.manifest.iter_taxonomy(complete_only=True))
         ancestors = self._group_by_rank(data, rank)
         
-        self.clusters.refine_clusters(
-            DictClusterRefinement(rank, ancestors),
-            persist=True
+        self.clusters.add_named_clustering(
+            ancestors,
+            tag=rank
         )
+        
+        self.clusters.save()
         
     # Taxonomy helpers
     # ----------------
@@ -443,13 +425,13 @@ class DatabaseHook:
             _changed = False
             
             for cluster_id in to_do:
-                cluster = self.clusters.get_cluster(cluster_id)
+                cluster = self.clusters.get_cluster(taxa_tag, cluster_id)
                 
                 # No need to compare singletons
-                if len(cluster) > 1:
-                    sigs = self.sketch_db.load_many(cluster)
+                if not cluster.is_singleton:
+                    sigs = self.sketch_db.load_many(cluster.accessions)
                     
-                    pw = pairwise_comparison(
+                    pw = pairwise_ani_comparison(
                         sigs.values(),
                         self.root,
                         workers
@@ -461,12 +443,12 @@ class DatabaseHook:
             if _changed:
                 self.pairwise.save()
                 
-        return sorted(taxa_clusters)
+        return taxa_tag, set(taxa_clusters)
         
     def _extract_taxa_tag(self):
         assert isinstance(self.clusters, ClusterManager)
         
-        candidates = set(r.value for r in Ranks) & self.clusters.tags
+        candidates = set(r.value for r in Ranks) & set(self.clusters.tags)
         
         if not candidates:
             raise RuntimeError("Taxonomic clustering tag could not be identified.")
@@ -474,3 +456,11 @@ class DatabaseHook:
             raise RuntimeError("Multiple taxonomic clustering tags identified.")
         
         return candidates.pop()
+    
+    # Regression
+    # ----------
+    
+    @staticmethod
+    def clear_clusters(db_path: Path):
+        (db_path / DatabaseHook.CLUSTER_FILE).unlink(missing_ok=True)
+        (db_path / DatabaseHook.PAIRWISE_FILE).unlink(missing_ok=True)

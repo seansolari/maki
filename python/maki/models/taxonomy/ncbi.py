@@ -1,9 +1,13 @@
 
+import logging
 from pathlib import Path
 from typing import Optional
 
 from ete4 import NCBITaxa
 from .base import BaseTaxonomy, TaxidNotFound
+
+
+logger = logging.getLogger(__name__)
 
 
 class NCBITaxonomy(BaseTaxonomy):
@@ -16,9 +20,9 @@ class NCBITaxonomy(BaseTaxonomy):
 
     def ensure_downloaded(self):
         if self.dbfile.exists():
-            print("Using existing NCBI taxonomy.")
+            logger.info("Using existing NCBI taxonomy.")
         else:
-            print("Downloading NCBI taxonomy (ETE4)...")
+            logger.info("Downloading NCBI taxonomy (ETE4)...")
 
         self.ncbi = NCBITaxa(dbfile=str(self.dbfile))
 

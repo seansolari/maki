@@ -1,6 +1,5 @@
-from .manager import ClusterManager, DictClusterRefinement
+from .manager import ClusterManager
 
 __all__ = [
     "ClusterManager",
-    "DictClusterRefinement"
 ]

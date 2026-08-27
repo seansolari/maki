@@ -5,11 +5,10 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
-import subprocess
-import sys
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Iterable, List
 
+from maki.utils.sp import run_in_current_env
 from sourmash import (
     MinHash,
     SourmashSignature,
@@ -161,17 +160,15 @@ def build_rocksdb_index(
     
     # Build database
     try:
-        cmd = [
-            sys.executable, "-m",
-            "sourmash",
-            "scripts",
-            "index", "-F", "rocksdb",
-            str(index_dir),
-            tmp_zip,
-            "--cores", str(processes),
-        ]
-
-        subprocess.run(cmd, check=True)
+        run_in_current_env(
+            [
+                "sourmash", "scripts", "index",
+                "-F", "rocksdb",
+                str(index_dir),
+                tmp_zip,
+                "--cores", str(processes),
+            ]
+        )
     
     finally:
         tmp_zip.unlink()
@@ -179,10 +176,10 @@ def build_rocksdb_index(
     return index_dir
 
 
-def pairwise_comparison(
+def pairwise_ani_comparison(
     signatures: Iterable[SourmashSignature],
     tmp_prefix: str | Path,
-    processes: int = 8,
+    processes: int = 8
 ):
     with TemporaryDirectory(dir=tmp_prefix) as tmp:
         root = Path(tmp)
@@ -193,14 +190,15 @@ def pairwise_comparison(
         # pairwise comparisons
         stat_file = root / "pairwise.csv"
 
-        cmd = [
-            sys.executable, "-m",
-            "sourmash", "scripts", "pairwise",
-            zip_file,
-            "-o", stat_file,
-            "--cores", str(processes),
-        ]
-        subprocess.run(cmd, check=True)
+        run_in_current_env(
+            [
+                "sourmash", "scripts", "pairwise",
+                zip_file,
+                "-o", stat_file,
+                "--cores", str(processes),
+                "-a"
+            ]
+        )
         
         with stat_file.open("rt", encoding='utf-8') as fh:
             reader = csv.DictReader(fh)
@@ -215,18 +213,20 @@ def cluster_from_pairwise(
 ) -> list[list[str]]:
     csv_file = Path(csv_file)
     
-    result_file = csv_file.with_suffix(f"-clusters_{round(ani * 1.0e6, 6)}.csv")
+    assert csv_file.name.endswith(".csv")
+
+    result_file = csv_file.parent / f"{csv_file.name[:-4]}-clusters_{int(round(ani * 1.0e6, 6))}.csv"
     
-    cmd = [
-        sys.executable, "-m",
-        "sourmash", "scripts", "cluster",
-        "-o", result_file,
-        "--similarity-column", "average_containment_ani",
-        "-t", str(ani),
-        "-c", str(cores),
-        csv_file,
-    ]
-    subprocess.run(cmd, check=True)
+    run_in_current_env(
+        [
+            "sourmash", "scripts", "cluster",
+            "-o", result_file,
+            "--similarity-column", "average_containment_ani",
+            "-t", str(ani),
+            "-c", str(cores),
+            csv_file,
+        ]
+    )
     
     with result_file.open("rt", encoding='utf-8') as fh:
         reader = csv.DictReader(fh)

@@ -2,10 +2,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 import csv
 from dataclasses import dataclass, astuple, fields
+import logging
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, Optional, Tuple, overload
 
 from maki.utils.io import open_maybe_gzip
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -129,7 +133,7 @@ class Manifest[T: (GenomeData, GenomeRecord)](DatabasePackage, SequencePackage):
         try:
             first_record = next(it)
         except StopIteration:
-            print(f"[warning] no records, not saving to {path}")
+            logger.warning("No records, not saving to %s", path)
             return
       
         with open_maybe_gzip(path, "wt") as f:
