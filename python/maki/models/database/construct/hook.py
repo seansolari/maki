@@ -8,15 +8,16 @@ from pathlib import Path
 from typing import Optional
 import uuid
 
-from maki.models.database.clustering import ClusterManager
-from maki.models.database.clustering.pairwise import PairwiseManager
+from maki.models.database.clustering import ClusterManager, ClusterNode, PairwiseManager
 from maki.models.database.manifest import DatabasePackage
 from maki.models.database.sketch import SourmashSketchStore, SketchParameters
 from maki.models.database.sketch.core import pairwise_ani_comparison
 from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
+
 from .manifest import SQLiteManifest
+from .store import IndexStoreHandle, compute_cluster_digest
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,7 @@ class DatabaseHook:
     DATA_DIRECTORY = "data"
     TAXONOMY_DIRECTORY = "taxonomy"
     SKETCH_DIRECTORY = "sketch"
+    INDEX_DIRECTORY = "index"
     
     # Database creation and hook initialisation
     # -----------------------------------------
@@ -91,7 +93,9 @@ class DatabaseHook:
         self.pairwise_file = self.root / self.PAIRWISE_FILE
         self.data_root = self.root / self.DATA_DIRECTORY
         self.taxonomy_root = self.root / self.TAXONOMY_DIRECTORY
+        
         self.sketch_root = self.data_root / self.SKETCH_DIRECTORY
+        self.index_root = self.data_root / self.INDEX_DIRECTORY
 
         if not self.metadata_path.is_file():
             raise FileNotFoundError(
@@ -113,6 +117,12 @@ class DatabaseHook:
             raise FileNotFoundError(
                 "Database sketch directory does not exist: "
                 f"{self.sketch_root}"
+            )
+            
+        if not self.index_root.is_dir():
+            raise FileNotFoundError(
+                "Database index directory does not exist: ",
+                f"{self.index_root}"
             )
 
         with self.metadata_path.open("r", encoding="utf-8") as handle:
@@ -144,6 +154,9 @@ class DatabaseHook:
         
         # Pairwise distances within root clusters
         self.pairwise = PairwiseManager(self.pairwise_file)
+        
+        # Index handle
+        self.indexes = IndexStoreHandle(self.index_root)
 
     @classmethod
     def init(
@@ -189,6 +202,7 @@ class DatabaseHook:
             staging_root.mkdir()
             (staging_root / cls.DATA_DIRECTORY).mkdir()
             (staging_root / cls.DATA_DIRECTORY / cls.SKETCH_DIRECTORY).mkdir()
+            (staging_root / cls.DATA_DIRECTORY / cls.INDEX_DIRECTORY).mkdir()
 
             metadata_path = staging_root / cls.METADATA_FILE
             temporary_metadata = staging_root / f".{cls.METADATA_FILE}.tmp"
@@ -464,3 +478,72 @@ class DatabaseHook:
     def clear_clusters(db_path: Path):
         (db_path / DatabaseHook.CLUSTER_FILE).unlink(missing_ok=True)
         (db_path / DatabaseHook.PAIRWISE_FILE).unlink(missing_ok=True)
+        
+    # Build indexes
+    # -------------
+    
+    def index_cluster(
+        self,
+        tag: str,
+        cluster: ClusterNode,
+        package: DatabasePackage,
+        suffix_size: int,
+        parallel: int,
+        dryrun: bool = False,
+        force: bool = False
+    ):  
+        # Compare data with existing cluster
+        this_digest = compute_cluster_digest(cluster)
+        existing_digest = self.indexes.current_digest(tag, cluster.cluster_id)
+        
+        if existing_digest:
+            if this_digest == existing_digest:
+                logger.info("Skipping build for tag=%s:cluster=%s, identical accession digests.", tag, cluster.cluster_id)
+                return
+            
+            elif force and not dryrun:
+                logger.info(
+                    "Removing existing index for for tag="
+                    "%s:cluster=%s, stale digest.",
+                    tag,
+                    cluster.cluster_id
+                )
+                
+                self.indexes.remove_index(tag, cluster.cluster_id)
+                
+        # Start cluster build
+        logger.info("Starting index build for tag=%s:cluster=%s.", tag, cluster.cluster_id)
+
+        if dryrun:
+            logger.info(
+                "(dryrun) %d accessions to insert for tag=%s:cluster=%s: %s%s",
+                len(cluster.accessions),
+                tag,
+                cluster.cluster_id,
+                ",".join(cluster.accessions[:5]),
+                "..." if len(cluster.accessions) > 5 else ""
+            )
+            return
+        
+        with package.retrieve_data(cluster.accessions) as data:
+            dbh = self.indexes.get_handle(tag, cluster.cluster_id)
+            
+            logger.info("Inserting sequences tag=%s:cluster=%s.", tag, cluster.cluster_id)
+            dbh.insert(data.genomes())
+            
+            try:
+                logger.info("Constructing cluster index for tag=%s:cluster=%s.", tag, cluster.cluster_id)
+                
+                dbh.build(
+                    self.metadata.kmer_size,
+                    suffix_size,
+                    parallel
+                )
+                
+                dbh.write_digest(this_digest)
+            
+            finally:
+                logger.info("Clearing sources for cluster index for tag=%s:cluster=%s.", tag, cluster.cluster_id)
+                dbh.clear_sources()
+                
+            logger.info("Index construction complete for tag=%s:cluster=%s.", tag, cluster.cluster_id)

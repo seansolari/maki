@@ -77,7 +77,7 @@ def init_clusters(
     db = DatabaseHook(db_path)
     
     if db.clusters is not None:
-        logging.error(f"Database %s already has clusters defined.", db_path)
+        logging.error("Database %s already has clusters defined.", db_path)
         return 1
     
     db.initialise_clusters_by_rank(rank)
@@ -123,9 +123,11 @@ def refine_clusters(
     db = DatabaseHook(db_path)
     
     if db.clusters is None:
-        logger.info(f"Database %s has not had clusters initialised. Run `maki init-clusters...`.", db_path)
+        logger.info("Database %s has not had clusters initialised. Run `maki init-clusters...`.", db_path)
         return 1
     
+    # Ensure pairwise data is loaded
+    db.pairwise.try_load()
     taxa_tag, taxa_cluster_ids = db.ensure_pairwise(parallel)
     
     # Isolate singleton clusters
@@ -152,6 +154,8 @@ def refine_clusters(
     )
     
     for cutoff, clustering in zip(ani, hierarchical):
+        clustering.add_singletons(singletons)
+        
         mi, me, ma = clustering.stats()
         
         logger.info(
@@ -167,15 +171,51 @@ def refine_clusters(
 
 
 @app.command(help="""
-Index clusters without
+Create de Bruijn graph indices based on a particular clustering.
 """)
 def index_clusters(
     db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
     manifest_path: Annotated[Path, typer.Option("-i", "--manifest", help="Genome manifest CSV")],
-    tag: Annotated[list[float], typer.Option("-t", "--tag", help="Clustering to use, identified by tag")],
+    tag: Annotated[str, typer.Option("-t", "--tag", help="Clustering to use, identified by tag")],
+    suffix_size: Annotated[int, typer.Option("-s", "--suffix-size", help="Index construction suffix size")],
     parallel: Annotated[int, typer.Option("-p", "--parallel", help="Parallelism (threads)")],
+    dryrun: Annotated[bool, typer.Option(help="Do not perform builds.")] = False,
+    force: Annotated[bool, typer.Option(help="Force overwrite of existing clusters (except in `dryrun` mode where nothing happens).")] = False
 ):
-    ...
+    from maki.models.database import DatabaseHook, GenomeSchema, read_manifest
+    
+    # Prepare database
+    db = DatabaseHook(db_path)
+    
+    if db.clusters is None:
+        logger.error(
+            "Database %s has no clusters. Run `maki init-clusters ...` "
+            "and then possibly `maki refine-clusters ...`.",
+            db_path
+        )
+        return 1
+    
+    if tag not in set(db.clusters.tags):
+        logger.error(
+            "Tag %s not found in database %s. Current clustering tags are: %s.",
+            tag,
+            db_path,
+            ", ".join(db.clusters.tags)
+        )
+        return 1
+    
+    # Load manifest
+    manifest = read_manifest(
+        manifest_path,
+        GenomeSchema("accession", "taxonomy", "fasta", "gff")
+    )
+    logger.info("%d records parsed from manifest %s.", len(manifest), manifest_path)
+    
+    # Build clusters
+    for cluster in db.clusters.iter_tag(tag):
+        db.index_cluster(tag, cluster, manifest, suffix_size, parallel, dryrun=dryrun, force=force)
+    
+    logger.info("Index construction complete.")
 
 
 @app.command(hidden=True)
@@ -196,11 +236,11 @@ def sample_to_debruijn(forward: str, reverse: str, k: int, s: int, threads: int,
     import maki.core as mx
     
     if not os.path.exists(forward):
-        typer.echo(f"Error: file does not exist: {forward}", err=True)
+        logger.error("File does not exist: %s", forward)
         return 1
     
     if not os.path.exists(reverse):
-        typer.echo(f"Error: file does not exist: {reverse}", err=True)
+        logger.error("File does not exist: %s", reverse)
         return 1
     
     rp = mx.read_pair(forward, reverse)

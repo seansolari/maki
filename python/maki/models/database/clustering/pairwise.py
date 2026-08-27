@@ -169,9 +169,6 @@ class PairwiseManager:
         
         self.fieldnames: list[str] | None = None
         self.data: dict[str, list[dict[str, str]]] = {}
-
-        if self.storage_path.exists():
-            self._load()
             
     # ---------------------------------------------------------------------
     # Persistence
@@ -191,6 +188,10 @@ class PairwiseManager:
 
         with bz2.open(self.storage_path, "wt", encoding="utf-8") as fh:
             json.dump(data, fh)
+            
+    def try_load(self):
+        if self.storage_path.exists():
+            self._load()
 
     def _load(self) -> None:
         with bz2.open(self.storage_path, "rt", encoding="utf-8") as fh:
