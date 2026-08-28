@@ -1,0 +1,48 @@
+#!/bin/bash
+#SBATCH --job-name={job_name}
+#SBATCH --output={slurm_out}/{job_name}.out
+#SBATCH --error={slurm_out}/{job_name}.err
+{email_region}
+#SBATCH --tasks=1
+#SBATCH --cpus-per-task={threads}
+#SBATCH --time={time}
+#SBATCH --mem={mem}
+
+set -euo pipefail
+
+echo "Running job: {job_name}"
+echo "Threads: {threads}"
+
+mkdir -p {outdir}
+
+{module_load}
+
+# Run benchmark
+/usr/bin/time -v -o {outdir}/time.txt \
+    bash -c "
+        maki build \
+            -db {outdir}/index \
+            -i {manifest} \
+            -k {k} \
+            -p {threads} \
+            --taxonomy-database {taxonomy} \
+            --release {releases} \
+            -a {ani} \
+            -s {s} \
+        > {outdir}/stdout.txt \
+        2> {outdir}/stderr.txt
+    "
+
+# Size of database on disk
+du -bsh {outdir}/index > {outdir}/index-space.txt
+
+# Remove index
+rm -rf {outdir}/index
+
+# Diagnostics
+echo {manifest} {k} {s} {ani} {threads} > {outdir}/params.txt
+hostname > {outdir}/host.txt
+date > {outdir}/date.txt
+
+# Mark completion
+echo 'complete' > {outdir}/done.flag
