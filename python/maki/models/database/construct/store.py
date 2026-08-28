@@ -18,7 +18,7 @@ def _compute_storage_path(tag: str, index_id: str) -> tuple[str, str]:
     shard1 = h[:2]
     shard2 = h[2:4]
 
-    relpath = f"tag/{shard1}/{shard2}/{index_id}"
+    relpath = f"{tag}/{shard1}/{shard2}/{index_id}"
 
     return h, relpath
 

@@ -33,5 +33,6 @@ cmake.build-type = "Release"
 logging.level = "INFO"
 
 [project.scripts]
-maki = "maki.cli:main"
-"maki.atb" = "maki.atb.cli:main"
+"maki" = "maki.cli:main"
+"maki-buildstages" = "maki.workflows.buildstages:main"
+"maki-atb" = "maki.atb.cli:main"

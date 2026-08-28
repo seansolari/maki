@@ -423,6 +423,8 @@ class DatabaseHook:
     def ensure_pairwise(self, workers: int):
         assert isinstance(self.clusters, ClusterManager)
         
+        self.pairwise.try_load()
+        
         # Get base taxonomic clusters
         taxa_tag = self._extract_taxa_tag()
         
@@ -529,7 +531,7 @@ class DatabaseHook:
             dbh = self.indexes.get_handle(tag, cluster.cluster_id)
             
             logger.info("Inserting sequences tag=%s:cluster=%s.", tag, cluster.cluster_id)
-            dbh.insert(data.genomes())
+            dbh.pinsert(data.genomes(), parallel)
             
             try:
                 logger.info("Constructing cluster index for tag=%s:cluster=%s.", tag, cluster.cluster_id)

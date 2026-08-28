@@ -36,6 +36,9 @@ class ClusterManager:
     @property
     def tags(self) -> Iterable[str]:
         return self._data.keys()
+    
+    def has_tag(self, qry: str) -> bool:
+        return qry in self._data
 
     def save(self) -> None:        
         obj = {

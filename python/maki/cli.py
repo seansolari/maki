@@ -6,217 +6,141 @@ from typing import Annotated
 
 from maki.benchmark import bmark_app
 from maki.models.enums import Ranks, TaxonomySource
-
 import typer
 
 
 logger = logging.getLogger(__name__)
 
 
-app = typer.Typer(
-    help="Metagenomic database builder and classifier.\n\n"
-         "Supports taxonomy-aware clustering, incremental updates, "
-         "and parallel classification."
-)
+app = typer.Typer(help="""
+Metagenomics using an Annotated K-mer Index
+""")
+
+
+# ---------------------------------------------------------------------
+# Build Workflow Wrapper
+# ---------------------------------------------------------------------
+
+CORE_PANEL_NAME = "Core Arguments"
+
+DatabaseArg = Annotated[
+    Path,
+    typer.Option("-db", "--db-path", help="Database output path", rich_help_panel=CORE_PANEL_NAME)
+]
+ManifestArg = Annotated[
+    Path,
+    typer.Option("-i", "--manifest", help="Genome manifest CSV", rich_help_panel=CORE_PANEL_NAME)
+]
+KmerSizeArg = Annotated[
+    int,
+    typer.Option("-k", "--kmer-size", help="K-mer size for database", rich_help_panel=CORE_PANEL_NAME)
+]
+ParallelismArg = Annotated[
+    int,
+    typer.Option("-p", "--parallel", help="Parallelism parameter.", rich_help_panel=CORE_PANEL_NAME)
+]
+
+TAXONOMY_PANEL_NAME = "Taxonomy Arguments"
+
+TaxonomyDatabaseArg = Annotated[
+    TaxonomySource,
+    typer.Option(help="Taxonomy database", rich_help_panel=TAXONOMY_PANEL_NAME)
+]
+TaxonomyReleaseArg = Annotated[
+    str,
+    typer.Option("--release", help="Taxonomy release to use", rich_help_panel=TAXONOMY_PANEL_NAME)
+]
+
+CLUSTERING_PANEL_NAME = "Clustering & Pre-filter Arguments"
+
+SketchScaleArg = Annotated[
+    int,
+    typer.Option(help="Sketching scale parameter", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+SketchSeedArg = Annotated[
+    int,
+    typer.Option(help="Seed for sketching", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+TaxonomicRankArg = Annotated[
+    Ranks,
+    typer.Option(help="Taxonomic rank", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+NoRefinementArgs = Annotated[
+    bool,
+    typer.Option("--no-refinement", help="Skip ANI clustering refinement", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+ClusterANIArg = Annotated[
+    float,
+    typer.Option("-a", "--ani", help="ANI clustering threshold", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+NoDerepArgs = Annotated[
+    bool,
+    typer.Option("--no-derep", help="Skip pre-filter de-replication step", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+DereplicationArg = Annotated[
+    float,
+    typer.Option("--derep", help="De-replication for Sourmash pre-filter index", rich_help_panel=CLUSTERING_PANEL_NAME)
+]
+
+BUILD_PANEL_NAME = "Database Build Arguments"
+
+SuffixSizeArg = Annotated[
+    int,
+    typer.Option("-s", "--suffix-size", help="Index construction suffix size", rich_help_panel=BUILD_PANEL_NAME)
+]
 
 
 @app.command(help="""
-Initialise a database and download taxonomy.
+Construct a database
 """)
-def init(
-    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
-    kmer_size: Annotated[int, typer.Option("-k", "--kmer-size", help="K-mer size for database")],
-    taxonomy_database: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
-    taxonomy_release: str = typer.Option("latest", help="Taxonomy release to use"),
-    scale: int = typer.Option(1000, help="Sketching scale parameter"),
-    seed: int = typer.Option(42, help="Seed for sketching"),
-    permissive: Annotated[bool, typer.Option("--permissive", "-p", help="Do not fail if one already exists")] = False
+def build(
+    db_path: DatabaseArg,
+    manifest_path: ManifestArg,
+    kmer_size: KmerSizeArg,
+    parallel: ParallelismArg,
+    taxonomy_database: TaxonomyDatabaseArg = TaxonomySource.gtdb,
+    taxonomy_release: TaxonomyReleaseArg = "latest",
+    scale: SketchScaleArg = 1000,
+    seed: SketchSeedArg = 42,
+    rank: TaxonomicRankArg = Ranks.Species,
+    skip_refine: NoRefinementArgs = False,
+    ani: ClusterANIArg = 0.95,
+    skip_derep: NoDerepArgs = False,
+    derep: DereplicationArg = 0.99,
+    suffix_size: SuffixSizeArg = 6,
 ):
-    from maki.models.database import DatabaseHook, DatabaseParameters
+    import maki.workflows.buildstages as build_stages
     
-    DatabaseHook.init(
-        db_path,
-        DatabaseParameters(
-            kmer_size,
-            taxonomy_database,
-            taxonomy_release,
-            scale,
-            seed
-        ),
-        exist_ok=permissive
-    )
+    # Initialise database
+    build_stages.init(db_path, kmer_size, taxonomy_database, taxonomy_release,
+                      scale, seed, True)
     
+    # Design index clusters
+    build_stages.add_sketches(db_path, manifest_path, parallel, permissive=True)
     
-@app.command(help="""
-Add sketches to database.             
-""")
-def add_sketches(
-    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
-    manifest_path: Annotated[Path, typer.Option("-i", "--manifest", help="Genome manifest CSV")],
-    workers: Annotated[int, typer.Option("-w", "--workers", help="Number of Sourmash sketching workers to run in parallel.")]
-):
-    from maki.models.database import DatabaseHook, GenomeSchema, read_manifest
+    build_stages.init_clusters(db_path, rank)
     
-    manifest = read_manifest(manifest_path, GenomeSchema("accession", "taxonomy", "fasta", "gff"))
-    logger.info("%d records parsed from manifest %s.", len(manifest), manifest_path)
-    
-    db = DatabaseHook(db_path)
-    sketched = db.sketch_package(manifest, fail_if_complete=True, workers=workers)
-    logger.info("Inserted %d sketches into database %s.", len(sketched), db_path)
-    
-
-@app.command(help="""
-Initialise genome clusters at taxonomic rank.
-""")
-def init_clusters(
-    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
-    rank: Annotated[Ranks, typer.Option(help="Taxonomic rank")] = Ranks.Species,
-):
-    from maki.models.database import DatabaseHook
-    
-    db = DatabaseHook(db_path)
-    
-    if db.clusters is not None:
-        logging.error("Database %s already has clusters defined.", db_path)
-        return 1
-    
-    db.initialise_clusters_by_rank(rank)
-
-
-@app.command(help="""
-Initialise genome clusters at taxonomic rank.
-""")
-def clear_clusters(
-    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
-):
-    from maki.models.database import DatabaseHook
-    
-    DatabaseHook.clear_clusters(db_path)
-
-
-@app.command(help="""
-Refine clustering at multiple levels
-""")
-def refine_clusters(
-    db_path: Annotated[
-        Path,
-        typer.Option("-db", "--db-path", help="Database output path")
-    ],
-    ani: Annotated[
-        list[float],
-        typer.Option(
-            "-a", "--ani",
-            help="Comma-separated clustering ANI thresholds"
-        )
-    ],
-    parallel: Annotated[
-        int,
-        typer.Option("-p", "--parallel", help="Sourmash cores/workers parameter.")
-    ],
-    dryrun: Annotated[
-        bool,
-        typer.Option(help="Do not persist new clusters, just report statistics.")
-    ] = False
-):
-    from maki.models.database import DatabaseHook
-    
-    db = DatabaseHook(db_path)
-    
-    if db.clusters is None:
-        logger.info("Database %s has not had clusters initialised. Run `maki init-clusters...`.", db_path)
-        return 1
-    
-    # Ensure pairwise data is loaded
-    db.pairwise.try_load()
-    taxa_tag, taxa_cluster_ids = db.ensure_pairwise(parallel)
-    
-    # Isolate singleton clusters
-    singletons = {
-        cid
-        for cid in taxa_cluster_ids
-        if db.clusters.get_cluster(taxa_tag, cid).is_singleton
-    }
-    
-    logger.info(
-        "Ignoring %d singleton clusters (%d total) during hierarchical clustering.",
-        len(singletons), len(taxa_cluster_ids)
-    )
-    
-    non_singleton_clusters = taxa_cluster_ids - singletons
-    
-    # Hierarchical clustering on non-singleton clusters
-    ani.sort()
-    
-    hierarchical = db.pairwise.refine_clusters(
-        non_singleton_clusters,
-        ani,
-        parallel
-    )
-    
-    for cutoff, clustering in zip(ani, hierarchical):
-        clustering.add_singletons(singletons)
+    thresholds = []
+    if not skip_refine:
+        thresholds.append(ani)
         
-        mi, me, ma = clustering.stats()
+        if not skip_derep:
+            thresholds.append(derep)
         
-        logger.info(
-            "ANI %.3f:\t%d\t%d\t%d\t%d",
-            ani, clustering.num_clusters, mi, me, ma
-        )
+        rcode = build_stages.refine_clusters(db_path, thresholds, parallel)
+        if rcode != 0:
+            return rcode
+    
+    # Index database
+    rcode = build_stages.index_clusters(db_path, manifest_path,
+                                        f"ani{thresholds[0]}" if thresholds else rank,
+                                        suffix_size, parallel)
+    return rcode
 
-    if not dryrun:
-        for cutoff, clustering in zip(ani, hierarchical):
-            db.clusters.add_anon_clustering(clustering, f"ani{cutoff}")
-        
-        db.clusters.save()
 
-
-@app.command(help="""
-Create de Bruijn graph indices based on a particular clustering.
-""")
-def index_clusters(
-    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
-    manifest_path: Annotated[Path, typer.Option("-i", "--manifest", help="Genome manifest CSV")],
-    tag: Annotated[str, typer.Option("-t", "--tag", help="Clustering to use, identified by tag")],
-    suffix_size: Annotated[int, typer.Option("-s", "--suffix-size", help="Index construction suffix size")],
-    parallel: Annotated[int, typer.Option("-p", "--parallel", help="Parallelism (threads)")],
-    dryrun: Annotated[bool, typer.Option(help="Do not perform builds.")] = False,
-    force: Annotated[bool, typer.Option(help="Force overwrite of existing clusters (except in `dryrun` mode where nothing happens).")] = False
-):
-    from maki.models.database import DatabaseHook, GenomeSchema, read_manifest
-    
-    # Prepare database
-    db = DatabaseHook(db_path)
-    
-    if db.clusters is None:
-        logger.error(
-            "Database %s has no clusters. Run `maki init-clusters ...` "
-            "and then possibly `maki refine-clusters ...`.",
-            db_path
-        )
-        return 1
-    
-    if tag not in set(db.clusters.tags):
-        logger.error(
-            "Tag %s not found in database %s. Current clustering tags are: %s.",
-            tag,
-            db_path,
-            ", ".join(db.clusters.tags)
-        )
-        return 1
-    
-    # Load manifest
-    manifest = read_manifest(
-        manifest_path,
-        GenomeSchema("accession", "taxonomy", "fasta", "gff")
-    )
-    logger.info("%d records parsed from manifest %s.", len(manifest), manifest_path)
-    
-    # Build clusters
-    for cluster in db.clusters.iter_tag(tag):
-        db.index_cluster(tag, cluster, manifest, suffix_size, parallel, dryrun=dryrun, force=force)
-    
-    logger.info("Index construction complete.")
-
+# ---------------------------------------------------------------------
+# Hidden Commands
+# ---------------------------------------------------------------------
 
 @app.command(hidden=True)
 def to_graph(manifest: str, k: int, s: int, threads: int, database_path: Path):
@@ -238,7 +162,7 @@ def sample_to_debruijn(forward: str, reverse: str, k: int, s: int, threads: int,
     if not os.path.exists(forward):
         logger.error("File does not exist: %s", forward)
         return 1
-    
+
     if not os.path.exists(reverse):
         logger.error("File does not exist: %s", reverse)
         return 1
@@ -254,8 +178,8 @@ app.add_typer(bmark_app, name="benchmark")
 
 
 def main():
-    app()
-    
+    SystemExit(app())
+
 
 if __name__ == "__main__":
     main()
