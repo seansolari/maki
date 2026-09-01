@@ -11,6 +11,8 @@
 using id_result = ColourRegistry::id_result;
 
 class ClassificationSummary {
+  std::unordered_map<std::pair<std::size_t,colour_t>,uint32_t> _data;
+
 public:
   void count(std::size_t edge, uint64_t depth, id_result colours);
 };

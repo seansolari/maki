@@ -1,33 +1,24 @@
-from __future__ import annotations
-import hashlib
+
 from concurrent.futures import ProcessPoolExecutor
 from itertools import repeat
 from pathlib import Path
-from typing import Iterable
 
-from maki.utils.io import read_fasta, read_fasta_from_gff
 from maki.models.database.manifest import DatabasePackage, GenomeData
+from maki.sketch.core import (
+    new_minhash,
+    load_one_signature,
+    save_one_signature,
+    validate_signature,
+    SketchParameters
+)
+from maki.sketch.store import SourmashSketchStore
+from maki.utils.io import read_fasta, read_fasta_from_gff
 from sourmash import SourmashSignature
-
-from .core import SketchParameters, load_one_signature, new_minhash, save_one_signature, validate_signature
-
-
-def _compute_storage_path(accession: str) -> tuple[str, str]:
-    """Create a deterministic sharded path with .bz2 extension.
-    """
-    h = hashlib.sha256(accession.encode()).hexdigest()
-
-    shard1 = h[:2]
-    shard2 = h[2:4]
-
-    relpath = f"{shard1}/{shard2}/{accession}.sig.bz2"
-
-    return h, relpath
 
 
 def _worker_create_signature(
     data: tuple[GenomeData, SketchParameters, str | Path],
-) -> tuple[str, str]:
+):
     """
     Worker process.
     """
@@ -35,9 +26,7 @@ def _worker_create_signature(
     
     root = Path(storage_root)
 
-    _, relpath = _compute_storage_path(item.accession)
-
-    outfile = root / relpath
+    outfile = root / GenomeSketchStore._compute_storage_path(item.accession)
     outfile.parent.mkdir(parents=True, exist_ok=True)
     
     # sketch file
@@ -69,37 +58,17 @@ def _worker_create_signature(
     )
 
     save_one_signature(signature, outfile)
+
+
+class GenomeSketchStore(SourmashSketchStore):
+    @staticmethod
+    def signature_name(accession: str) -> str:
+        return f"{accession}.sig.bz2"
     
-    return item.accession, str(relpath)
-
-
-class SourmashSketchStore:
-    """
-    Large-scale sourmash signature manager.
-
-    Features
-    --------
-    * SHA256 sharded filesystem layout
-    * gzip-compressed signatures
-    * SQLite index
-    * multiprocessing batch sketch generation
-    * random signature loading
-    """
-
-    def __init__(
-        self,
-        root_dir: str | Path,
-        *,
-        params: SketchParameters
-    ):
-        self.root = Path(root_dir)
-        self.params = params
-        self.params.validate()
-
     # --------------------------------------------------
-    # batch sketching
+    # sketching
     # --------------------------------------------------
-
+    
     def sketch_many(
         self,
         package: DatabasePackage,
@@ -109,11 +78,7 @@ class SourmashSketchStore:
     ):
         """Sketch many FASTA files in parallel.
         """
-        new_accessions = {
-            accession
-            for accession in accessions
-            if not self._sketch_exists(accession)
-        }
+        new_accessions = self.filter_existing(accessions)
         
         if new_accessions:
             with package.retrieve_data(new_accessions) as data:
@@ -123,17 +88,6 @@ class SourmashSketchStore:
                     list(executor.map(_worker_create_signature, sketch_jobs))
 
         return accessions
-    
-    def _sketch_exists(self, accession: str):
-        _, relpath = _compute_storage_path(accession)
-        return (self.root / relpath).exists()
-    
-    def cleanup_accessions(self, accessions: Iterable[str]):
-        for accession in accessions:
-            _, relpath = _compute_storage_path(accession)
-            sigpath = self.root / relpath
-            sigpath.unlink(missing_ok=True)
-            sigpath.with_suffix(sigpath.suffix + ".tmp").unlink(missing_ok=True)
 
     # --------------------------------------------------
     # loading
@@ -143,11 +97,9 @@ class SourmashSketchStore:
         self,
         accession: str,
     ) -> SourmashSignature:
+        """Load a SourmashSignature object.
         """
-        Load a SourmashSignature object.
-        """
-        _, relpath = _compute_storage_path(accession)
-        sketch_path = self.root / relpath
+        sketch_path = self.root / self._compute_storage_path(accession)
         
         if not sketch_path.exists():
             raise ValueError(

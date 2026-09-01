@@ -19,21 +19,23 @@ ClassificationSummary Accumulate(const std::vector<int64_t> &edges,
                                std::to_string(edges[i]));
     }
 
+    // get range of edge colours covered by this region
+    const auto &meta = ref.carch->meta(region);
+    assert(static_cast<int64_t>(meta.start_index) <= edges[i]);
+    
+    auto regionEnd = static_cast<int64_t>(meta.start_index + meta.elem_count);
+    assert(edges[i] < regionEnd);
+
     // get colour array
     auto cols = ref.carch->view(region);
-
-    // get range of edge colours covered by this array
-    const auto &meta = ref.carch->meta(region);
-    auto regionEnd = static_cast<int64_t>(meta.start_index + meta.elem_count);
-    assert(static_cast<int64_t>(meta.start_index) <= edges[i]);
-    assert(edges[i] < regionEnd);
 
     // count through edges in this range
     while (i < numEdges) {
       if (edges[i] != -1) {
         if (edges[i] < regionEnd) {
           results.count(
-              i, qry.edge_count(i),
+              i,
+              qry.edge_count(i),
               ref.cmap.colours(cols.get(edges[i] - meta.start_index)));
         } else {
           break;
@@ -45,4 +47,8 @@ ClassificationSummary Accumulate(const std::vector<int64_t> &edges,
   }
 
   return results;
+}
+
+void ClassificationSummary::count(std::size_t edge, uint64_t depth, id_result colours) {
+  
 }

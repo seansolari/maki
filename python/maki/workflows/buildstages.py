@@ -44,7 +44,7 @@ def init(
     
     return 0
     
-    
+
 @build_app.command(help="""
 Add sketches to database.             
 """)

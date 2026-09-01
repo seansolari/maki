@@ -34,5 +34,6 @@ logging.level = "INFO"
 
 [project.scripts]
 "maki" = "maki.cli:main"
-"maki-buildstages" = "maki.workflows.buildstages:main"
+"maki-buildwf" = "maki.workflows.buildstages:main"
+"maki-classifywf" = "maki.workflows.classifystages:main"
 "maki-atb" = "maki.atb.cli:main"

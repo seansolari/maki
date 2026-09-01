@@ -10,13 +10,13 @@ import uuid
 
 from maki.models.database.clustering import ClusterManager, ClusterNode, PairwiseManager
 from maki.models.database.manifest import DatabasePackage
-from maki.models.database.sketch import SourmashSketchStore, SketchParameters
-from maki.models.database.sketch.core import pairwise_ani_comparison
+from maki.sketch import SketchParameters, pairwise_ani_comparison
 from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
 
 from .manifest import SQLiteManifest
+from .sketch import GenomeSketchStore
 from .store import IndexStoreHandle, compute_cluster_digest
 
 
@@ -144,7 +144,7 @@ class DatabaseHook:
         )
         
         # Sketch records
-        self.sketch_db = SourmashSketchStore(self.sketch_root, params=self.metadata.sketch_params)
+        self.sketch_db = GenomeSketchStore(self.sketch_root, params=self.metadata.sketch_params)
         
         # Clusters
         if self.cluster_file.exists():

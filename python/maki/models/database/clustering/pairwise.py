@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Iterable
 
-from maki.models.database.sketch.core import PairwiseResults, cluster_from_pairwise
+from maki.sketch.core import PairwiseResults, cluster_from_pairwise
 
 
 logger = logging.getLogger(__name__)

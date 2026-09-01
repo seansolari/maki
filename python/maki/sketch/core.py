@@ -6,7 +6,7 @@ import hashlib
 import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Iterable, List
+from typing import Iterable, Iterator, List
 
 from maki.utils.sp import run_in_current_env
 from sourmash import (
@@ -45,6 +45,36 @@ class SketchParameters:
                 "Reference sketches should not track abundance; "
                 "cluster sketches represent sets of reference k-mers."
             )
+            
+    def to_str(self):
+        return (
+            f"k={self.ksize},scaled={self.scaled},"
+            f"{'abund' if self.track_abundance else 'noabund'},"
+            f"seed={self.seed}"
+        )
+
+
+def signature_params(signature: SourmashSignature) -> SketchParameters:
+    mh = signature.minhash
+
+    # sourmash exposes moltype on recent versions. These fallbacks make the
+    # validation error clearer on earlier 4.x releases.
+    if getattr(mh, "is_protein", False):
+        moltype = "protein"
+    elif getattr(mh, "dayhoff", False):
+        moltype = "dayhoff"
+    elif getattr(mh, "hp", False):
+        moltype = "hp"
+    else:
+        moltype = "DNA"
+
+    return SketchParameters(
+        ksize=mh.ksize,
+        scaled=mh.scaled,
+        seed=mh.seed,
+        moltype=moltype,
+        track_abundance=mh.track_abundance,
+    )
 
 
 @dataclass(frozen=True)
@@ -113,6 +143,90 @@ def load_one_signature(path: str | Path) -> SourmashSignature:
         )
 
     return signatures[0]
+
+
+def validate_signature(
+    signature: SourmashSignature,
+    expected: SketchParameters,
+    *,
+    allow_finer_scaled: bool = True,
+) -> None:
+    observed = signature_params(signature)
+
+    if observed.ksize != expected.ksize:
+        raise ValueError(
+            f"Incompatible k-mer size: query={observed.ksize}, "
+            f"database={expected.ksize}"
+        )
+
+    if observed.seed != expected.seed:
+        raise ValueError(
+            f"Incompatible hash seed: query={observed.seed}, "
+            f"database={expected.seed}"
+        )
+
+    if observed.moltype != expected.moltype:
+        raise ValueError(
+            f"Incompatible molecule type: query={observed.moltype}, "
+            f"database={expected.moltype}"
+        )
+
+    if observed.scaled == 0:
+        raise ValueError("The query must use a scaled/FracMinHash sketch")
+
+    if allow_finer_scaled:
+        # Lower scaled means a denser sketch. It can be downsampled to the
+        # database scale. A coarser query cannot recover omitted hashes.
+        if observed.scaled > expected.scaled:
+            raise ValueError(
+                f"Query sketch is too coarse: query scaled={observed.scaled}, "
+                f"database scaled={expected.scaled}. Build the query at "
+                f"scaled <= {expected.scaled}."
+            )
+    elif observed.scaled != expected.scaled:
+        raise ValueError(
+            f"Incompatible scaled value: query={observed.scaled}, "
+            f"database={expected.scaled}"
+        )
+
+
+def downsample_signature(
+    signature: SourmashSignature,
+    scaled: int,
+) -> SourmashSignature:
+    mh = signature.minhash
+
+    if mh.scaled == scaled:
+        return signature
+
+    if mh.scaled > scaled:
+        raise ValueError(
+            f"Cannot upsample scaled={mh.scaled} to the denser scaled={scaled}"
+        )
+
+    downsampled = mh.downsample(scaled=scaled)
+
+    return SourmashSignature(
+        downsampled,
+        name=signature.name,
+        filename=signature.filename,
+    )
+
+
+def singlesketch(files: Iterator[Path], outfile: Path, params: SketchParameters):
+    tmp_out = outfile.with_suffix(".sig.tmp")
+    
+    run_in_current_env(
+        [
+            "sourmash", "scripts", "singlesketch",
+            "-o", tmp_out,
+            "-p", params.to_str(),
+            "-I", params.moltype,
+            *files
+        ]
+    )
+    
+    os.replace(tmp_out, outfile)
 
 
 def zip_signatures(signatures: Iterable[SourmashSignature], zip_file: Path):
@@ -234,95 +348,3 @@ def cluster_from_pairwise(
             r["nodes"].split(";")
             for r in reader
         ]
-
-
-def signature_params(signature: SourmashSignature) -> SketchParameters:
-    mh = signature.minhash
-
-    # sourmash exposes moltype on recent versions. These fallbacks make the
-    # validation error clearer on earlier 4.x releases.
-    if getattr(mh, "is_protein", False):
-        moltype = "protein"
-    elif getattr(mh, "dayhoff", False):
-        moltype = "dayhoff"
-    elif getattr(mh, "hp", False):
-        moltype = "hp"
-    else:
-        moltype = "DNA"
-
-    return SketchParameters(
-        ksize=mh.ksize,
-        scaled=mh.scaled,
-        seed=mh.seed,
-        moltype=moltype,
-        track_abundance=mh.track_abundance,
-    )
-
-
-def validate_signature(
-    signature: SourmashSignature,
-    expected: SketchParameters,
-    *,
-    allow_finer_scaled: bool = True,
-) -> None:
-    observed = signature_params(signature)
-
-    if observed.ksize != expected.ksize:
-        raise ValueError(
-            f"Incompatible k-mer size: query={observed.ksize}, "
-            f"database={expected.ksize}"
-        )
-
-    if observed.seed != expected.seed:
-        raise ValueError(
-            f"Incompatible hash seed: query={observed.seed}, "
-            f"database={expected.seed}"
-        )
-
-    if observed.moltype != expected.moltype:
-        raise ValueError(
-            f"Incompatible molecule type: query={observed.moltype}, "
-            f"database={expected.moltype}"
-        )
-
-    if observed.scaled == 0:
-        raise ValueError("The query must use a scaled/FracMinHash sketch")
-
-    if allow_finer_scaled:
-        # Lower scaled means a denser sketch. It can be downsampled to the
-        # database scale. A coarser query cannot recover omitted hashes.
-        if observed.scaled > expected.scaled:
-            raise ValueError(
-                f"Query sketch is too coarse: query scaled={observed.scaled}, "
-                f"database scaled={expected.scaled}. Build the query at "
-                f"scaled <= {expected.scaled}."
-            )
-    elif observed.scaled != expected.scaled:
-        raise ValueError(
-            f"Incompatible scaled value: query={observed.scaled}, "
-            f"database={expected.scaled}"
-        )
-
-
-def downsample_signature(
-    signature: SourmashSignature,
-    scaled: int,
-) -> SourmashSignature:
-    mh = signature.minhash
-
-    if mh.scaled == scaled:
-        return signature
-
-    if mh.scaled > scaled:
-        raise ValueError(
-            f"Cannot upsample scaled={mh.scaled} to the denser scaled={scaled}"
-        )
-
-    downsampled = mh.downsample(scaled=scaled)
-
-    return SourmashSignature(
-        downsampled,
-        name=signature.name,
-        filename=signature.filename,
-    )
-
