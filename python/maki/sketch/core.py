@@ -251,7 +251,7 @@ def zip_signatures(signatures: Iterable[SourmashSignature], zip_file: Path):
 def build_rocksdb_index(
     signatures: List[SourmashSignature],
     index_dir: str | Path,
-    processes: int = 8,
+    threads: int = 8,
 ):
     """
     Build a RocksDB sourmash index from a zip containing signatures.
@@ -262,8 +262,8 @@ def build_rocksdb_index(
         Path to zip containing *.sig files.
     index_dir : str
         Output RocksDB database directory.
-    processes : int
-        Parallel workers.
+    threads : int
+        Parallel threads.
     """
     
     index_dir = Path(index_dir)
@@ -280,7 +280,7 @@ def build_rocksdb_index(
                 "-F", "rocksdb",
                 str(index_dir),
                 tmp_zip,
-                "--cores", str(processes),
+                "--cores", str(threads),
             ]
         )
     

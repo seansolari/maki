@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True, slots=True)
 class ClassifyParameters:
     ...
-    
-    
+
+
 class OutputHook:
     """Lightweight interface to classification results.
     """

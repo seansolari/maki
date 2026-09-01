@@ -2,7 +2,7 @@
 from __future__ import annotations
 import logging
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from maki.models.enums import Ranks, TaxonomySource
 import typer
@@ -246,6 +246,8 @@ def index_clusters(
             dryrun=dryrun,
             force=force
         )
+        
+    db.indexes.set_params(index_tag=tag)
     
     logger.info("Index construction complete.")
     
@@ -281,6 +283,97 @@ def clear_failed_indexes(
     logger.info("Cleaning complete.")
     
     return 0
+
+
+@build_app.command(help="""
+Construct a reverse index for Sourmash-based pre-filter.
+""")
+def construct_filter(
+    db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
+    parallel: Annotated[int, typer.Option("-p", "--parallel", help="Parallelism (threads)")],
+    tag: Annotated[Optional[str], typer.Option("-t", "--tag", help="Clustering to use, identified by tag")] = None,
+    seed: Annotated[int, typer.Option("--seed, help=De-replication seed")] = 43,
+    overwrite: Annotated[bool, typer.Option("--overwrite", help="Overwrite existing filter")] = False
+):
+    from maki.models.database import DatabaseHook
+    
+    db = DatabaseHook(db_path)
+    
+    if db.clusters is None:
+        logger.error(
+            "Database %s has no clusters. Run `maki init-clusters ...` "
+            "and then possibly `maki refine-clusters ...`.",
+            db_path
+        )
+        return 1
+    
+    if db.indexes.params.index_tag is None:
+        logger.error(
+            "Database %s has not been indexed. Run `maki index-clusters ...` "
+            "before constructing a filter.",
+            db_path
+        )
+        return 1
+    
+    # Validate tag
+    
+    if tag == db.indexes.params.index_tag:
+        tag = None
+        
+    if tag:
+        if db.indexes.params.index_tag in set(r.value for r in Ranks):
+            valid_tags = {
+                tag
+                for tag in db.clusters.tags
+                if tag.startswith("ani")
+            }
+        
+        else:
+            assert db.indexes.params.index_tag.startswith("ani")
+            
+            indexed_ani = float(db.indexes.params.index_tag[3:])
+            
+            valid_tags = {
+                tag
+                for tag in db.clusters.tags
+                if tag.startswith("ani") and float(tag[3:]) >= indexed_ani
+            }
+    
+        if tag not in valid_tags:
+            logger.error(
+                "Tag %s not suitable for constructing pre-filter - must be "
+                "at least as specific as indexing tag. Valid filter tags "
+                "are: %s.",
+                tag,
+                ",".join(valid_tags)
+            )
+            return 1
+        
+    # Construct index
+    
+    groups = db.clusters.group_by(
+        tag=db.indexes.params.index_tag,
+        derep_tag=tag,
+        seed=seed
+    )
+    signatures = [
+        signature
+        for signature in (
+            db.sketch_db.load_many([
+                accn for accn_list in groups.values() for accn in accn_list
+            ])
+        ).values()
+    ]
+    
+    db.indexes.rocksdb.construct(
+        groups,
+        signatures,
+        threads=parallel,
+        overwrite=overwrite
+    )
+    db.indexes.set_params(derep_tag=tag)
+    
+    return 1
 
 
 def main():
