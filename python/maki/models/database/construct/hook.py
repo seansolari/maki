@@ -15,6 +15,7 @@ from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
 from maki.models.taxonomy.gtdb import GTDBRelease
 
+from .annotations import AnnotationIndexBuilder, SeedTaxonomy
 from .manifest import SQLiteManifest
 from .sketch import GenomeSketchStore
 from .store import IndexStoreHandle, compute_cluster_digest
@@ -488,6 +489,7 @@ class DatabaseHook:
         self,
         tag: str,
         cluster: ClusterNode,
+        taxids: dict[str, str],
         package: DatabasePackage,
         suffix_size: int,
         parallel: int,
@@ -531,8 +533,21 @@ class DatabaseHook:
             dbh = self.indexes.get_handle(tag, cluster.cluster_id)
             
             logger.info("Inserting sequences tag=%s:cluster=%s.", tag, cluster.cluster_id)
-            dbh.pinsert(data.genomes(), parallel)
             
+            # Process sequence data to disk
+            annots = dbh.pinsert(data.genomes(), parallel)
+            
+            # Save annotation and taxonomy metadata
+            with AnnotationIndexBuilder(dbh.sqlite_file) as table:
+                table.add_annotations(annots)
+                
+                table.update_taxonomy(
+                    SeedTaxonomy(accn, taxids[accn]) for accn in cluster.accessions
+                )
+                
+                table.finalize()
+                
+            # Construct index
             try:
                 logger.info("Constructing cluster index for tag=%s:cluster=%s.", tag, cluster.cluster_id)
                 

@@ -6,15 +6,21 @@ from itertools import repeat
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
-from typing import Iterable, Optional
+from typing import Iterable
 
 from maki.models.database.manifest import GenomeData
 from maki.utils.io import open_maybe_gzip, read_fasta
 import maki.core as mx
 
+from .annotations import AnnotationRecord
+
 
 logger = logging.getLogger(__name__)
+
+ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def _record_worker(args: tuple[Path, GenomeData]):
@@ -22,11 +28,14 @@ def _record_worker(args: tuple[Path, GenomeData]):
     return _try_write_record(source_dir, record)
 
 
-def _try_write_record(source_dir: Path, record: GenomeData) -> Optional[Path]:
+def _try_write_record(source_dir: Path, record: GenomeData) -> list[AnnotationRecord]:
     ext = "gff" if record.gff else "fna"
     dest = source_dir / f"{record.accession}.{ext}.gz"
+    
     if dest.exists():
-        return None
+        logger.warning("skipping writing %s as it already exists", record.accession)
+        return []
+    
     else:
         tmp_dest = dest.with_suffix(".tmp")
         
@@ -40,7 +49,7 @@ def _try_write_record(source_dir: Path, record: GenomeData) -> Optional[Path]:
         return annots
 
 
-def _write_record__dispatch(record: GenomeData, file: Path):
+def _write_record__dispatch(record: GenomeData, file: Path) -> list[AnnotationRecord]:
     if not record.fasta and not record.gff:
         raise RuntimeError(
             f"No data suppled for accession {record.accession}"
@@ -50,11 +59,33 @@ def _write_record__dispatch(record: GenomeData, file: Path):
         return _write_fasta_as_gff(record, file)
         
     else:
-        return _write_gff_to(record, file)
+        missing_annots, annots = _write_gff_to(record, file)
+        
+        if missing_annots:
+            logger.warning(
+                "GFF file %s contains %d annotations without ID attribute. These "
+                "regions will not be indexed.",
+                os.path.basename(record.gff), # type: ignore
+                missing_annots
+            )
+        
+        return annots
 
 
-def _write_fasta_as_gff(record: GenomeData, file: Path, per_genome: bool = True):
+def _write_fasta_as_gff(
+    record: GenomeData,
+    file: Path,
+    per_genome: bool = True
+) -> list[AnnotationRecord]:
     assert record.fasta
+    
+    logger.warning(
+        "Writing fasta %s as dummy GFF, with IDs per %s.",
+        record.fasta,
+        "genome" if per_genome else "contig"
+    )
+    
+    annots: list[AnnotationRecord] = []
     
     contigs = list(read_fasta(record.fasta))
     
@@ -70,29 +101,18 @@ def _write_fasta_as_gff(record: GenomeData, file: Path, per_genome: bool = True)
                 f"##sequence-region {contig_id} 1 {length}\n"
             )
 
-            plus_id = f"{accession}_plus"
-            minus_id = f"{accession}_minus"
-
-            attrs_plus = (
-                f"ID={plus_id};"
-                f"Name={accession};"
-                f"seed={accession}"
-            )
-
-            attrs_minus = (
-                f"ID={minus_id};"
-                f"Name={accession};"
-                f"seed={accession}"
+            fh.write(
+                f"{contig_id}\tdummy\tregion"
+                f"\t1\t{length}\t.\t+\t.\tID=base\n"
             )
 
             fh.write(
                 f"{contig_id}\tdummy\tregion"
-                f"\t1\t{length}\t.\t+\t.\t{attrs_plus}\n"
+                f"\t1\t{length}\t.\t-\t.\tID=base\n"
             )
-
-            fh.write(
-                f"{contig_id}\tdummy\tregion"
-                f"\t1\t{length}\t.\t-\t.\t{attrs_minus}\n"
+            
+            annots.append(
+                AnnotationRecord(accession, f"{contig_id}-base", None, None)
             )
 
         fh.write("##FASTA\n")
@@ -102,10 +122,49 @@ def _write_fasta_as_gff(record: GenomeData, file: Path, per_genome: bool = True)
 
             for i in range(0, len(seq), 60):
                 fh.write(seq[i : i + 60] + "\n")
+    
+    return annots
 
 
-def _write_gff_to(record: GenomeData, file: Path):
+def _gff_get_accn(line: str):
+    return line[:line.index("\t")]
+
+
+def _gff_get_attrs(line: str):
+    attrs = line[(line.rindex("\t")+1):]
+    
+    feature_id: str | None = None
+    m = ID_RE.search(attrs)
+    if m:
+        feature_id = m.group(1)
+
+    dbxrefs: list[tuple[str, str]] = []
+    m = DBXREF_RE.search(attrs)
+    if m:
+        dbxrefs = [
+            tuple(kvp.split(":", 1))
+            for kvp in m.group(1).split(",")
+        ] # type: ignore
+        
+    return feature_id, dbxrefs
+
+
+def _parse_gff_attributes(line: str):
+    accn = _gff_get_accn(line)
+    annot_id, xrefs = _gff_get_attrs(line)
+    
+    seed = None if annot_id is None else f"{accn}-{annot_id}"
+    return seed, xrefs
+
+
+def _write_gff_to(
+    record: GenomeData,
+    file: Path
+) -> tuple[int, list[AnnotationRecord]]:
     assert record.gff
+    
+    annots: list[AnnotationRecord] = []
+    missed_annots = 0
     
     with gzip.open(file, "wt") as f:
         
@@ -114,16 +173,32 @@ def _write_gff_to(record: GenomeData, file: Path):
             for line in gff:
                 if "\tbakta\tregion\t" in line:
                     f.write(f"#{line}")
+                    
                 elif line.startswith("##FASTA"):
                     if record.fasta:
-                        logger.warning("Record supplies %s sequence in both GFF and FNA, preferring GFF.", record.accession)
+                        logger.warning(
+                            "Record supplies %s sequence in both "
+                            "GFF and FNA, preferring GFF.",
+                            record.accession
+                        )
                     
                     f.write(line)
                     f.writelines(gff)
                     
-                    return
+                    return missed_annots, annots
                 
                 else:
+                    seed_name, xrefs = _parse_gff_attributes(line.strip())
+                    
+                    if seed_name:
+                        for xname, xlabel in xrefs:
+                            annots.append(
+                                AnnotationRecord(record.accession, seed_name, xname, xlabel)
+                            )
+                    
+                    else:
+                        missed_annots += 1
+                    
                     f.write(line)
         
         # Write remaining FASTA component
@@ -134,6 +209,8 @@ def _write_gff_to(record: GenomeData, file: Path):
             
             with open_maybe_gzip(Path(record.fasta), "rt") as fna:
                 f.writelines(fna)
+    
+    return missed_annots, annots
 
 
 class SequenceSourceDir:
@@ -141,20 +218,27 @@ class SequenceSourceDir:
         self.source_dir = source_dir
         self.source_dir.mkdir(parents=True, exist_ok=True)
     
-    def insert_genome(self, record: GenomeData):
-        result = _try_write_record(self.source_dir, record)
-        if not result:
-            logger.warning("skipping writing %s as it already exists", record.accession)
+    def insert_genome(self, record: GenomeData) -> list[AnnotationRecord]:
+        return _try_write_record(self.source_dir, record)
     
-    def insert(self, data: Iterable[GenomeData]):
-        for record in data:
-            self.insert_genome(record)
+    def insert(self, data: Iterable[GenomeData]) -> list[AnnotationRecord]:
+        return [
+            annot
+            for record in data
+            for annot in self.insert_genome(record)
+        ]
     
-    def pinsert(self, data: Iterable[GenomeData], concurrency: int):
+    def pinsert(self, data: Iterable[GenomeData], concurrency: int) -> list[AnnotationRecord]:
         tasks = zip(repeat(self.source_dir), data)
         
         with ProcessPoolExecutor(max_workers=concurrency) as executor:
-            list(executor.map(_record_worker, tasks))
+            new_annots = [
+                annot
+                for annot_list in executor.map(_record_worker, tasks)
+                for annot in annot_list
+            ]
+        
+        return new_annots
         
     def sources(self):
         for p in self.source_dir.iterdir():
@@ -175,6 +259,8 @@ class PreIndex(SequenceSourceDir):
     def __init__(self, root: Path) -> None:
         self.root = root
         self.root.parent.mkdir(parents=True, exist_ok=True)
+        
+        self.sqlite_file = self.root.with_suffix(".sql")
         
         SequenceSourceDir.__init__(
             self,

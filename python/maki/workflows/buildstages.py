@@ -235,11 +235,17 @@ def index_clusters(
     )
     logger.info("%d records parsed from manifest %s.", len(manifest), manifest_path)
     
+    taxids = {
+        accn: taxid
+        for (accn, taxid) in db.manifest.iter_taxonomy()
+    }
+    
     # Build clusters
     for cluster in db.clusters.iter_tag(tag):
         db.index_cluster(
             tag,
             cluster,
+            taxids,
             manifest,
             suffix_size,
             parallel,
