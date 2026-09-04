@@ -6,8 +6,10 @@ import os
 from pathlib import Path
 import uuid
 
-from maki.models.analyse.sketch import MetagenomeSketchStore
 from maki.sketch.core import SketchParameters
+
+from .manysearch import ManySearchStore
+from .sketch import MetagenomeSketch, MetagenomeSketchStore
 
 
 logger = logging.getLogger(__name__)
@@ -121,3 +123,7 @@ class OutputHook:
             raise
         
         return cls(root)
+    
+    def screen(self, rocksdb: Path, parallel: int):
+        mgr = ManySearchStore(self.root, rocksdb)
+        return mgr.update(self.sketches.list_sketches(), threads=parallel)

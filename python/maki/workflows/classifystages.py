@@ -90,11 +90,18 @@ Screen current metagenome sketches against database.
 def screen(
     output_root: Annotated[Path, typer.Option("-o", "--output", help="Classification output path")],
     index_path: Annotated[Path, typer.Option("-X", "--sourmash-index", help="Inverted index path")],
-    workers: Annotated[int, typer.Option("-w", "--workers", help="Number of Sourmash search threads.")],
+    parallel: Annotated[int, typer.Option("-p", "--parallel", help="Number of Sourmash search threads.")],
 ):
     from maki.models.analyse.hook import OutputHook
     
     hook = OutputHook(output_root=output_root)
+    
+    screened_accessions = hook.screen(
+        index_path,
+        parallel
+    )
+    
+    logger.info("Obtained screening results for %d new metagenomes.", len(screened_accessions))
 
 
 def main():

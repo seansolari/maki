@@ -1,5 +1,6 @@
 
 from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -39,6 +40,12 @@ def _singlesketch_worker(
     os.replace(tmp_hash, tmp_hash.with_suffix(".md5"))
 
 
+@dataclass(frozen=True)
+class MetagenomeSketch:
+    accession: str
+    sketch_path: Path
+
+
 class MetagenomeSketchStore(SourmashSketchStore):
     @staticmethod
     def signature_name(accession: str) -> str:
@@ -51,6 +58,11 @@ class MetagenomeSketchStore(SourmashSketchStore):
     @classmethod
     def _compute_storage_path(cls, accession: str) -> str:
         return f"{accession}/{cls.signature_name(accession)}"
+    
+    def list_sketches(self) -> Iterator[MetagenomeSketch]:
+        for subdir in self.root.iterdir():
+            if subdir.is_dir() and (subdir / self.signature_name(subdir.name)).exists():
+                yield MetagenomeSketch(subdir.name, subdir / self.signature_name(subdir.name))
     
     # --------------------------------------------------
     # sketching

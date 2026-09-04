@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, TemporaryFile
 from typing import Iterable, Iterator, List
 
 from maki.utils.sp import run_in_current_env
@@ -246,7 +246,37 @@ def zip_signatures(signatures: Iterable[SourmashSignature], zip_file: Path):
 
     else:
         os.replace(tmp_zip, zip_file)
+
+
+def build_standalone_manifest(
+    signatures: Iterable[str],
+    outfile: str | Path
+):
+    outfile = Path(outfile).resolve()
+    outfile.mkdir(parents=True, exist_ok=True)
+    
+    tmp_outfile = outfile.with_suffix(".tmp")
+    
+    with TemporaryDirectory(dir=outfile.parent) as tmp:
+        # Create filelist
+        filelist = Path(tmp) / "filelist.txt"
+
+        with filelist.open("wt") as f:
+            for sigpath in signatures:
+                f.write(f"{sigpath}\n")
         
+        # Create standalone manifest
+        # sourmash sig collect pathlist.txt -o summary-manifest.csv -F csv
+        run_in_current_env(
+            [
+                "sourmash", "sig", "collect", filelist,
+                "-o", tmp_outfile,
+                "-F", "csv"
+            ]
+        )
+
+    tmp_outfile.rename(outfile)
+
         
 def build_rocksdb_index(
     signatures: List[SourmashSignature],
