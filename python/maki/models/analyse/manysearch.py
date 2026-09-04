@@ -11,7 +11,7 @@ import sys
 import tempfile
 from typing import Iterable, Iterator
 
-from maki.sketch.core import build_standalone_manifest
+from maki.sketch.core import SketchParameters, build_standalone_manifest
 
 from .sketch import MetagenomeSketch
 
@@ -37,9 +37,11 @@ class ManySearchStore:
         self,
         root: str | Path,
         rocksdb: str | Path,
+        params: SketchParameters
     ) -> None:
         self.root = Path(root)
         self.rocksdb = Path(rocksdb)
+        self.params = params
 
         self.root.mkdir(parents=True, exist_ok=True)
 
@@ -162,6 +164,8 @@ class ManySearchStore:
                 "sourmash",
                 "scripts",
                 "manysearch",
+                "-k", str(self.params.ksize),
+                "-s", str(self.params.scaled),
                 str(self.rocksdb),
                 str(manifest),
                 "-o", str(output),

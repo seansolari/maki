@@ -125,5 +125,5 @@ class OutputHook:
         return cls(root)
     
     def screen(self, rocksdb: Path, parallel: int):
-        mgr = ManySearchStore(self.root, rocksdb)
+        mgr = ManySearchStore(self.root, rocksdb, self.sketches.params)
         return mgr.update(self.sketches.list_sketches(), threads=parallel)

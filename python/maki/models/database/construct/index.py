@@ -150,8 +150,12 @@ def _gff_get_attrs(line: str):
 
 
 def _parse_gff_attributes(line: str):
-    accn = _gff_get_accn(line)
-    annot_id, xrefs = _gff_get_attrs(line)
+    try:
+        accn = _gff_get_accn(line)
+        annot_id, xrefs = _gff_get_attrs(line)
+    except ValueError:
+        print(line)
+        raise
     
     seed = None if annot_id is None else f"{accn}-{annot_id}"
     return seed, xrefs
@@ -188,16 +192,17 @@ def _write_gff_to(
                     return missed_annots, annots
                 
                 else:
-                    seed_name, xrefs = _parse_gff_attributes(line.strip())
-                    
-                    if seed_name:
-                        for xname, xlabel in xrefs:
-                            annots.append(
-                                AnnotationRecord(record.accession, seed_name, xname, xlabel)
-                            )
-                    
-                    else:
-                        missed_annots += 1
+                    if not line.startswith("#"):
+                        seed_name, xrefs = _parse_gff_attributes(line.strip())
+                        
+                        if seed_name:
+                            for xname, xlabel in xrefs:
+                                annots.append(
+                                    AnnotationRecord(record.accession, seed_name, xname, xlabel)
+                                )
+                        
+                        else:
+                            missed_annots += 1
                     
                     f.write(line)
         

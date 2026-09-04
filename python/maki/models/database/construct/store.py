@@ -9,7 +9,7 @@ import shutil
 from typing import Optional
 
 from maki.models.database.clustering.manager import ClusterNode
-from maki.sketch.core import build_rocksdb_index
+from maki.sketch.core import SketchParameters, build_rocksdb_index
 from maki.utils.hashing import hash_strings
 from sourmash import SourmashSignature
 
@@ -51,6 +51,7 @@ class ReverseIndexHandle:
         self,
         groups: dict[str, list[str]],
         signatures: list[SourmashSignature],
+        params: SketchParameters,
         *,
         threads: int,
         overwrite: bool = False
@@ -71,7 +72,7 @@ class ReverseIndexHandle:
         tmp_index = self.index_file.with_suffix(".tmprocksdb")
         tmp_manifest = self.manifest_file.with_suffix(".tmp")
         
-        build_rocksdb_index(signatures, tmp_index, threads)
+        build_rocksdb_index(signatures, params, tmp_index, threads)
         self._dump_groups(groups, tmp_manifest)
         
         tmp_manifest.replace(self.manifest_file)

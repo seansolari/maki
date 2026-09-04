@@ -450,6 +450,7 @@ class DatabaseHook:
                     
                     pw = pairwise_ani_comparison(
                         sigs.values(),
+                        self.sketch_db.params,
                         self.root,
                         workers
                     )

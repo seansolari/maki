@@ -124,7 +124,7 @@ def build(
     if not skip_refine:
         thresholds.append(ani)
         
-        if not skip_derep:
+        if (not skip_derep) and (derep != ani):
             thresholds.append(derep)
         
         rcode = build_stages.refine_clusters(db_path, thresholds, parallel)

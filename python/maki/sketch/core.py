@@ -27,8 +27,8 @@ FORMAT_VERSION = 1
 
 @dataclass(frozen=True)
 class SketchParameters:
-    ksize: int = 31
-    scaled: int = 2000
+    ksize: int
+    scaled: int
     seed: int = 42
     moltype: str = "DNA"
     track_abundance: bool = False
@@ -280,6 +280,7 @@ def build_standalone_manifest(
         
 def build_rocksdb_index(
     signatures: List[SourmashSignature],
+    params: SketchParameters,
     index_dir: str | Path,
     threads: int = 8,
 ):
@@ -310,6 +311,8 @@ def build_rocksdb_index(
                 "-F", "rocksdb",
                 str(index_dir),
                 tmp_zip,
+                "-k", str(params.ksize),
+                "-s", str(params.scaled),
                 "--cores", str(threads),
             ]
         )
@@ -322,6 +325,7 @@ def build_rocksdb_index(
 
 def pairwise_ani_comparison(
     signatures: Iterable[SourmashSignature],
+    params: SketchParameters,
     tmp_prefix: str | Path,
     processes: int = 8
 ):
@@ -339,6 +343,8 @@ def pairwise_ani_comparison(
                 "sourmash", "scripts", "pairwise",
                 zip_file,
                 "-o", stat_file,
+                "-k", str(params.ksize),
+                "-s", str(params.scaled),
                 "--cores", str(processes),
                 "-a"
             ]

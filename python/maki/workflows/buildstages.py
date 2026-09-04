@@ -374,6 +374,7 @@ def construct_filter(
     db.indexes.rocksdb.construct(
         groups,
         signatures,
+        db.sketch_db.params,
         threads=parallel,
         overwrite=overwrite
     )
