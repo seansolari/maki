@@ -1,6 +1,7 @@
 
 #include "maki/classify/summary.hpp"
 #include <stdexcept>
+#include <variant>
 
 ClassificationSummary Accumulate(const std::vector<int64_t> &edges,
                                  const WeightedGraph &qry,
@@ -49,6 +50,19 @@ ClassificationSummary Accumulate(const std::vector<int64_t> &edges,
   return results;
 }
 
-void ClassificationSummary::count(std::size_t edge, uint64_t depth, id_result colours) {
-  
+void ClassificationSummary::count(std::size_t edge,
+                                  uint64_t depth,
+                                  id_result colours) {
+  std::visit(overloaded{
+    [&](colour_t colour_value) {
+      _data.emplace_back(edge, depth, colour_value);
+    },
+    [&](vector_ref colour_vector_ref) {
+      const std::vector<colour_t> &colour_vector = colour_vector_ref;
+
+      for (const colour_t &colour_value : colour_vector) {
+        _data.emplace_back(edge, depth, colour_value);
+      }
+    },
+  }, colours);
 }

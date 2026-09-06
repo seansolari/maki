@@ -6,12 +6,17 @@
 #include "maki/core/graph/wdbg.hpp"
 #include <cassert>
 #include <cstdint>
+#include <tuple>
 #include <vector>
 
+using vector_ref = ColourRegistry::vector_ref;
 using id_result = ColourRegistry::id_result;
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
 class ClassificationSummary {
-  std::unordered_map<std::pair<std::size_t,colour_t>,uint32_t> _data;
+  std::vector<std::tuple<std::size_t,colour_t,uint64_t>> _data;
 
 public:
   void count(std::size_t edge, uint64_t depth, id_result colours);
