@@ -536,18 +536,19 @@ class DatabaseHook:
             logger.info("Inserting sequences tag=%s:cluster=%s.", tag, cluster.cluster_id)
             
             # Process sequence data to disk
-            annots = dbh.pinsert(data.genomes(), parallel)
+            # annots = dbh.pinsert(data.genomes(), parallel)
+            dbh.pinsert(data.genomes(), parallel)
             
             # Save annotation and taxonomy metadata
-            with AnnotationIndexBuilder(dbh.sqlite_file) as table:
-                table.add_annotations(annots)
-                
-                table.update_taxonomy(
-                    SeedTaxonomy(accn, taxids[accn]) for accn in cluster.accessions
-                )
-                
-                table.finalize()
-                
+            # with AnnotationIndexBuilder(dbh.sqlite_file) as table:
+            #     table.add_annotations(annots)
+            #     
+            #     table.update_taxonomy(
+            #         SeedTaxonomy(accn, taxids[accn]) for accn in cluster.accessions
+            #     )
+            #     
+            #     table.finalize()
+            
             # Construct index
             try:
                 logger.info("Constructing cluster index for tag=%s:cluster=%s.", tag, cluster.cluster_id)
