@@ -13,7 +13,6 @@ from maki.models.database.manifest import DatabasePackage
 from maki.sketch import SketchParameters, pairwise_ani_comparison
 from maki.models.enums import Ranks, TaxonomySource
 from maki.models.taxonomy import BaseTaxonomy, GTDBTaxonomy, NCBITaxonomy, resolve_accession_taxids
-from maki.models.taxonomy.gtdb import GTDBRelease
 
 from .annotations import AnnotationIndexBuilder, SeedTaxonomy
 from .manifest import SQLiteManifest
@@ -138,11 +137,7 @@ class DatabaseHook:
 
         # Record metadata
         self.manifest = SQLiteManifest(self.manifest_path)
-        self.taxonomy = self._ensure_taxonomy(
-            self.taxonomy_root,
-            self.metadata.taxonomy_database,
-            self.metadata.taxonomy_release
-        )
+        self.taxonomy = self._load_taxonomy(self.taxonomy_root, self.metadata.taxonomy_database)
         
         # Sketch records
         self.sketch_db = GenomeSketchStore(self.sketch_root, params=self.metadata.sketch_params)
@@ -369,34 +364,20 @@ class DatabaseHook:
         
     # Taxonomy helpers
     # ----------------
+    
+    @staticmethod
+    def _load_taxonomy(root: Path, source: TaxonomySource) -> BaseTaxonomy:
+        if source == TaxonomySource.ncbi:
+            return NCBITaxonomy(root)
+        else:
+            return GTDBTaxonomy(root)
 
     @staticmethod
-    def _ensure_taxonomy(root: Path, source: TaxonomySource, release_str: Optional[str] = None) -> BaseTaxonomy:
+    def _ensure_taxonomy(root: Path, source: TaxonomySource, release_str: Optional[str] = None) -> None:
         if source == TaxonomySource.ncbi:
-            taxonomy = NCBITaxonomy(root)
+            NCBITaxonomy.ensure_release(root, release_str)
         else:
-            versions = []
-            
-            if release_str:
-                release_str = release_str.strip()
-                if ',' in release_str:
-                    requested_releases = release_str.split(',')
-                elif ' ' in release_str:
-                    requested_releases = release_str.split()
-                else:
-                    requested_releases = [release_str]
-                
-                for request in requested_releases:
-                    try:
-                        versions.append(GTDBRelease[request])
-                    except KeyError:
-                        err = f"Unrecognised taxonomy release ({request}), available values are: {','.join(m.name for m in GTDBRelease)}"
-                        logger.error(err)
-                        raise ValueError(err)
-            
-            taxonomy = GTDBTaxonomy(root, releases=versions or None)
-        
-        return taxonomy
+            GTDBTaxonomy.ensure_release(root, release_str)
     
     def _assign_taxids(self, package: DatabasePackage):
         taxids = resolve_accession_taxids(
@@ -536,18 +517,17 @@ class DatabaseHook:
             logger.info("Inserting sequences tag=%s:cluster=%s.", tag, cluster.cluster_id)
             
             # Process sequence data to disk
-            # annots = dbh.pinsert(data.genomes(), parallel)
-            dbh.pinsert(data.genomes(), parallel)
+            annots = dbh.pinsert(data.genomes(), parallel)
             
             # Save annotation and taxonomy metadata
-            # with AnnotationIndexBuilder(dbh.sqlite_file) as table:
-            #     table.add_annotations(annots)
-            #     
-            #     table.update_taxonomy(
-            #         SeedTaxonomy(accn, taxids[accn]) for accn in cluster.accessions
-            #     )
-            #     
-            #     table.finalize()
+            with AnnotationIndexBuilder(dbh.sqlite_file) as table:
+                table.add_annotations(annots)
+                
+                table.update_taxonomy(
+                    SeedTaxonomy(accn, taxids[accn]) for accn in cluster.accessions
+                )
+                
+                table.finalize()
             
             # Construct index
             try:

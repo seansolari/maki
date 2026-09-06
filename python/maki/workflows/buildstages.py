@@ -21,9 +21,9 @@ def init(
     db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
     kmer_size: Annotated[int, typer.Option("-k", "--kmer-size", help="K-mer size for database")],
     taxonomy_database: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
-    taxonomy_release: str = typer.Option("latest", help="Taxonomy release to use"),
-    scale: int = typer.Option(1000, help="Sketching scale parameter"),
-    seed: int = typer.Option(42, help="Seed for sketching"),
+    taxonomy_release: Annotated[str, typer.Option("--release", help="Taxonomy release to use")] = "latest",
+    scale: Annotated[int, typer.Option(help="Sketching scale parameter")] = 1000,
+    seed: Annotated[int, typer.Option(help="Seed for sketching")] = 42,
     permissive: Annotated[bool, typer.Option("--permissive", "-p", help="Do not fail if one already exists")] = False
 ):
     from maki.models.database import DatabaseHook, DatabaseParameters

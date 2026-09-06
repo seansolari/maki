@@ -1,8 +1,9 @@
 
+from __future__ import annotations
 from abc import abstractmethod
 import logging
 from pathlib import Path
-from typing import Dict, Iterable, Set, Tuple
+from typing import Dict, Iterable, Optional, Set, Tuple
 
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,11 @@ class BaseTaxonomy:
     def __init__(self, root: Path):
         self.root = root / self.name
         self.root.mkdir(parents=True, exist_ok=True)
+    
+    @staticmethod
+    @abstractmethod
+    def ensure_release(root: Path, release: Optional[str] = None) -> None:
+        pass
 
     @abstractmethod
     def resolve_taxid(self, value: str) -> str:

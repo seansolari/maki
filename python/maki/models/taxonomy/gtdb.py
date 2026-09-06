@@ -1,10 +1,14 @@
 
 from enum import Enum
+import logging
 from pathlib import Path
-from typing import Iterable, List, Mapping, Optional
+from typing import Optional
 
 from ete4 import GTDBTaxa, update_ete_data
 from .base import BaseTaxonomy, TaxidNotFound, TaxonomyUnresolvedRankException
+
+
+logger = logging.getLogger(__name__)
 
 
 class GTDBRelease(str, Enum):
@@ -23,31 +27,56 @@ class GTDBRelease(str, Enum):
 class GTDBTaxonomy(BaseTaxonomy):
     name = "gtdb"
 
-    def __init__(self, db_root: Path, releases: Optional[GTDBRelease | Iterable[GTDBRelease]] = None):
+    def __init__(self, db_root: Path):
         super().__init__(db_root)
         
-        if isinstance(releases, GTDBRelease):
-            releases = [releases]
-        elif releases is None:
-            releases = []
+        sqlfile = db_root / "gtdb.sqlite"
+        if not sqlfile.exists():
+            logger.error("Uninitialised taxonomy: %s", db_root)
+            raise RuntimeError("Uninitialised taxonomy: %s" % db_root)
+        
+        self.gtdb = GTDBTaxa(dbfile=str(sqlfile))
+        
+    # Configuring taxonomy
+    # --------------------
+    
+    @staticmethod
+    def ensure_release(root: Path, release: Optional[str] = None) -> None:
+        if release:
+            if release.endswith(".tar.gz"):
+                taxdmp = Path(release)
+                
+                if not taxdmp.exists():
+                    logger.error("Taxdump does not exist: %s", release)
+                    raise RuntimeError("Taxdump does not exist: %s" % release)
+                
+                GTDBTaxonomy.ensure_local_release(root, taxdmp)
+                
+            else:
+                try:
+                    gtdb_version = GTDBRelease[release]
+                except KeyError:
+                    logger.error("Unrecognised GTDB release: %s", release)
+                    raise RuntimeError("Unrecognised GTDB release: %s" % release)
+                else:
+                    GTDBTaxonomy.ensure_external_release(root, gtdb_version)
+
         else:
-            releases = list(releases)
+            GTDBTaxonomy.ensure_external_release(root, GTDBRelease.latest)
+    
+    @staticmethod
+    def ensure_local_release(root: Path, taxdump: Path):
+        rel_name = taxdump.name.removesuffix(".tar.gz")
+        rel_base = root / rel_name
+        rel_base.mkdir(parents=True, exist_ok=True)
         
-        releases += self.list_releases()
-        if not releases:
-            releases.append(GTDBRelease.latest)
-        
-        self.gtdb: Mapping[GTDBRelease, GTDBTaxa] = {rel: self._ensure_release(rel) for rel in releases}
-        
-    def list_releases(self):
-        for p in self.root.iterdir():
-            try:
-                yield GTDBRelease[p.name]
-            except KeyError:
-                continue
-            
-    def _ensure_release(self, rel: GTDBRelease) -> GTDBTaxa:
-        rel_base = self.root / rel.name
+        sql = rel_base / f"{rel_name}.sqlite"
+        if not sql.exists():
+            GTDBTaxa(dbfile=str(sql), taxdump_file=str(taxdump))
+
+    @staticmethod
+    def ensure_external_release(root: Path, rel: GTDBRelease):
+        rel_base = root / rel.name
         rel_base.mkdir(parents=True, exist_ok=True)
         
         sql = rel_base / f"{rel.value}.sqlite"
@@ -57,31 +86,27 @@ class GTDBTaxonomy(BaseTaxonomy):
             update_ete_data(str(local_dmp), str(remote_dmp))
             GTDBTaxa(dbfile=str(sql), taxdump_file=str(local_dmp))
             local_dmp.unlink()
-            
-        return GTDBTaxa(dbfile=str(sql))
     
-    def search_taxid(self, value: str):
-        for rel, db in self.gtdb.items():
-            res = db.get_name_lineage([value])
-            if res:
-                yield rel, value
+    # Lookup
+    # ------
+    
+    def search_taxid(self, value: str) -> Optional[str]:
+        res = self.gtdb.get_name_lineage([value])
+        return value if res else None
 
     def resolve_taxid(self, value):
-        assert self.gtdb, "Missing taxonomy data."
         value = value.strip()
 
-        if any(1 for _ in self.search_taxid(value)):
+        if self.search_taxid(value):
             return value
         else:
             for fixed_value in self._normalise_name(value):
-                if any(1 for _ in self.search_taxid(fixed_value)):
+                if self.search_taxid(fixed_value):
                     return fixed_value
-                
-        raise TaxidNotFound(value)        
+        
+        raise TaxidNotFound(value)
         
     def _normalise_name(self, name: str):
-        assert self.gtdb, "Missing taxonomy data."
-        
         name = " ".join(name.split())
         words = name.count(" ") + 1
         
@@ -94,43 +119,18 @@ class GTDBTaxonomy(BaseTaxonomy):
                 yield f"{prefix}__{uname}"
 
     def get_lineage(self, taxid):
-        assert self.gtdb, "Missing taxonomy data."
-        
-        lineages: List[List[str]] = []
-        for db in self.gtdb.values():
-            l = db.get_name_lineage([taxid])
-            if l:
-                lineages.append(l[0][taxid])
-        
-        if lineages:
-            l = lineages.pop(max(range(len(lineages)), key = lambda i: len(lineages[i])))
-            
-            for other_lineage in lineages:
-                if not all(j in l for j in other_lineage):
-                    raise ValueError(f"Inconsistent lineages for taxid={taxid}: {",".join(l)} != {','.join(other_lineage)}")
-            else:
-                return l
+        l: list[str] = self.gtdb.get_name_lineage([taxid])
+        if l:
+            return l
         else:
             raise TaxidNotFound(taxid)
 
     def get_ancestor_at_rank(self, taxid, rank):
-        assert self.gtdb, "Missing taxonomy data."
-        
         lineage = self.get_lineage(taxid)
-        lineage_ranks = {rel: db.get_rank(lineage) for rel, db in self.gtdb.items()}
-        
-        result: Mapping[GTDBRelease, str] = {}
-        for rel, ranks in lineage_ranks.items():
-            for t in lineage:
-                if ranks.get(t) == rank:
-                    result[rel] = t
-                    break
-        
-        if not result:
-            raise TaxonomyUnresolvedRankException(f"No ancestor at rank '{rank}' for taxid {taxid}")
+        ranks = self.gtdb.get_rank(lineage)
+    
+        for t in lineage:
+            if ranks.get(t) == rank:
+                return t
         else:
-            ancestors = set(result.values())
-            if len(ancestors) > 1:
-                raise TaxonomyUnresolvedRankException(f"Inconsistent ancestors between taxonomy releases: {", ".join(f'{rel.name}={v}' for rel, v in result.items())}")
-            else:
-                return ancestors.pop()
+            raise TaxonomyUnresolvedRankException(f"No ancestor at rank '{rank}' for taxid {taxid}")
