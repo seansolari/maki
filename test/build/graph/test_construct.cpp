@@ -65,7 +65,7 @@ protected:
 TEST_F(EgidiGraphTests, SuffixFill_1) {
   // Construct graph
   cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
-                  {.kmer_size = k, .suffix_size = 1, .out = out});
+                  {k, 1, out, 1});
 
   // Load graph
   ColouredGraph g;
@@ -124,7 +124,7 @@ TEST_F(SmallFastaTests, SuffixFill_3) {
 
   // Construct graph
   cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
-                  {.kmer_size = k, .suffix_size = s, .out = out});
+                  {k, s, out, 1});
 
   // Load graph
   ColouredGraph g;

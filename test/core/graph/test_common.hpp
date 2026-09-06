@@ -182,7 +182,7 @@ inline std::vector<Dna4Genome> ReadGenome(const std::string &data, Colours &c,
 inline void MakeGraph(const std::vector<Dna4Genome> &fna, Colours &c, size_t k,
                       size_t s, fs::path &bufferPath) {
   cdbg::construct(toView(fna), std::move(c.ids),
-                  {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+                  {k, s, bufferPath, 1});
 }
 
 inline void MakeGraph(std::string data, size_t k, size_t s,

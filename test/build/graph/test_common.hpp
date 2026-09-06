@@ -15,8 +15,8 @@
 
 using ::testing::ContainerEq;
 using ::testing::ElementsAreArray;
-using ::testing::Pointwise;
 using ::testing::Eq;
+using ::testing::Pointwise;
 
 static char complement(char c) {
   switch (c) {
@@ -111,11 +111,13 @@ inline void BuildGraph(const std::vector<std::string> &seqs, size_t k, size_t s,
   parseFastaStream(genomes[0], datastream, c, k);
 
   if (coloured) {
-    cdbg::construct(toView(genomes), MetaColours(std::move(c.ids)),
-                    {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+    cdbg::construct(
+        toView(genomes), MetaColours(std::move(c.ids)),
+        {k, s, bufferPath, 1});
   } else {
-    wdbg::construct(toView(genomes),
-                    {.kmer_size = k, .suffix_size = s, .out = bufferPath});
+    wdbg::construct(
+        toView(genomes),
+        {k, s, bufferPath, 1});
   }
 }
 
@@ -196,7 +198,7 @@ inline void VerifyGraph(const std::vector<std::string> &seqs, size_t k,
 
   fs::create_directories(cpath);
   fs::create_directories(rpath);
-  
+
   // create and check coloured graph
 
   BuildGraph(seqs, k - 1, 1, cpath, true);
@@ -204,7 +206,7 @@ inline void VerifyGraph(const std::vector<std::string> &seqs, size_t k,
   ColouredGraph g1;
   ColouredGraph::FromDisk(g1, cpath);
   CheckKmers(g1);
-  
+
   // create and check counting graph
 
   BuildGraph(seqs, k - 1, 1, rpath, false);
