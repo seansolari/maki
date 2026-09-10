@@ -167,32 +167,4 @@ ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   return finalise(outp, params.kmer_size, std::move(cmap), params.out);
 }
 
-ColouredGraphFiles construct(const GenomeManifest &im,
-                             dbg::BuildOptions params) {
-
-  oneapi::tbb::global_control global_limit(
-      oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
-
-  switch (im.type) {
-  case InputFileType::Gff3FileType: {
-    Colours colours;
-    auto genomes =
-        parse(im.files, parseGFF, colours, (std::size_t)params.kmer_size);
-    auto view = toView(genomes);
-    return construct(view, std::move(colours.ids), params);
-  }
-  case InputFileType::FastaFileType: {
-    Colours colours;
-    auto genomes =
-        parse(im.files, parseFilterFNA, colours, (std::size_t)params.threads,
-              (std::size_t)params.kmer_size);
-    auto view = toView(genomes);
-    return construct(view, std::move(colours.ids), params);
-  }
-  default:
-    throw std::runtime_error(
-        "Coloured graph construction only supported for FASTA or GFF3 files.");
-  }
-}
-
 } // namespace cdbg

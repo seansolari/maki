@@ -1,6 +1,5 @@
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/core/seq/io.hpp"
-#include <iterator>
 #include <oneapi/tbb/parallel_for.h>
 #include <optional>
 
@@ -9,16 +8,6 @@ ShortSuffix::ShortSuffix(std::size_t _size, uint64_t init)
   assert((sizeof(uint64_t) * 8) / 2 >= _s);
 }
 ShortSuffix::ShortSuffix(std::size_t _size) : ShortSuffix(_size, 0) {}
-ShortSuffix::ShortSuffix(std::size_t _size, Dna4SequenceConstIter _it)
-    : ShortSuffix(_size, 0) {
-  for (std::size_t i = 0; i < _s; ++i)
-    _data |= parsing::dna4ToLong(*_it++) << (2 * i);
-}
-ShortSuffix::ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end)
-    : ShortSuffix(std::distance(begin, end), 0) {
-  for (std::size_t i = 0; i < _s; ++i)
-    _data |= parsing::dna4ToLong(*begin++) << (2 * i);
-}
 
 std::size_t ShortSuffix::numSuffixes(std::size_t s_) {
   /*
@@ -111,21 +100,6 @@ size_t LongSuffix::rank() const noexcept {
   return res;
 }
 
-void SuffixTable::count(Dna4SequenceConstIter it, Dna4SequenceConstIter end) {
-  ShortSuffix suffix{s};
-
-  // initialise suffix
-  for (size_t i = 0; i < s; ++i)
-    suffix.roll(parsing::dna4ToLong(*it++));
-  ++(*this)[suffix];
-
-  // count rest of sequence
-  while (it != end) {
-    suffix.roll(parsing::dna4ToLong(*it++));
-    ++(*this)[suffix];
-  }
-}
-
 size_t SuffixTable::maxValue() const {
   return *std::max_element(_data.cbegin(), _data.cend());
 }
@@ -138,35 +112,6 @@ SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs) {
     ++it;
   }
   return lhs;
-}
-
-std::vector<SuffixTable>
-createSuffixPlan(const std::vector<const SequenceContainer *> &data,
-                 std::size_t k, std::size_t s, std::size_t offset,
-                 bool accumulate) {
-  std::vector<SuffixTable> tables(data.size());
-
-  // count suffixes
-  oneapi::tbb::parallel_for((std::size_t)0, data.size(), (std::size_t)1,
-                            [&, k, s](std::size_t i) {
-                              tables[i].resize(s);
-                              for (auto fmt : data[i]->fragments(k)) {
-                                auto it = fmt.begin(), end = fmt.end();
-                                if (it != end && !fmt.endIsTerminal())
-                                  --end;
-                                std::size_t size = end - it;
-                                if (size >= k)
-                                  tables[i].count(it + offset, end);
-                              }
-                            });
-
-  if (accumulate) {
-    for (std::size_t i = 1; i < tables.size(); ++i) {
-      tables[i] += tables[i - 1];
-    }
-  }
-
-  return tables;
 }
 
 LongSuffixGate::LongSuffixGate(std::size_t _length)

@@ -149,16 +149,4 @@ WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
   return finalise(outp, params.kmer_size, std::move(rawCounts), params.out);
 }
 
-WeightedGraphFiles construct(const DataFilePair &fp, dbg::BuildOptions params) {
-  oneapi::tbb::global_control global_limit(
-      oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
-
-  auto chunks =
-      chunkReads(detail::parsePairedFastq(fp, params.kmer_size,
-                                          params.kmer_size, params.threads),
-                 10 * params.threads);
-  auto view = toView(chunks);
-  return construct(view, params);
-}
-
 } // namespace wdbg

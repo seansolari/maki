@@ -1,5 +1,6 @@
 
 #pragma once
+#include "maki/core/seq/concepts.hpp"
 #include <string>
 #include <string_view>
 
@@ -41,7 +42,7 @@ using Dna4SequenceConstIter = Dna4Sequence::const_iterator;
  *
  */
 template <typename OutputPtr, typename O = std::remove_pointer_t<OutputPtr>>
-inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out,
+inline OutputPtr writeMerTo(random_dna4_iter auto _it, OutputPtr out,
                             uint8_t k) {
   constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
 
@@ -49,25 +50,25 @@ inline OutputPtr writeMerTo(Dna4SequenceConstIter it, OutputPtr out,
   for (size_t i = 0; i < k / bpPerRecord; ++i) {
     O &val = *out++;
     for (size_t j = 0; j < bpPerRecord; ++j) {
-      val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
+      val |= parsing::dna4ToRank<O>(*_it++) << (2 * j);
     }
   }
 
   // write partial cell
   O &val = *out;
   for (size_t j = 0; j < k % bpPerRecord; ++j) {
-    val |= parsing::dna4ToRank<O>(*it++) << (2 * j);
+    val |= parsing::dna4ToRank<O>(*_it++) << (2 * j);
   }
   return out;
 }
 
 template <typename OutputPtr, typename O = std::remove_pointer_t<OutputPtr>>
   requires std::random_access_iterator<OutputPtr>
-inline void reverseWriteMerTo(Dna4SequenceConstIter it, OutputPtr out,
+inline void reverseWriteMerTo(random_dna4_iter auto _it, OutputPtr out,
                               uint8_t k, uint8_t n) {
   constexpr size_t bpPerRecord = sizeof(O) * 4; // base-pairs per output record
   for (long i = k - 1, end = k - 1 - n; i > end; --i)
-    *(out + (i / bpPerRecord)) |= parsing::dna4ToRank<O>(*it--)
+    *(out + (i / bpPerRecord)) |= parsing::dna4ToRank<O>(*_it--)
                                   << (2 * (i % bpPerRecord));
 }
 

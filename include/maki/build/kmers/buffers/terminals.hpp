@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <ranges>
 #include <sdsl/int_vector.hpp>
 #include <type_traits>
 
@@ -57,12 +58,12 @@ public:
     writeSize(tl.terminalLength());
     writeTerminal(tl);
   }
-  constexpr inline void writeKey(Dna4SequenceConstIter in,
+  constexpr inline void writeKey(random_dna4_iter auto &&_it,
                                  std::size_t size_) const
     requires(!std::is_const_v<T>)
   {
     writeSize(size_);
-    reverseWriteMerTo(in, this->_data + _lengthBytes, _k_eff, size_);
+    reverseWriteMerTo(_it, this->_data + _lengthBytes, _k_eff, size_);
   }
   constexpr inline void writeEdge(T edge_) const
     requires(!std::is_const_v<T>)
@@ -195,11 +196,116 @@ public:
   }
 
 public:
+  iterator insert(iterator it, random_dna4_range auto && sequence, bool endIsTerminal) {
+    LongSuffix tl(k_eff /* here, will be same as k */);
+
+    for (uint8_t edge :
+         sequence | std::views::transform([](seqan3::dna4 && nt) {
+           return parsing::dna4ToShort(std::move(nt));
+         })) {
+      it.writeKey(tl);
+      it.writeEdge(edge);
+      ++it;
+
+      tl.push(edge);
+    }
+
+    if (endIsTerminal) {
+      it.writeKey(tl);
+      it.writeEdge(terminalEdge);
+      ++it;
+    }
+
+    return it;
+  }
+
+  iterator insert(iterator it, random_dna4_range auto && sequence, bool endIsTerminal, ShortSuffix key) {
+    auto seq_iter = std::ranges::begin(sequence);
+    auto seq_end = std::ranges::end(sequence);
+
+    uint8_t s = key.size();
+    size_t distanceFromStart = 0, effTerminalSize;
+
+    // initialise
+
+    ShortSuffix suffix(s, seq_iter);
+    seq_iter += s;
+
+    // fill
+
+    uint64_t edge;
+
+    while (seq_iter != seq_end) {
+      edge = parsing::dna4ToLong(*seq_iter);
+
+      if (suffix == key) {
+        effTerminalSize = std::min(distanceFromStart, (size_t)k_eff);
+        it.writeKey(seq_iter - (s + 1), effTerminalSize);
+        it.writeEdge(edge);
+        ++it;
+      }
+
+      suffix.roll(edge);
+      ++seq_iter;
+      ++distanceFromStart;
+    }
+
+    // terminal edge
+
+    if ((suffix == key) && endIsTerminal) {
+      effTerminalSize = std::min(distanceFromStart, (size_t)k_eff);
+      it.writeKey(seq_iter - (s + 1), effTerminalSize);
+      it.writeEdge(terminalEdge);
+      ++it;
+    }
+
+    return it;
+  }
+
+  /**
+   * Lock-based insert
+   */
+  void insert(LongSuffixGate &lock, random_dna4_range auto && sequence, bool endIsTerminal) {
+    LongSuffix tl(k_eff /* here, will be same as k */);
+
+    std::optional<std::size_t> p = std::nullopt;
+
+    for (uint8_t edge :
+         sequence | std::views::transform([](seqan3::dna4 && nt) {
+           return parsing::dna4ToShort(std::move(nt));
+         })) {
+      if (p = lock.trySet(tl, edge); p) {
+        auto it = at(p.value());
+        it.writeKey(tl);
+        it.writeEdge(edge);
+      }
+
+      tl.push(edge);
+    }
+
+    if (endIsTerminal) {
+      if (p = lock.trySet(tl, terminalEdge); p) {
+        auto it = at(p.value());
+        it.writeKey(tl);
+        it.writeEdge(terminalEdge);
+      }
+    }
+  }
+
   /**
    * Fill terminal sequences into disjoint regions.
    */
-  void fill(const std::vector<const SequenceContainer *> &data_,
-            const std::vector<size_t> &blocks_);
+  // FIXME!
+  template <sequence_container_like T>
+  void fill(std::span<T> data_, const std::vector<size_t> &blocks_) {
+    oneapi::tbb::parallel_for(
+      (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
+        auto it = at(i == 0 ? 0 : blocks_[i - 1]);
+        for (auto seq : data_[i].terminals()) {
+          it = insert(it, seq.begin(), seq.begin() + k, false);
+        }
+      });
+  }
 
   /**
    * Competitively fill unique terminal sequences.
@@ -212,16 +318,6 @@ public:
    */
   void fill(const std::vector<const SequenceContainer *> &data_,
             const std::vector<SuffixTable> &blocks_, ShortSuffix sfx_);
-  iterator insert(iterator it, Dna4SequenceConstIter begin,
-                  Dna4SequenceConstIter end, bool endIsTerminal);
-  iterator insert(iterator it, Dna4SequenceConstIter begin,
-                  Dna4SequenceConstIter end, bool endIsTerminal,
-                  ShortSuffix key);
-  /**
-   * Lock-based insert
-   */
-  void insert(LongSuffixGate &lock, Dna4SequenceConstIter begin,
-              Dna4SequenceConstIter end, bool endIsTerminal);
 
   void sort(TerminalBuffer *temp);
   void sort();

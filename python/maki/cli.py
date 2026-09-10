@@ -120,21 +120,41 @@ def build(
     
     build_stages.init_clusters(db_path, rank)
     
-    thresholds = []
+    # Designate clustering thresholds
+    thresholds_set: set[float] = set()
     if not skip_refine:
-        thresholds.append(ani)
+        thresholds_set.add(ani)
         
-        if (not skip_derep) and (derep != ani):
-            thresholds.append(derep)
-        
+    if not skip_derep:
+        thresholds_set.add(derep)
+    
+    thresholds = list(thresholds_set)
+    
+    if thresholds:
         rcode = build_stages.refine_clusters(db_path, thresholds, parallel)
         if rcode != 0:
             return rcode
     
     # Index database
-    rcode = build_stages.index_clusters(db_path, manifest_path,
-                                        f"ani{thresholds[0]}" if thresholds else rank,
-                                        suffix_size, parallel)
+    rcode = build_stages.index_clusters(
+        db_path,
+        manifest_path,
+        f"ani{ani}" if not skip_refine else rank,
+        suffix_size,
+        parallel
+    )
+    
+    if rcode != 0:
+        return rcode
+    
+    # Create filter index
+    rcode = build_stages.construct_filter(
+        db_path,
+        parallel,
+        f"ani{derep}" if not skip_derep else None,
+        seed + 1
+    )
+    
     return rcode
 
 

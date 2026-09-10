@@ -98,7 +98,4 @@ struct SuffixwiseTerminals
 WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                              dbg::BuildOptions params = {});
 
-WeightedGraphFiles construct(const DataFilePair &fp,
-                             dbg::BuildOptions params = {});
-
 } // namespace wdbg

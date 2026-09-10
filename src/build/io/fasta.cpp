@@ -326,30 +326,6 @@ std::string AnnotatedSequenceEdgeIterator::currentAnnotsToString() const {
   return data.str();
 }
 
-// FeatureSegment::FeatureSegment(Dna4SequenceConstIter seq_, size_t begin_,
-//                                size_t end_, uint64_t id_, bool terminal_)
-//     : _it(seq_), _begin(begin_), _end(end_), _id(id_),
-//       _endIsTerminal(terminal_) {}
-//
-// std::size_t FeatureSegment::numKmers(std::size_t k) const noexcept {
-//   size_t kmers = numInternalKmers(k);
-//   if (endIsTerminal())
-//     ++kmers;
-//   return kmers;
-// }
-//
-// std::size_t FeatureSegment::numTerminals(std::size_t k) const noexcept {
-//   if (_begin == 0) {
-//     assert(_end >= k);
-//     return k;
-//   } else
-//     return 0;
-// }
-//
-// std::size_t FeatureSegment::numEdges(std::size_t k) const noexcept {
-//   return numKmers(k) + numTerminals(k);
-// }
-
 AnnotatedSequenceSegmentIterator::AnnotatedSequenceSegmentIterator(
     Dna4SequenceConstIter seqIter, std::size_t seqLength, std::size_t k_,
     uint64_t nullFeatureId, AnnotationTokenVectorConstIter annotIter,
@@ -428,9 +404,8 @@ AnnotatedSequence::fragments(std::size_t k_) const {
   return FragmentView{*this, k_};
 }
 
-SequenceFragment AnnotatedSequence::view() const {
-  return SequenceFragment(sequence.cbegin(), sequence.cend(), nullFeatureId,
-                          true);
+auto AnnotatedSequence::view() const {
+  return SequenceFragment(std::views::all(sequence), nullFeatureId, true);
 }
 
 namespace {
@@ -451,6 +426,10 @@ std::vector<int64_t> findNs(const seqan3::dna5_vector &sequence) {
 }
 
 } // namespace
+
+// ---------------------------------------------------------------------------
+// Dna4Contig
+// ---------------------------------------------------------------------------
 
 void Dna4Contig::_insertOrientation(
     SequenceVector &vec, std::ranges::random_access_range auto &&sequence,
@@ -555,21 +534,16 @@ std::size_t Dna4Contig::numKmers(std::size_t k) const {
   std::size_t total =
       std::accumulate(sequences[0].cbegin(), sequences[0].cend(),
                       (std::size_t)0, accumulateKmers);
-  return std::accumulate(sequences[1].cbegin(), sequences[1].cend(),
-                         total, accumulateKmers);
+  return std::accumulate(sequences[1].cbegin(), sequences[1].cend(), total,
+                         accumulateKmers);
 }
+
+// ---------------------------------------------------------------------------
+// Dna4Genome
+// ---------------------------------------------------------------------------
 
 std::size_t Dna4Genome::numTerminals(std::size_t k) const {
   return k * numFragments();
-}
-
-poly_input_range<SequenceFragment> Dna4Genome::terminals() const {
-  return poly_input_range<SequenceFragment>(
-      contigs |
-      std::views::transform([](const Dna4Contig &ctg) { return ctg.view(); }) |
-      std::views::join |
-      std::views::transform(
-          [](const AnnotatedSequence &seq) { return seq.view(); }));
 }
 
 std::size_t Dna4Genome::numKmers(std::size_t k) const {
@@ -580,7 +554,18 @@ std::size_t Dna4Genome::numKmers(std::size_t k) const {
                          accumulateKmers);
 }
 
-poly_input_range<SequenceFragment> Dna4Genome::fragments(std::size_t k) const {
+auto Dna4Genome::terminals() const {
+  return contigs
+      | std::views::transform([](const Dna4Contig &ctg) {
+        return ctg.view();
+      })
+      | std::views::join
+      | std::views::transform([](const AnnotatedSequence &seq) {
+        return seq.view();
+      });
+}
+
+auto Dna4Genome::fragments(std::size_t k) const {
   return poly_input_range<SequenceFragment>(
       contigs |
       std::views::transform([](const Dna4Contig &ctg) { return ctg.view(); }) |
@@ -611,8 +596,7 @@ std::size_t Dna4Genome::medianContigSize() const {
   std::vector<size_t> contigSizes;
 
   for (Dna4Contig const &ctg : contigs) {
-    for (SequenceVector const *drn :
-         {&ctg.sequences[0], &ctg.sequences[1]}) {
+    for (SequenceVector const *drn : {&ctg.sequences[0], &ctg.sequences[1]}) {
       for (AnnotatedSequence const &rec : *drn) {
         contigSizes.push_back(rec.sequence.size());
       }
@@ -660,8 +644,7 @@ void ChunkedDna4Genome::chunk(std::size_t granularity, std::size_t overlap) {
       std::max(genome.medianContigSize() / granularity, overlap);
 
   for (const Dna4Contig &ctg : genome.contigs) {
-    for (const SequenceVector *drn :
-         {&ctg.sequences[0], &ctg.sequences[1]}) {
+    for (const SequenceVector *drn : {&ctg.sequences[0], &ctg.sequences[1]}) {
       for (const AnnotatedSequence &rec : *drn) {
         assert(rec.annotations.size() == 0 &&
                "chunking scheme can only be applied to unannotated sequences");
@@ -731,8 +714,7 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
 
     // insert forward and reverse sequences
 
-    SequenceVector &fwdSeqs = out.sequences[0],
-                   &revSeqs = out.sequences[1];
+    SequenceVector &fwdSeqs = out.sequences[0], &revSeqs = out.sequences[1];
 
     for (auto &&subSeq :
          rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {
@@ -781,8 +763,7 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
 
     // insert forward and reverse sequences
 
-    SequenceVector &fwdSeqs = out.sequences[0],
-                   &revSeqs = out.sequences[1];
+    SequenceVector &fwdSeqs = out.sequences[0], &revSeqs = out.sequences[1];
 
     for (auto &&subSeq :
          rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {
@@ -838,7 +819,7 @@ Dna4Genome parseGFF(const std::string &gff3File, Colours &colours,
   return genome;
 }
 
-ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
+ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile,
                                  std::size_t granularity, std::size_t k) {
   // base input file stream that reads bytes
   zstr::ifstream zis(fastaFile);
@@ -847,7 +828,7 @@ ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
   // process stream data
   ChunkedDna4Genome obj;
   std::istringstream fs(fastaData);
-  parseFastaStream(obj.genome, fs, colours, k);
+  parseFastaStream(obj.genome, fs, k);
 
   // create genome slices
   obj.chunk(granularity, k);
@@ -859,9 +840,11 @@ std::vector<const SequenceContainer *>
 toView(const std::vector<Dna4Genome> &gff) {
   std::vector<const SequenceContainer *> views;
   views.reserve(gff.size());
+
   for (const auto &seq : gff) {
     views.push_back(&seq);
   }
+
   return views;
 }
 
@@ -869,10 +852,12 @@ std::vector<const SequenceContainer *>
 toView(const std::vector<ChunkedDna4Genome> &fna) {
   std::vector<const SequenceContainer *> views;
   views.reserve(chunks(fna));
+
   for (const auto &seq : fna) {
     for (const auto &chunk : seq.chunks) {
       views.push_back(&chunk);
     }
   }
+
   return views;
 }

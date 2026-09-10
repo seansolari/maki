@@ -1,5 +1,6 @@
 
 from __future__ import annotations
+from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Annotated, Optional
@@ -21,7 +22,7 @@ def init(
     db_path: Annotated[Path, typer.Option("-db", "--db-path", help="Database output path")],
     kmer_size: Annotated[int, typer.Option("-k", "--kmer-size", help="K-mer size for database")],
     taxonomy_database: Annotated[TaxonomySource, typer.Option(help="Taxonomy database")] = TaxonomySource.gtdb,
-    taxonomy_release: Annotated[str, typer.Option("--release", help="Taxonomy release to use")] = "latest",
+    taxonomy_release: Annotated[Optional[str], typer.Option("--release", help="Taxonomy release to use")] = None,
     scale: Annotated[int, typer.Option(help="Sketching scale parameter")] = 1000,
     seed: Annotated[int, typer.Option(help="Seed for sketching")] = 42,
     permissive: Annotated[bool, typer.Option("--permissive", "-p", help="Do not fail if one already exists")] = False
@@ -35,7 +36,8 @@ def init(
             taxonomy_database,
             taxonomy_release,
             scale,
-            seed
+            seed,
+            datetime.now().strftime("%Y-%m-%d")
         ),
         exist_ok=permissive
     )

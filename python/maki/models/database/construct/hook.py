@@ -30,11 +30,14 @@ class DatabaseParameters:
     
     # Taxonomy options
     taxonomy_database: TaxonomySource
-    taxonomy_release: str
+    taxonomy_release: Optional[str]
     
     # Sketching options
     sketch_scale: int
     sketch_seed: int
+    
+    # Metadata
+    creation_date: str
     
     @property
     def sketch_params(self):
@@ -58,9 +61,6 @@ class DatabaseParameters:
 
         if not self.taxonomy_database:
             raise ValueError("taxonomy_database must not be empty")
-
-        if not self.taxonomy_release:
-            raise ValueError("taxonomy_release must not be empty")
 
 
 class DatabaseHook:

@@ -29,8 +29,7 @@ def _record_worker(args: tuple[Path, GenomeData]):
 
 
 def _try_write_record(source_dir: Path, record: GenomeData) -> list[AnnotationRecord]:
-    ext = "gff" if record.gff else "fna"
-    dest = source_dir / f"{record.accession}.{ext}.gz"
+    dest = source_dir / f"{record.accession}.gff.gz"
     
     if dest.exists():
         logger.warning("skipping writing %s as it already exists", record.accession)
@@ -312,7 +311,5 @@ class PreIndex(SequenceSourceDir):
             # Finalise
             os.replace(tmp_build_dir, self.root)
 
-        except Exception:
+        finally:
             self.cleanup_temp()
-            
-            raise

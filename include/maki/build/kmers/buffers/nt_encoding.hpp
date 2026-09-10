@@ -2,6 +2,7 @@
 #pragma once
 #include <cassert>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -22,8 +23,22 @@ class ShortSuffix {
 public:
   ShortSuffix(std::size_t _size, uint64_t init);
   ShortSuffix(std::size_t _size);
-  ShortSuffix(std::size_t _size, Dna4SequenceConstIter _it);
-  ShortSuffix(Dna4SequenceConstIter begin, Dna4SequenceConstIter end);
+
+  ShortSuffix(std::size_t _size, random_dna4_iter auto _it)
+      : ShortSuffix(_size, 0) {
+    for (std::size_t i = 0; i < _s; ++i)
+      _data |= parsing::dna4ToLong(*_it++) << (2 * i);
+  }
+
+  ShortSuffix(random_dna4_range auto &&rng_)
+      : ShortSuffix(std::ranges::size(rng_), 0) {
+    std::size_t i = 0;
+    for (uint64_t nt : rng_ | std::views::transform([](seqan3::dna4 &&nt) {
+                         return parsing::dna4ToLong(std::move(nt));
+                       })) {
+      _data |= nt << (2 * i++);
+    }
+  }
 
   static std::size_t numSuffixes(
       std::size_t s_); // number of suffixes up to and including size `s_`
@@ -180,13 +195,12 @@ public:
       : _num_nts(num_nts), _num_cells(key_size(num_nts)),
         _edge_bit_offset(((num_nts - 1) % 4) * 2), _data(_num_cells, 0) {}
 
-  Kmer(size_t _length, Dna4SequenceConstIter _it) : Kmer(_length) {
+  Kmer(size_t _length, random_dna4_iter auto _it) : Kmer(_length) {
     writeMerTo(_it, _data.data(), _length);
   }
 
-  Kmer(Dna4SequenceConstIter begin, Dna4SequenceConstIter end)
-      : Kmer(std::distance(begin, end)) {
-    writeMerTo(begin, _data.data(), _num_nts);
+  Kmer(random_dna4_range auto &&rng_) : Kmer(std::ranges::distance(rng_)) {
+    writeMerTo(std::ranges::begin(rng_), _data.data(), _num_nts);
   }
 
 public:
@@ -243,9 +257,12 @@ public:
     s = s_;
     _data.resize((size_t)1u << (2 * s), 0);
   }
+
   inline SuffixTable &operator=(const SuffixTable &other) = default;
   inline SuffixTable &operator=(SuffixTable &&other) = default;
+
   inline size_t suffixSize() const noexcept { return s; }
+
   const std::vector<uint64_t> &cdata() const { return _data; }
   inline iterator begin() { return _data.begin(); }
   inline iterator end() { return _data.end(); }
@@ -253,7 +270,23 @@ public:
   inline const_iterator end() const { return _data.end(); }
   inline const_iterator cbegin() const { return _data.cbegin(); }
   inline const_iterator cend() const { return _data.cend(); }
-  void count(Dna4SequenceConstIter it, Dna4SequenceConstIter end);
+
+  template <random_dna4_iter Iter, std::sentinel_for<Iter> Sentinel>
+  void count(Iter it, Sentinel end) {
+    ShortSuffix suffix{s};
+
+    // initialise suffix
+    for (size_t i = 0; i < s; ++i)
+      suffix.roll(parsing::dna4ToLong(*it++));
+    ++(*this)[suffix];
+
+    // count rest of sequence
+    while (it != end) {
+      suffix.roll(parsing::dna4ToLong(*it++));
+      ++(*this)[suffix];
+    }
+  }
+
   inline uint64_t &operator[](const ShortSuffix &sfx) {
     return _data.operator[](sfx._data);
   }
@@ -263,8 +296,10 @@ public:
   inline const uint64_t &operator[](const ShortSuffix &sfx) const {
     return _data.operator[](sfx._data);
   }
+
   size_t maxValue() const;
   inline size_t size() const noexcept { return _data.size(); }
+
   friend SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs);
 
 private:
@@ -293,7 +328,34 @@ private:
  * cumulative number of k-mers with that suffix including all genomes before it
  * in the container.
  */
-std::vector<SuffixTable>
-createSuffixPlan(const std::vector<const SequenceContainer *> &data,
-                 std::size_t k, std::size_t s, std::size_t offset = 0,
-                 bool accumulate = true);
+template <sequence_container_like T>
+std::vector<SuffixTable> createSuffixPlan(std::span<T> data_, std::size_t k,
+                                          std::size_t s, std::size_t offset = 0,
+                                          bool accumulate = true) {
+  std::vector<SuffixTable> tables(data_.size());
+
+  // count suffixes
+  oneapi::tbb::parallel_for((std::size_t)0, data_.size(), (std::size_t)1,
+                            [&, k, s](std::size_t i) {
+                              tables[i].resize(s);
+                              for (auto fmt : data_[i].fragments(k)) {
+                                auto it = fmt.begin();
+                                auto end = fmt.end();
+
+                                if (it != end && !fmt.endIsTerminal())
+                                  --end;
+
+                                std::size_t size = end - it;
+                                if (size >= k)
+                                  tables[i].count(it + offset, end);
+                              }
+                            });
+
+  if (accumulate) {
+    for (std::size_t i = 1; i < tables.size(); ++i) {
+      tables[i] += tables[i - 1];
+    }
+  }
+
+  return tables;
+}

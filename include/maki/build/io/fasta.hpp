@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 
-// #include <indicators/progress_bar.hpp>
 #include <seqan3/alphabet/nucleotide/all.hpp>
 #include <zstr.hpp>
 
@@ -294,7 +293,7 @@ struct AnnotatedSequence {
 
   FragmentView fragments(std::size_t k_) const;
   std::size_t numKmers(std::size_t k) const;
-  SequenceFragment view() const;
+  auto view() const;
 };
 
 using SequenceVector = std::vector<AnnotatedSequence>;
@@ -337,7 +336,7 @@ protected:
                           AnnotRange annots, std::size_t minAnnotSize);
 };
 
-struct Dna4Genome final : public SequenceContainer {
+struct Dna4Genome {
   std::vector<Dna4Contig> contigs;
 
   Dna4Genome() = default;
@@ -346,58 +345,18 @@ struct Dna4Genome final : public SequenceContainer {
   Dna4Genome(const Dna4Genome &) = delete;
   Dna4Genome &operator=(const Dna4Genome &) = delete;
 
-  virtual std::size_t numTerminals(std::size_t k) const override final;
-  virtual poly_input_range<SequenceFragment> terminals() const override final;
-  virtual std::size_t numKmers(std::size_t k) const override final;
-  virtual poly_input_range<SequenceFragment>
-  fragments(std::size_t k) const override final;
+  std::size_t numTerminals(std::size_t k) const;
+  std::size_t numKmers(std::size_t k) const;
+
+  auto terminals() const;
+  auto fragments(std::size_t k) const;
 
   std::size_t length() const;
   std::size_t numFragments() const;
   std::size_t medianContigSize() const;
 };
 
-// ---------------------------------------------------------------------------
-// Parsing large FNA files (filters)
-// ---------------------------------------------------------------------------
-
-struct RestrictedSequenceFragment final : public SequenceContainer {
-  RestrictedSequenceFragment(Dna4SequenceConstIter it, std::size_t begin,
-                             std::size_t end, uint64_t id)
-      : _it(it), _begin(begin), _end(end), _id(id) {}
-
-  inline std::size_t size() const noexcept { return _end - _begin; }
-  inline void setEndToTerminal() { _terminal = true; }
-  inline bool endIsTerminal() const noexcept { return _terminal; }
-
-  virtual std::size_t numTerminals(std::size_t k) const override final;
-  virtual poly_input_range<SequenceFragment> terminals() const override final;
-  virtual std::size_t numKmers(std::size_t k) const override final;
-  virtual poly_input_range<SequenceFragment>
-  fragments(std::size_t k) const override final;
-
-protected:
-  Dna4SequenceConstIter _it;
-  std::size_t _begin;
-  std::size_t _end;
-  uint64_t _id;
-  bool _terminal = false;
-};
-
-struct ChunkedDna4Genome {
-  Dna4Genome genome;
-  std::vector<RestrictedSequenceFragment> chunks;
-
-  ChunkedDna4Genome() = default;
-  ChunkedDna4Genome(ChunkedDna4Genome &&) = default;
-  ChunkedDna4Genome &operator=(ChunkedDna4Genome &&) = default;
-  ChunkedDna4Genome(const ChunkedDna4Genome &) = delete;
-  ChunkedDna4Genome &operator=(const ChunkedDna4Genome &) = delete;
-
-  void chunk(std::size_t granularity, std::size_t overlap);
-};
-
-std::size_t chunks(const std::vector<ChunkedDna4Genome> &genomes);
+static_assert(sequence_container_like<Dna4Genome>);
 
 // ---------------------------------------------------------------------------
 // API
@@ -412,12 +371,6 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
 
 Dna4Genome parseGFF(const std::string &gffFile, Colours &colours,
                     std::size_t k);
-ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
-                                 std::size_t granularity, std::size_t k);
-
-std::vector<const SequenceContainer *> toView(const std::vector<Dna4Genome> &);
-std::vector<const SequenceContainer *>
-toView(const std::vector<ChunkedDna4Genome> &);
 
 template <typename ReturnType, typename... Args>
 std::vector<ReturnType> parse(const std::vector<std::string> &files,
@@ -426,24 +379,8 @@ std::vector<ReturnType> parse(const std::vector<std::string> &files,
   std::size_t N = files.size();
   std::vector<ReturnType> result(N);
 
-  //indicators::ProgressBar pbar{
-  //    indicators::option::BarWidth{50},
-  //    indicators::option::Start{"["},
-  //    indicators::option::Fill{"="},
-  //    indicators::option::Lead{">"},
-  //    indicators::option::Remainder{" "},
-  //    indicators::option::End{"]"},
-  //    indicators::option::PrefixText{" Parsing genomes "},
-  //    indicators::option::ForegroundColor{indicators::Color::green},
-  //    indicators::option::ShowElapsedTime{true},
-  //    indicators::option::ShowRemainingTime{true},
-  //    indicators::option::FontStyles{
-  //        std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
-  //    indicators::option::MaxProgress{N}};
-
   tbb::parallel_for((std::size_t)0, N, (std::size_t)1, [&](std::size_t i) {
     result[i] = fn(files[i], args...);
-  //  pbar.tick();
   });
 
   return result;

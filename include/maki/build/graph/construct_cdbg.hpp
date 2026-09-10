@@ -111,7 +111,4 @@ struct SuffixwiseKmers : public dbg::Suffixwise<KmerBuffer, CDBG_SINK_SET> {
 ColouredGraphFiles construct(const std::vector<const SequenceContainer *> &data,
                              MetaColours &&cmap, dbg::BuildOptions params = {});
 
-ColouredGraphFiles construct(const GenomeManifest &im,
-                             dbg::BuildOptions params = {});
-
 } // namespace cdbg
