@@ -1,4 +1,4 @@
-#include "maki/build/io/fasta.hpp"
+#include "maki/build/io/gff.hpp"
 #include "maki/core/seq/io.hpp"
 
 #include <algorithm>
@@ -443,70 +443,6 @@ std::vector<int64_t> findNs(const seqan3::dna5_vector &sequence) {
 // Dna4Contig
 // ---------------------------------------------------------------------------
 
-void Dna4Contig::_insertOrientation(
-    SequenceVector &vec, std::ranges::random_access_range auto &&sequence,
-    uint64_t seqFeatureId, const std::vector<int64_t> &nPositions,
-    AnnotRange annots, std::size_t minAnnotSize) {
-  // sort annotations by start position
-  annots.sortByStart();
-  // insert fragments
-  AnnotationTokenList currentAnnots;
-  int64_t seqPos = 0;
-  for (int64_t nPos : nPositions) {
-    std::size_t nextContigSize = nPos - seqPos;
-    if (nextContigSize >= minFragmentSize)
-      _insertFragment(vec, sequence, seqPos, nPos, seqFeatureId, annots,
-                      currentAnnots, minAnnotSize);
-    seqPos += nextContigSize + 1;
-  }
-  if (std::ranges::size(sequence) - seqPos >= minFragmentSize)
-    _insertFragment(vec, sequence, seqPos, std::ranges::size(sequence),
-                    seqFeatureId, annots, currentAnnots, minAnnotSize);
-}
-
-void Dna4Contig::_insertFragment(
-    SequenceVector &vec, std::ranges::random_access_range auto &&sequence,
-    int64_t startPos, int64_t endPos, uint64_t seqFeatureId, AnnotRange &annots,
-    AnnotationTokenList &currentAnnots, std::size_t minAnnotSize) {
-  std::size_t fragmentSize = endPos - startPos;
-  totalLength += fragmentSize;
-  AnnotatedSequence &seqObj = vec.emplace_back(seqFeatureId, fragmentSize);
-
-  for (seqan3::dna4 &&nt_ :
-       sequence | std::views::drop(startPos) |
-           std::views::take(endPos - startPos) |
-           std::views::transform([](auto &&c_) {
-             return static_cast<seqan3::dna4>(std::forward<decltype(c_)>(c_));
-           })) {
-    seqObj.sequence.push_back(nt_);
-  }
-
-  // remove any annotations that ended before this contig
-  std::erase_if(currentAnnots, [startPos](const gffToken &rec) {
-    return rec.end <= startPos;
-  });
-
-  // get new annotations that started within this region
-  auto annotEnd = annots.encloseStart(endPos);
-  while (annots.begin != annotEnd) {
-    const gffRecord &nextAnnot = *annots.begin;
-    if (nextAnnot.end > startPos)
-      currentAnnots.push_back(nextAnnot.asToken());
-    ++annots.begin;
-  }
-
-  // add annotations to contig
-  for (const gffToken &annotToPush : currentAnnots) {
-    gffToken nextAnnot = annotToPush;
-    nextAnnot.begin =
-        nextAnnot.begin < startPos ? 0 : nextAnnot.begin - startPos;
-    nextAnnot.end =
-        nextAnnot.end > endPos ? fragmentSize : nextAnnot.end - startPos;
-    if (nextAnnot.size() >= minAnnotSize)
-      seqObj.annotations.emplace_back(std::move(nextAnnot));
-  }
-}
-
 void Dna4Contig::insert(const seqan3::dna5_vector &sequence,
                         uint64_t seqFeatureId, AnnotRange annots,
                         std::size_t minAnnotSize) {
@@ -609,6 +545,10 @@ std::size_t Dna4Genome::medianContigSize() const {
   return contigSizes[medianIndex];
 }
 
+// ---------------------------------------------------------------------------
+// API
+// ---------------------------------------------------------------------------
+
 void parseAnnotationStream(GenomeAnnotationList &annots, Colours &colours,
                            zstr::ifstream &gffStream) {
   std::string tmpData;
@@ -628,103 +568,6 @@ void parseAnnotationStream(GenomeAnnotationList &annots, Colours &colours,
     }
   }
   assert(tmpData == "##FASTA");
-}
-
-/**
- * Parse FASTA stream without assigning colours to contig sequences.
- */
-void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
-                      std::size_t minContigSize) {
-  seqan3::sequence_file_input seqInput(fastaStream, seqan3::format_fasta{});
-  auto myLengthFilter = std::views::filter([&](auto &&seq) {
-    return std::ranges::size(std::forward<decltype(seq)>(seq)) >= minContigSize;
-  });
-
-  auto Dna5ToDna4 = std::views::transform(
-      [](auto &&
-             c) { // https://docs.seqan.de/seqan3/main_user/cookbook.html#cookbook_convert_alphabet_range
-        return static_cast<seqan3::dna4>(std::forward<decltype(c)>(c));
-      });
-
-  for (auto &&rec : seqInput) {
-    Dna4Contig &out = genome.contigs.emplace_back(
-        rec.id().substr(0, rec.id().find(' ')), minContigSize);
-
-    // insert forward and reverse sequences
-
-    SequenceVector &fwdSeqs = out.sequences[0], &revSeqs = out.sequences[1];
-
-    for (auto &&subSeq :
-         rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {
-      out.totalLength += 2 * subSeq.size();
-
-      // insert forward
-
-      auto &fwd = fwdSeqs.emplace_back(/*no colour*/ 0u, subSeq.size());
-
-      for (auto &&c : subSeq | Dna5ToDna4) {
-        fwd.sequence.push_back(c);
-      }
-
-      // insert reverse
-
-      auto &rev = revSeqs.emplace_back(/*no colour*/ 0u, subSeq.size());
-
-      for (auto &&c : subSeq | std::views::reverse | seqan3::views::complement |
-                          Dna5ToDna4) {
-        rev.sequence.push_back(c);
-      }
-    }
-  }
-}
-
-/**
- * Parse FASTA stream, assigning colours by contig accession.
- */
-void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
-                      Colours &colours, std::size_t minContigSize) {
-  seqan3::sequence_file_input seqInput(fastaStream, seqan3::format_fasta{});
-  auto myLengthFilter = std::views::filter([&](auto &&seq) {
-    return std::ranges::size(std::forward<decltype(seq)>(seq)) >= minContigSize;
-  });
-
-  auto Dna5ToDna4 = std::views::transform(
-      [](auto &&
-             c) { // https://docs.seqan.de/seqan3/main_user/cookbook.html#cookbook_convert_alphabet_range
-        return static_cast<seqan3::dna4>(std::forward<decltype(c)>(c));
-      });
-
-  for (auto &&rec : seqInput) {
-    Dna4Contig &out = genome.contigs.emplace_back(
-        rec.id().substr(0, rec.id().find(' ')), minContigSize);
-    uint64_t seqId = colours.getOrAssign(std::string(out.accn));
-
-    // insert forward and reverse sequences
-
-    SequenceVector &fwdSeqs = out.sequences[0], &revSeqs = out.sequences[1];
-
-    for (auto &&subSeq :
-         rec.sequence() | std::views::split('N'_dna5) | myLengthFilter) {
-      out.totalLength += 2 * subSeq.size();
-
-      // insert forward
-
-      auto &fwd = fwdSeqs.emplace_back(seqId, subSeq.size());
-
-      for (auto &&c : subSeq | Dna5ToDna4) {
-        fwd.sequence.push_back(c);
-      }
-
-      // insert reverse
-
-      auto &rev = revSeqs.emplace_back(seqId, subSeq.size());
-
-      for (auto &&c : subSeq | std::views::reverse | seqan3::views::complement |
-                          Dna5ToDna4) {
-        rev.sequence.push_back(c);
-      }
-    }
-  }
 }
 
 Dna4Genome parseGFF(const std::string &gff3File, Colours &colours,

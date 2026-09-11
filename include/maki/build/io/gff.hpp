@@ -344,18 +344,75 @@ struct Dna4Contig {
 
 protected:
   // Insert view of annotated fragment.
-  void _insertFragment(SequenceVector &vec,
-                       std::ranges::random_access_range auto &&sequence,
+  void _insertFragment(SequenceVector &vec, random_dna5_range auto &&sequence,
                        int64_t startPos, int64_t endPos, uint64_t seqFeatureId,
                        AnnotRange &annots, AnnotationTokenList &currentAnnots,
-                       std::size_t minAnnotSize);
+                       std::size_t minAnnotSize) {
+    std::size_t fragmentSize = endPos - startPos;
+    totalLength += fragmentSize;
+    AnnotatedSequence &seqObj = vec.emplace_back(seqFeatureId, fragmentSize);
+
+    for (seqan3::dna4 &&nt_ :
+         sequence | std::views::drop(startPos) |
+             std::views::take(endPos - startPos) |
+             std::views::transform([](auto &&c_) {
+               return static_cast<seqan3::dna4>(std::forward<decltype(c_)>(c_));
+             })) {
+      seqObj.sequence.push_back(nt_);
+    }
+
+    // remove any annotations that ended before this contig
+    std::erase_if(currentAnnots, [startPos](const gffToken &rec) {
+      return rec.end <= startPos;
+    });
+
+    // get new annotations that started within this region
+    auto annotEnd = annots.encloseStart(endPos);
+    while (annots.begin != annotEnd) {
+      const gffRecord &nextAnnot = *annots.begin;
+      if (nextAnnot.end > startPos)
+        currentAnnots.push_back(nextAnnot.asToken());
+      ++annots.begin;
+    }
+
+    // add annotations to contig
+    for (const gffToken &annotToPush : currentAnnots) {
+      gffToken nextAnnot = annotToPush;
+      nextAnnot.begin =
+          nextAnnot.begin < startPos ? 0 : nextAnnot.begin - startPos;
+      nextAnnot.end =
+          nextAnnot.end > endPos ? fragmentSize : nextAnnot.end - startPos;
+      if (nextAnnot.size() >= minAnnotSize)
+        seqObj.annotations.emplace_back(std::move(nextAnnot));
+    }
+  }
 
   // Insert annotated contig.
   void _insertOrientation(SequenceVector &vec,
-                          std::ranges::random_access_range auto &&sequence,
+                          random_dna5_range auto &&sequence,
                           uint64_t seqFeatureId,
                           const std::vector<int64_t> &nPositions,
-                          AnnotRange annots, std::size_t minAnnotSize);
+                          AnnotRange annots, std::size_t minAnnotSize) {
+    // sort annotations by start position
+    annots.sortByStart();
+
+    // insert fragments
+    AnnotationTokenList currentAnnots;
+
+    int64_t seqPos = 0;
+    for (int64_t nPos : nPositions) {
+      std::size_t nextContigSize = nPos - seqPos;
+      if (nextContigSize >= minFragmentSize)
+        _insertFragment(vec, sequence, seqPos, nPos, seqFeatureId, annots,
+                        currentAnnots, minAnnotSize);
+
+      seqPos += nextContigSize + 1;
+    }
+
+    if (std::ranges::size(sequence) - seqPos >= minFragmentSize)
+      _insertFragment(vec, sequence, seqPos, std::ranges::size(sequence),
+                      seqFeatureId, annots, currentAnnots, minAnnotSize);
+  }
 };
 
 namespace detail {
@@ -397,18 +454,22 @@ struct Dna4Genome {
   std::size_t numKmers(std::size_t k) const;
 
 public:
-  using terminal_view_type =
+  using plain_view_type =
       detail::contig_terminal_view_type<const decltype(contigs) &>;
 
-  terminal_view_type terminals() const {
+  constexpr plain_view_type raw_contigs() const {
     return contigs | detail::flatten_contig_strands |
            detail::discard_annotations;
   }
 
-  using fragment_view_type =
+  constexpr plain_view_type terminals() const {
+    return raw_contigs();
+  }
+
+  using coloured_view_type =
       detail::contig_fragment_view_type<const decltype(contigs) &>;
 
-  fragment_view_type fragments(std::size_t k) const {
+  constexpr coloured_view_type fragments(std::size_t k) const {
     return contigs | detail::flatten_contig_strands |
            detail::join_annotated_segments(k);
   }
@@ -426,10 +487,6 @@ static_assert(sequence_container_like<Dna4Genome>);
 
 void parseAnnotationStream(GenomeAnnotationList &annots, Colours &colours,
                            zstr::ifstream &gffStream);
-void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
-                      std::size_t minContigSize);
-void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
-                      Colours &colours, std::size_t minContigSize);
 
 Dna4Genome parseGFF(const std::string &gffFile, Colours &colours,
                     std::size_t k);

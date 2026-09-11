@@ -25,6 +25,17 @@ inline uint64_t dna4ToDna5(uint64_t &&nt) { return (nt + 1) & 0b00000111; }
 inline seqan3::dna4 dna5ToDna4(uint64_t &&rnk) {
   return seqan3::assign_rank_to((rnk - 1) & 0b11, seqan3::dna4{});
 }
+
+constexpr auto filterByLength(std::size_t minSize) {
+  return std::views::filter([minSize](auto &&seq) {
+    return std::ranges::size(std::forward<decltype(seq)>(seq)) >= minSize;
+  });
+}
+
+constexpr auto transformToDna4 = std::views::transform([](auto &&c) {
+  return static_cast<seqan3::dna4>(std::forward<decltype(c)>(c));
+});
+
 } // namespace parsing
 
 using Dna4Sequence = seqan3::bitpacked_sequence<seqan3::dna4>;

@@ -7,16 +7,27 @@
 #include <utility>
 
 #include "seqan3/alphabet/nucleotide/dna4.hpp"
+#include "seqan3/alphabet/nucleotide/dna5.hpp"
 
 template <typename I>
 concept random_dna4_iter =
     std::random_access_iterator<I> &&
     std::convertible_to<std::iter_value_t<I>, seqan3::dna4>;
 
+template <typename I>
+concept random_dna5_iter =
+    std::random_access_iterator<I> &&
+    std::convertible_to<std::iter_value_t<I>, seqan3::dna5>;
+
 template <typename R>
 concept random_dna4_range =
     std::ranges::random_access_range<R> &&
     std::convertible_to<std::ranges::range_reference_t<R>, seqan3::dna4>;
+
+template <typename R>
+concept random_dna5_range =
+    std::ranges::random_access_range<R> &&
+    std::convertible_to<std::ranges::range_reference_t<R>, seqan3::dna5>;
 
 template <typename T>
 concept is_sequence_fragment_like = requires(const T &obj) {
@@ -63,6 +74,15 @@ concept sequence_container_like =
     countable_sequence_holder<T> && requires(T obj, std::size_t k_) {
       { obj.terminals() } -> sequence_fragment_input_range;
       { obj.fragments(k_) } -> sequence_fragment_input_range;
+    };
+
+template <typename T>
+concept stranded_sequence_container_like =
+    countable_sequence_holder<T> && requires(T obj, std::size_t k_) {
+      { obj.forwardTerminals() } -> sequence_fragment_input_range;
+      { obj.reverseTerminals() } -> sequence_fragment_input_range;
+      { obj.forwardFragments(k_) } -> sequence_fragment_input_range;
+      { obj.reverseFragments(k_) } -> sequence_fragment_input_range;
     };
 
 template <typename T>

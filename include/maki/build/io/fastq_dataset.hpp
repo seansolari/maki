@@ -1,6 +1,7 @@
 #pragma once
 
 #include "maki/core/seq/concepts.hpp"
+#include "seqan3/alphabet/views/complement.hpp"
 #include <seqan3/alphabet/container/bitpacked_sequence.hpp>
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 #include <seqan3/alphabet/nucleotide/dna5.hpp>
@@ -10,7 +11,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <concepts>
 #include <cstddef>
 #include <filesystem>
 #include <iterator>
@@ -36,28 +36,16 @@ public:
  */
 struct ReadFragment {
   using sequence_type = seqan3::bitpacked_sequence<seqan3::dna4>;
-
   using quality_type = seqan3::bitpacked_sequence<seqan3::phred42>;
 
   sequence_type sequence{};
   quality_type qualities{};
 
-  [[nodiscard]]
-  std::size_t size() const noexcept {
-    return sequence.size();
-  }
+  constexpr std::size_t size() const noexcept { return sequence.size(); }
+  constexpr bool empty() const noexcept { return sequence.empty(); }
+  constexpr sequence_type const &data() const noexcept { return sequence; }
 
-  [[nodiscard]]
-  bool empty() const noexcept {
-    return sequence.empty();
-  }
-
-  void validate() const {
-    if (sequence.size() != qualities.size()) {
-      throw FastqDatasetError{
-          "ReadFragment sequence and quality lengths differ."};
-    }
-  }
+  void validate() const;
 };
 
 /**
@@ -77,52 +65,22 @@ public:
 
   explicit Read(std::string id) : id_{std::move(id)} {}
 
-  [[nodiscard]]
-  std::string const &id() const noexcept {
-    return id_;
-  }
+  constexpr std::string const &id() const noexcept { return id_; }
 
-  [[nodiscard]]
-  fragment_container const &fragments() const noexcept {
+  constexpr fragment_container const &fragments() const noexcept {
     return fragments_;
   }
-
-  [[nodiscard]]
-  fragment_container &fragments() noexcept {
-    return fragments_;
-  }
-
-  [[nodiscard]]
-  std::size_t fragment_count() const noexcept {
+  constexpr fragment_container &fragments() noexcept { return fragments_; }
+  constexpr std::size_t numFragments() const noexcept {
     return fragments_.size();
   }
+  constexpr bool empty() const noexcept { return fragments_.empty(); }
 
-  /**
-   * Number of retained canonical bases across all fragments.
-   */
-  [[nodiscard]]
-  std::size_t retained_base_count() const noexcept {
-    std::size_t result{};
+  std::size_t length() const noexcept;
+  std::size_t numKmers(std::size_t k) const noexcept;
 
-    for (ReadFragment const &fragment : fragments_)
-      result += fragment.size();
-
-    return result;
-  }
-
-  [[nodiscard]]
-  bool empty() const noexcept {
-    return fragments_.empty();
-  }
-
-  void reserve_fragments(std::size_t count) { fragments_.reserve(count); }
-
-  void add_fragment(ReadFragment fragment) {
-    fragment.validate();
-
-    if (!fragment.empty())
-      fragments_.push_back(std::move(fragment));
-  }
+  void reserveFragments(std::size_t count) { fragments_.reserve(count); }
+  void addFragment(ReadFragment &&fragment);
 
 private:
   std::string id_{};
@@ -170,28 +128,7 @@ public:
   /**
    * Load one FASTQ file as unpaired reads.
    */
-  [[nodiscard]]
-  static FastqDataset from_unpaired(std::filesystem::path const &path) {
-    FastqDataset dataset;
-    dataset.metadata_.layout = FastqLayout::unpaired;
-    dataset.metadata_.first_path = path;
-    dataset.metadata_.compressed_input = is_compressed_path(path);
-
-    seqan3::sequence_file_input input{path};
-
-    for (auto &record : input) {
-      Read read{normalise_read_id(record.id())};
-
-      append_record_fragments(read, record.sequence(), record.base_qualities(),
-                              dataset.metadata_.discarded_base_count);
-
-      dataset.reads_.push_back(std::move(read));
-      ++dataset.metadata_.input_record_count;
-    }
-
-    dataset.metadata_.logical_read_count = dataset.reads_.size();
-    return dataset;
-  }
+  static FastqDataset fromUnpaired(std::filesystem::path const &path);
 
   /**
    * Load two FASTQ files in lockstep.
@@ -199,70 +136,9 @@ public:
    * The files must contain the same number of records. If validate_ids is
    * true, normalised read identifiers must also agree.
    */
-  [[nodiscard]]
-  static FastqDataset
-  from_paired_files(std::filesystem::path const &forward_path,
-                    std::filesystem::path const &reverse_path,
-                    bool validate_ids = true) {
-    FastqDataset dataset;
-    dataset.metadata_.layout = FastqLayout::paired_files;
-    dataset.metadata_.first_path = forward_path;
-    dataset.metadata_.second_path = reverse_path;
-
-    dataset.metadata_.compressed_input =
-        is_compressed_path(forward_path) || is_compressed_path(reverse_path);
-
-    seqan3::sequence_file_input forward_input{forward_path};
-    seqan3::sequence_file_input reverse_input{reverse_path};
-
-    auto forward_it = forward_input.begin();
-    auto reverse_it = reverse_input.begin();
-
-    auto const forward_end = forward_input.end();
-    auto const reverse_end = reverse_input.end();
-
-    std::size_t pair_index{};
-
-    while (forward_it != forward_end && reverse_it != reverse_end) {
-      auto &forward_record = *forward_it;
-      auto &reverse_record = *reverse_it;
-
-      std::string forward_id = normalise_read_id(forward_record.id());
-
-      std::string reverse_id = normalise_read_id(reverse_record.id());
-
-      if (validate_ids && forward_id != reverse_id) {
-        throw FastqDatasetError{"Paired FASTQ identifier mismatch at pair " +
-                                std::to_string(pair_index) + ": '" +
-                                forward_id + "' versus '" + reverse_id + "'."};
-      }
-
-      Read read{std::move(forward_id)};
-
-      append_record_fragments(read, forward_record.sequence(),
-                              forward_record.base_qualities(),
-                              dataset.metadata_.discarded_base_count);
-
-      append_record_fragments(read, reverse_record.sequence(),
-                              reverse_record.base_qualities(),
-                              dataset.metadata_.discarded_base_count);
-
-      dataset.reads_.push_back(std::move(read));
-
-      ++forward_it;
-      ++reverse_it;
-      ++pair_index;
-      dataset.metadata_.input_record_count += 2;
-    }
-
-    if (forward_it != forward_end || reverse_it != reverse_end) {
-      throw FastqDatasetError{
-          "Paired FASTQ files contain different numbers of records."};
-    }
-
-    dataset.metadata_.logical_read_count = dataset.reads_.size();
-    return dataset;
-  }
+  static FastqDataset fromPairedFiles(std::filesystem::path const &forward_path,
+                                      std::filesystem::path const &reverse_path,
+                                      bool validate_ids = true);
 
   /**
    * Load consecutive FASTQ records as read pairs:
@@ -273,148 +149,30 @@ public:
    *
    * An odd record count is rejected.
    */
-  [[nodiscard]]
-  static FastqDataset from_interleaved(std::filesystem::path const &path,
-                                       bool validate_ids = true) {
-    FastqDataset dataset;
-    dataset.metadata_.layout = FastqLayout::interleaved;
-    dataset.metadata_.first_path = path;
-    dataset.metadata_.compressed_input = is_compressed_path(path);
+  static FastqDataset fromInterleaved(std::filesystem::path const &path,
+                                      bool validate_ids = true);
 
-    seqan3::sequence_file_input input{path};
-
-    auto it = input.begin();
-    auto const end = input.end();
-
-    std::size_t pair_index{};
-
-    while (it != end) {
-      auto &forward_record = *it;
-      ++it;
-
-      if (it == end) {
-        throw FastqDatasetError{
-            "Interleaved FASTQ contains an odd number of records."};
-      }
-
-      /*
-       * A SeqAn input record is backed by the input object and is
-       * overwritten when the iterator is advanced. Therefore copy the
-       * fields from the first mate before processing the second mate.
-       */
-      std::string forward_id = normalise_read_id(forward_record.id());
-
-      Read read{forward_id};
-
-      append_record_fragments(read, forward_record.sequence(),
-                              forward_record.base_qualities(),
-                              dataset.metadata_.discarded_base_count);
-
-      auto &reverse_record = *it;
-
-      std::string reverse_id = normalise_read_id(reverse_record.id());
-
-      if (validate_ids && forward_id != reverse_id) {
-        throw FastqDatasetError{
-            "Interleaved FASTQ identifier mismatch at pair " +
-            std::to_string(pair_index) + ": '" + forward_id + "' versus '" +
-            reverse_id + "'."};
-      }
-
-      append_record_fragments(read, reverse_record.sequence(),
-                              reverse_record.base_qualities(),
-                              dataset.metadata_.discarded_base_count);
-
-      dataset.reads_.push_back(std::move(read));
-
-      ++it;
-      ++pair_index;
-      dataset.metadata_.input_record_count += 2;
-    }
-
-    dataset.metadata_.logical_read_count = dataset.reads_.size();
-    return dataset;
-  }
-
-  [[nodiscard]]
-  size_type size() const noexcept {
-    return reads_.size();
-  }
-
-  [[nodiscard]]
-  bool empty() const noexcept {
-    return reads_.empty();
-  }
-
-  [[nodiscard]]
-  Read &operator[](size_type index) noexcept {
+  constexpr size_type size() const noexcept { return reads_.size(); }
+  constexpr bool empty() const noexcept { return reads_.empty(); }
+  constexpr Read &operator[](size_type index) noexcept { return reads_[index]; }
+  constexpr Read const &operator[](size_type index) const noexcept {
     return reads_[index];
   }
-
-  [[nodiscard]]
-  Read const &operator[](size_type index) const noexcept {
-    return reads_[index];
-  }
-
-  [[nodiscard]]
-  Read &at(size_type index) {
-    return reads_.at(index);
-  }
-
-  [[nodiscard]]
-  Read const &at(size_type index) const {
-    return reads_.at(index);
-  }
-
-  [[nodiscard]]
-  iterator begin() noexcept {
-    return reads_.begin();
-  }
-
-  [[nodiscard]]
-  iterator end() noexcept {
-    return reads_.end();
-  }
-
-  [[nodiscard]]
-  const_iterator begin() const noexcept {
-    return reads_.begin();
-  }
-
-  [[nodiscard]]
-  const_iterator end() const noexcept {
-    return reads_.end();
-  }
-
-  [[nodiscard]]
-  const_iterator cbegin() const noexcept {
-    return reads_.cbegin();
-  }
-
-  [[nodiscard]]
-  const_iterator cend() const noexcept {
-    return reads_.cend();
-  }
-
-  [[nodiscard]]
-  std::span<Read> reads() noexcept {
-    return reads_;
-  }
-
-  [[nodiscard]]
-  std::span<Read const> reads() const noexcept {
-    return reads_;
-  }
-
-  [[nodiscard]]
-  FastqMetadata const &metadata() const noexcept {
-    return metadata_;
-  }
+  constexpr Read &at(size_type index) { return reads_.at(index); }
+  constexpr Read const &at(size_type index) const { return reads_.at(index); }
+  constexpr iterator begin() noexcept { return reads_.begin(); }
+  constexpr iterator end() noexcept { return reads_.end(); }
+  constexpr const_iterator begin() const noexcept { return reads_.begin(); }
+  constexpr const_iterator end() const noexcept { return reads_.end(); }
+  constexpr const_iterator cbegin() const noexcept { return reads_.cbegin(); }
+  constexpr const_iterator cend() const noexcept { return reads_.cend(); }
+  constexpr std::span<Read> reads() noexcept { return reads_; }
+  constexpr std::span<Read const> reads() const noexcept { return reads_; }
+  constexpr FastqMetadata const &metadata() const noexcept { return metadata_; }
 
 private:
   template <typename id_range_t>
-  [[nodiscard]]
-  static std::string normalise_read_id(id_range_t const &id_range) {
+  static std::string normaliseReadId(id_range_t const &id_range) {
     std::string id;
 
     for (auto const symbol : id_range)
@@ -451,10 +209,10 @@ private:
   }
 
   template <typename sequence_range_t, typename quality_range_t>
-  static void append_record_fragments(Read &destination,
-                                      sequence_range_t const &sequence,
-                                      quality_range_t const &qualities,
-                                      std::size_t &discarded_base_count) {
+  static void appendRecordFragments(Read &destination,
+                                    sequence_range_t const &sequence,
+                                    quality_range_t const &qualities,
+                                    std::size_t &discarded_base_count) {
     auto sequence_it = std::ranges::begin(sequence);
     auto quality_it = std::ranges::begin(qualities);
 
@@ -465,9 +223,9 @@ private:
 
     for (; sequence_it != sequence_end && quality_it != quality_end;
          ++sequence_it, ++quality_it) {
-      char const base = normalise_base(seqan3::to_char(*sequence_it));
+      char const base = normaliseBase(seqan3::to_char(*sequence_it));
 
-      if (is_canonical_base(base)) {
+      if (isCanonicalBase(base)) {
         current.sequence.push_back(seqan3::dna4{}.assign_char(base));
 
         current.qualities.push_back(*quality_it);
@@ -475,7 +233,7 @@ private:
         ++discarded_base_count;
 
         if (!current.empty()) {
-          destination.add_fragment(std::move(current));
+          destination.addFragment(std::move(current));
           current = ReadFragment{};
         }
       }
@@ -486,21 +244,18 @@ private:
     }
 
     if (!current.empty())
-      destination.add_fragment(std::move(current));
+      destination.addFragment(std::move(current));
   }
 
-  [[nodiscard]]
-  static char normalise_base(char base) noexcept {
+  constexpr static char normaliseBase(char base) noexcept {
     return static_cast<char>(std::toupper(static_cast<unsigned char>(base)));
   }
 
-  [[nodiscard]]
-  static bool is_canonical_base(char base) noexcept {
+  constexpr static bool isCanonicalBase(char base) noexcept {
     return base == 'A' || base == 'C' || base == 'G' || base == 'T';
   }
 
-  [[nodiscard]]
-  static bool is_compressed_path(std::filesystem::path const &path) {
+  constexpr static bool isCompressedPath(std::filesystem::path const &path) {
     std::string extension = path.extension().string();
 
     std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
@@ -514,48 +269,75 @@ private:
   FastqMetadata metadata_{};
 };
 
-template <typename read_t> struct FastqDatasetRange : public SequenceContainer {
-  std::span<read_t> range;
+namespace detail {
 
-  std::size_t numFragments() const {
-    return std::accumulate(
-      data.cbegin(), data.cend(), (std::size_t)0,
-      [](std::size_t total, const ReadVector &v) -> std::size_t {
-        return total + detail::numFragments(v);
-      });
+constexpr auto flatten_fragments =
+    std::views::transform([](const Read &read) { return read.fragments(); }) |
+    std::views::join;
+
+constexpr auto view_forward_reads =
+    std::views::transform([](const ReadFragment &fragment) {
+      return SequenceFragment(std::views::all(fragment.sequence), 0, true);
+    });
+
+constexpr auto view_reverse_reads =
+    std::views::transform([](const ReadFragment &fragment) {
+      return SequenceFragment(std::views::all(fragment.sequence) |
+                                  std::views::reverse |
+                                  seqan3::views::complement,
+                              0, true);
+    });
+
+template <std::ranges::random_access_range R>
+using forward_reads_view_type =
+    decltype(std::declval<R>() | flatten_fragments | view_forward_reads);
+
+template <std::ranges::random_access_range R>
+using reverse_reads_view_type =
+    decltype(std::declval<R>() | flatten_fragments | view_reverse_reads);
+
+} // namespace detail
+
+struct FastqDatasetRange {
+  std::span<const Read> reads;
+
+  /**
+   * Number of fragments inserted in the range. Does not include reverse
+   * complement.
+   */
+  std::size_t numStrandFragments() const;
+
+  std::size_t numTerminals(std::size_t k) const;
+  std::size_t numKmers(std::size_t k) const;
+
+  using forward_view_type =
+      detail::forward_reads_view_type<const decltype(reads) &>;
+  using reverse_view_type =
+      detail::reverse_reads_view_type<const decltype(reads) &>;
+
+  constexpr forward_view_type forwardSequences() const {
+    return reads | detail::flatten_fragments | detail::view_forward_reads;
   }
-
-  virtual std::size_t numTerminals(std::size_t k) const override final {
-    return (std::size_t)k * numFragments();
+  constexpr reverse_view_type reverseSequences() const {
+    return reads | detail::flatten_fragments | detail::view_reverse_reads;
   }
-
-  virtual poly_input_range<SequenceFragment> terminals() const override final {
-    return poly_input_range<SequenceFragment>(
-      data | std::views::join |
-      std::views::transform([](const Read &r) { return r.view(); }) |
-      std::views::join | std::views::transform([](const Dna4Sequence &seq) {
-        return SequenceFragment(seq.cbegin(), seq.cend(), 0, true);
-      }));
+  constexpr forward_view_type forwardTerminals() const {
+    return forwardSequences();
   }
-
-  virtual std::size_t numKmers(std::size_t k) const override final {
-    return std::accumulate(
-      data.cbegin(), data.cend(), (std::size_t)0,
-      [k](std::size_t total, const ReadVector &v) -> std::size_t {
-        return total + detail::numKmers(v, k);
-      });
+  constexpr reverse_view_type reverseTerminals() const {
+    return reverseSequences();
   }
-
-  virtual poly_input_range<SequenceFragment>
-  fragments(std::size_t k) const override final {
-    return poly_input_range<SequenceFragment>(
-      data | std::views::join |
-      std::views::transform([](const Read &r) { return r.view(); }) |
-      std::views::join | std::views::transform([](const Dna4Sequence &seq) {
-        return SequenceFragment(seq.cbegin(), seq.cend(), 0, true);
-      }));
+  constexpr forward_view_type
+  forwardFragments([[maybe_unused]] std::size_t k) const {
+    return forwardSequences();
+  }
+  constexpr reverse_view_type
+  reverseFragments([[maybe_unused]] std::size_t k) const {
+    return reverseSequences();
   }
 };
+
+static_assert(stranded_sequence_container_like<FastqDatasetRange>);
 
 /**
  * A lightweight deterministic partition over a FastqDataset.
@@ -571,62 +353,16 @@ template <typename read_t> struct FastqDatasetRange : public SequenceContainer {
  * The dataset must not be resized while this view or any returned spans are
  * being used.
  */
-template <typename dataset_t> class BasicFastqDatasetChunkView {
-private:
-  using raw_dataset_type = std::remove_reference_t<dataset_t>;
-
-  static_assert(
-      std::same_as<std::remove_const_t<raw_dataset_type>, FastqDataset>,
-      "BasicFastqDatasetChunkView requires FastqDataset.");
-
+class FastqDatasetChunkView {
 public:
-  using read_type =
-      std::conditional_t<std::is_const_v<raw_dataset_type>, Read const, Read>;
+  FastqDatasetChunkView(const FastqDataset &dataset, std::size_t chunk_count);
 
-  using range_type = FastqDatasetRange<read_type>;
+  constexpr std::size_t chunk_count() const noexcept { return chunk_count_; }
+  constexpr std::size_t size() const noexcept { return chunk_count_; }
+  constexpr bool empty() const noexcept { return false; }
 
-  BasicFastqDatasetChunkView(dataset_t &dataset, std::size_t chunk_count)
-      : dataset_{dataset}, chunk_count_{chunk_count} {
-    if (chunk_count_ == 0) {
-      throw std::invalid_argument{
-          "The number of chunks must be greater than zero."};
-    }
-  }
-
-  [[nodiscard]]
-  std::size_t chunk_count() const noexcept {
-    return chunk_count_;
-  }
-
-  [[nodiscard]]
-  std::size_t size() const noexcept {
-    return chunk_count_;
-  }
-
-  [[nodiscard]]
-  bool empty() const noexcept {
-    return false;
-  }
-
-  [[nodiscard]]
-  range_type range(std::size_t chunk_index) const {
-    if (chunk_index >= chunk_count_) {
-      throw std::out_of_range{"FASTQ dataset chunk index is out of range."};
-    }
-
-    std::size_t const begin_index = boundary(chunk_index);
-
-    std::size_t const end_index = boundary(chunk_index + 1);
-
-    auto dataset_span = dataset_.reads();
-
-    return dataset_span.subspan(begin_index, end_index - begin_index);
-  }
-
-  [[nodiscard]]
-  range_type operator[](std::size_t chunk_index) const {
-    return range(chunk_index);
-  }
+  FastqDatasetRange range(std::size_t chunk_index) const;
+  FastqDatasetRange operator[](std::size_t chunk_index) const;
 
 private:
   /**
@@ -636,22 +372,10 @@ private:
    *
    * It also distributes the remainder among the earliest chunks.
    */
-  [[nodiscard]]
-  std::size_t boundary(std::size_t index) const noexcept {
-    std::size_t const element_count = dataset_.size();
-    std::size_t const quotient = element_count / chunk_count_;
-    std::size_t const remainder = element_count % chunk_count_;
+  std::size_t boundary(std::size_t index) const noexcept;
 
-    return index * quotient + std::min(index, remainder);
-  }
-
-  dataset_t &dataset_;
+  const FastqDataset &dataset_;
   std::size_t chunk_count_;
 };
-
-using FastqDatasetChunkView = BasicFastqDatasetChunkView<FastqDataset>;
-
-using ConstFastqDatasetChunkView =
-    BasicFastqDatasetChunkView<FastqDataset const>;
 
 } // namespace reads
