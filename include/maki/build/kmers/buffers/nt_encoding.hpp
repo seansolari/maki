@@ -271,6 +271,26 @@ public:
   inline const_iterator cbegin() const { return _data.cbegin(); }
   inline const_iterator cend() const { return _data.cend(); }
 
+  inline uint64_t &operator[](const ShortSuffix &sfx) {
+    return _data.operator[](sfx._data);
+  }
+  inline const uint64_t &operator[](uint64_t sfx) const {
+    return _data.operator[](sfx);
+  }
+  inline const uint64_t &operator[](const ShortSuffix &sfx) const {
+    return _data.operator[](sfx._data);
+  }
+
+  size_t maxValue() const;
+  inline size_t size() const noexcept { return _data.size(); }
+
+  friend SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs);
+
+public:
+  // --------------
+  // Insert methods
+  // --------------
+
   template <random_dna4_iter Iter, std::sentinel_for<Iter> Sentinel>
   void count(Iter it, Sentinel end) {
     ShortSuffix suffix{s};
@@ -287,20 +307,33 @@ public:
     }
   }
 
-  inline uint64_t &operator[](const ShortSuffix &sfx) {
-    return _data.operator[](sfx._data);
-  }
-  inline const uint64_t &operator[](uint64_t sfx) const {
-    return _data.operator[](sfx);
-  }
-  inline const uint64_t &operator[](const ShortSuffix &sfx) const {
-    return _data.operator[](sfx._data);
+  template <sequence_like T>
+  void count(const T &fmt, std::size_t k, std::size_t offset) {
+    auto it = fmt.begin();
+    auto end = fmt.end();
+
+    if (it != end && !fmt.endIsTerminal())
+      --end;
+
+    std::size_t size = end - it;
+    if (size >= k)
+      count(it + offset, end);
   }
 
-  size_t maxValue() const;
-  inline size_t size() const noexcept { return _data.size(); }
+  template <sequence_container_like T>
+  void count(const T &data, std::size_t k, std::size_t offset) {
+    for (auto fmt : data.fragments(k))
+      count(fmt, k, offset);
+  }
 
-  friend SuffixTable &operator+=(SuffixTable &lhs, const SuffixTable &rhs);
+  template <stranded_sequence_container_like T>
+  void count(const T &data, std::size_t k, std::size_t offset) {
+    for (auto fmt : data.forwardFragments(k))
+      count(fmt, k, offset);
+
+    for (auto fmt : data.reverseFragmentsFragments(k))
+      count(fmt, k, offset);
+  }
 
 private:
   size_t s;
@@ -328,7 +361,7 @@ private:
  * cumulative number of k-mers with that suffix including all genomes before it
  * in the container.
  */
-template <sequence_container_like T>
+template <class T>
 std::vector<SuffixTable> createSuffixPlan(std::span<T> data_, std::size_t k,
                                           std::size_t s, std::size_t offset = 0,
                                           bool accumulate = true) {
@@ -338,17 +371,7 @@ std::vector<SuffixTable> createSuffixPlan(std::span<T> data_, std::size_t k,
   oneapi::tbb::parallel_for((std::size_t)0, data_.size(), (std::size_t)1,
                             [&, k, s](std::size_t i) {
                               tables[i].resize(s);
-                              for (auto fmt : data_[i].fragments(k)) {
-                                auto it = fmt.begin();
-                                auto end = fmt.end();
-
-                                if (it != end && !fmt.endIsTerminal())
-                                  --end;
-
-                                std::size_t size = end - it;
-                                if (size >= k)
-                                  tables[i].count(it + offset, end);
-                              }
+                              tables[i].count(data_[i], k, offset);
                             });
 
   if (accumulate) {

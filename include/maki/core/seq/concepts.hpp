@@ -70,6 +70,12 @@ concept countable_sequence_holder = requires(T obj, std::size_t k_) {
 };
 
 template <typename T>
+concept sequence_like = countable_sequence_holder<T> && requires (T obj, std::size_t k_) {
+  { obj.terminals() } -> is_sequence_fragment_like;
+  { obj.fragments(k_) } -> is_sequence_fragment_like;
+};
+
+template <typename T>
 concept sequence_container_like =
     countable_sequence_holder<T> && requires(T obj, std::size_t k_) {
       { obj.terminals() } -> sequence_fragment_input_range;
@@ -84,9 +90,3 @@ concept stranded_sequence_container_like =
       { obj.forwardFragments(k_) } -> sequence_fragment_input_range;
       { obj.reverseFragments(k_) } -> sequence_fragment_input_range;
     };
-
-template <typename T>
-concept sequence_like = countable_sequence_holder<T> && requires (T obj, std::size_t k_) {
-  { obj.terminals() } -> is_sequence_fragment_like;
-  { obj.fragments(k_) } -> is_sequence_fragment_like;
-};

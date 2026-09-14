@@ -1,5 +1,5 @@
 
-#include "maki/build/io/fastq_dataset.hpp"
+#include "maki/build/io/fastq.hpp"
 #include <numeric>
 
 namespace reads {
