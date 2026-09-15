@@ -74,13 +74,13 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
-template <sequence_fragment_container T>
+template <container_span T>
 struct SuffixwiseTerminals
     : public dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET> {
 
   using dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET>::Suffixwise;
 
-  static SuffixwiseTerminals FromSequences(std::span<const T> seqs,
+  static SuffixwiseTerminals FromSequences(const T &seqs,
                                            const TerminalRange &terminals,
                                            std::size_t k, std::size_t s,
                                            push_summary *str) {
@@ -160,12 +160,12 @@ WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
 // API
 // -----------------------------------------------------------------------------
 
-template <sequence_fragment_container T>
-WeightedGraphFiles construct(std::span<const T> data,
+template <container_span T>
+WeightedGraphFiles construct(const T &data,
                              dbg::BuildOptions params = {}) {
   LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
   LOG_INFO() << "Input chunks: " << data.size();
-
+  
   std::filesystem::create_directories(params.out);
   LOG_INFO() << "Output directory: " << params.out;
 

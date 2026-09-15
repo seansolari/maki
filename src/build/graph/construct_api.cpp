@@ -1,69 +1,51 @@
 
 #include "maki/build/graph/construct_api.hpp"
+#include "maki/build/graph/construct_cdbg.hpp"
+#include "maki/build/graph/construct_wdbg.hpp"
+#include "maki/build/io/filter.hpp"
+#include "maki/build/io/gff.hpp"
+#include <oneapi/tbb/global_control.h>
 
 // -----------------------------------------------------------------------------
 // GFF data
 // -----------------------------------------------------------------------------
 
-ColouredGraphFiles constructGffColouredDbg(const GenomeManifest &im, dbg::BuildOptions params) {
+ColouredGraphFiles constructGffColouredDbg(const GenomeManifest &manifest, dbg::BuildOptions params) {
 
   oneapi::tbb::global_control global_limit(
       oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
 
-  switch (im.type) {
-  case InputFileType::Gff3FileType: {
-    Colours colours;
-    auto genomes =
-        parse(im.files, parseGFF, colours, (std::size_t)params.kmer_size);
-    auto view = toView(genomes);
-    return construct(view, std::move(colours.ids), params);
-  }
-  case InputFileType::FastaFileType: {
-    auto genomes = parse(im.files, parseFilterFNA, (std::size_t)params.threads,
-                         (std::size_t)params.kmer_size);
-    auto view = toView(genomes);
-    return construct(view, params);
-  }
-  default:
-    throw std::runtime_error(
-        "Coloured graph construction only supported for FASTA or GFF3 files.");
-  }
+  // parse data
+  Colours colours;
+  auto genomes =
+      parse(manifest.files, parseGFF, colours, (std::size_t)params.kmer_size);
+
+  // construct graph
+  return cdbg::construct(genomes, MetaColours(std::move(colours.ids)), params);
 }
 
 // -----------------------------------------------------------------------------
 // Fasta data
 // -----------------------------------------------------------------------------
 
-ColouredGraphFiles constructFnaColouredDbg(const GenomeManifest &, dbg::BuildOptions params) {
-  
+ColouredGraphFiles constructFnaColouredDbg(const fs::path &fastaFile,
+                                           dbg::BuildOptions params) {
+  // parse data
+  Colours colours;
+  auto genome =
+      parseFilterFNA(fastaFile, colours, params.threads, params.kmer_size);
+
+  // construct graph
+  return cdbg::construct(genome, MetaColours(std::move(colours.ids)),
+                         params);
 }
 
 // -----------------------------------------------------------------------------
 // Fastq data
 // -----------------------------------------------------------------------------
 
-/*
-OLD:
-
-WeightedGraphFiles construct(const DataFilePair &fp, dbg::BuildOptions params) {
-  oneapi::tbb::global_control global_limit(
-      oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
-
-  auto chunks =
-      chunkReads(detail::parsePairedFastq(fp, params.kmer_size,
-                                          params.kmer_size, params.threads),
-                 10 * params.threads);
-  auto view = toView(chunks);
-  return construct(view, params);
+WeightedGraphFiles
+constructFqWeightedDbg(const reads::FastqDatasetChunkView &data,
+                       dbg::BuildOptions params) {
+  return wdbg::construct(data, params);
 }
-
-*/
-
-BaseGraphFiles constructFqDbg(const FastqDataset &, dbg::BuildOptions params) {
-  
-}
-
-WeightedGraphFiles constructFqWeightedDbg(const FastqDataset &, dbg::BuildOptions params) {
-
-}
-

@@ -85,9 +85,9 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
-template <sequence_fragment_container T>
+template <container_span T>
 struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
-  SuffixwiseKmers(std::span<const T> seqs, const TerminalRange &terms,
+  SuffixwiseKmers(const T &seqs, const TerminalRange &terms,
                   std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
                   std::shared_ptr<dbg::BufferMaker<KmerBuffer>> &&buffers,
                   std::size_t s, MetaColours *cmap, push_summary *str)
@@ -95,7 +95,7 @@ struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
             seqs, terms, std::move(suffixPlan), std::move(buffers), s, str),
         colourMap(cmap) {}
 
-  static SuffixwiseKmers FromSequences(std::span<const T> seqs,
+  static SuffixwiseKmers FromSequences(const T &seqs,
                                        const TerminalRange &terms,
                                        std::size_t k, std::size_t s,
                                        MetaColours *cmap, push_summary *str) {
@@ -180,8 +180,8 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
 // API
 // -----------------------------------------------------------------------------
 
-template <sequence_fragment_container T>
-ColouredGraphFiles construct(std::span<const T> data, MetaColours &&cmap,
+template <container_span T>
+ColouredGraphFiles construct(const T &data, MetaColours &&cmap,
                              dbg::BuildOptions params = {}) {
   LOG_INFO() << "Starting CDBG construction";
   LOG_INFO() << "Input sequences: " << data.size();

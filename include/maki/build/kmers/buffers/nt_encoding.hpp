@@ -374,8 +374,7 @@ private:
  * cumulative number of k-mers with that suffix including all genomes before it
  * in the container.
  */
-template <sequence_fragment_container T>
-std::vector<SuffixTable> createSuffixPlan(std::span<const T> data_, std::size_t k,
+std::vector<SuffixTable> createSuffixPlan(const container_span auto &data_, std::size_t k,
                                           std::size_t s, std::size_t offset = 0,
                                           bool accumulate = true) {
   std::vector<SuffixTable> tables(data_.size());

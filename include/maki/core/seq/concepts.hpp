@@ -99,3 +99,9 @@ template <typename T>
 concept sequence_fragment_container =
     sequence_like<T> || sequence_container_like<T> ||
     stranded_sequence_container_like<T>;
+
+template <typename T>
+concept container_span = requires(const T &obj, std::size_t i) {
+  { obj.size() } -> std::same_as<std::size_t>;
+  { obj[i] } -> sequence_fragment_container;
+};

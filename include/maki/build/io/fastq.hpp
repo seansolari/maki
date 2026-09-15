@@ -378,4 +378,6 @@ private:
   std::size_t chunk_count_;
 };
 
+static_assert(container_span<FastqDatasetChunkView>);
+
 } // namespace reads

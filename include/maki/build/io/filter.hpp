@@ -41,13 +41,10 @@ public:
   ChunkedDna4Genome(Dna4Genome &&genome, std::size_t ntChunksize,
                     std::size_t overlap);
 
-  constexpr std::span<const FastaFragment> data() const noexcept {
-    return _chunks;
-  }
+  static std::size_t calculateChunksize(const Dna4Genome &genome, std::size_t granularity);  
   constexpr std::size_t length() const noexcept { return _genome.length(); }
-
-  static std::size_t calculateChunksize(const Dna4Genome &genome, std::size_t granularity);
-  constexpr std::size_t numChunks() const noexcept { return _chunks.size(); }
+  constexpr std::size_t size() const noexcept { return _chunks.size(); }
+  constexpr const FastaFragment &operator[](std::size_t i) const noexcept { return _chunks[i]; }
 
 private:
   Dna4Genome _genome;
@@ -56,6 +53,8 @@ private:
 protected:
   void _chunk(std::size_t granularity, std::size_t overlap);
 };
+
+static_assert(container_span<ChunkedDna4Genome>);
 
 // ---------------------------------------------------------------------------
 // API

@@ -248,16 +248,14 @@ public:
   // ------------------------
   // Generic parallel wrapper
   // ------------------------
-  template <sequence_fragment_container T>
-  void fillKmers(std::span<const T> data_,
+  void fillKmers(const container_span auto &data_,
                  std::span<const std::size_t> blocks_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1,
         [&](std::size_t i) { insertKmers(at(blocks_[i]), data_[i]); });
   }
 
-  template <sequence_fragment_container T>
-  void fillKmers(std::span<const T> data_, std::span<const SuffixTable> blocks_,
+  void fillKmers(const container_span auto &data_, std::span<const SuffixTable> blocks_,
                  ShortSuffix sfx_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {

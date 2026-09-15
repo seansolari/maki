@@ -380,24 +380,21 @@ public:
   // Generic parallel wrapper
   // ------------------------
 
-  template <sequence_fragment_container T>
-  void fillTerminals(std::span<const T> data_, std::span<const std::size_t> blocks_) {
+  void fillTerminals(const container_span auto &data_, std::span<const std::size_t> blocks_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertTerminals(at(i == 0 ? 0 : blocks_[i - 1]), data_[i]);
         });
   }
 
-  template <sequence_fragment_container T>
-  void fillTerminals(std::span<const T> data_, LongSuffixGate &lock) {
+  void fillTerminals(const container_span auto &data_, LongSuffixGate &lock) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertTerminals(lock, data_[i]);
         });
   }
 
-  template <sequence_fragment_container T>
-  void fillKmers(std::span<const T> data_, std::span<const std::size_t> blocks_, ShortSuffix sfx_) {
+  void fillKmers(const container_span auto &data_, std::span<const std::size_t> blocks_, ShortSuffix sfx_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertKmers(at(i == 0 ? 0 : blocks_[i - 1]), data_[i], sfx_);
