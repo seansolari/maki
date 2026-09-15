@@ -43,8 +43,9 @@ template <class MainBufferType> struct Buffers {
   /**
    * Collect k-mers with given suffix `s_` from input sequences.
    */
-  void collectKmers(const std::vector<const SequenceContainer *> &seqs_,
-                    const std::vector<SuffixTable> &blocks_, ShortSuffix s_) {
+  template <sequence_fragment_container T>
+  void collectKmers(std::span<const T> seqs_,
+                    std::span<const SuffixTable> blocks_, ShortSuffix s_) {
     std::size_t size = blocks_.back()[s_];
 
     LOG_DEBUG() << "Collecting k-mers for suffix " << s_.toString()
@@ -53,7 +54,7 @@ template <class MainBufferType> struct Buffers {
     kmers.resize(size);
     temp.resize(size);
 
-    kmers.fill(seqs_, blocks_, s_);
+    kmers.fillKmers(seqs_, blocks_, s_);
 
     if (size > 1) {
       kmers.sort(&temp);
@@ -87,8 +88,8 @@ template <class MainBufferType> struct BufferMaker {};
 // Pipeline
 // -----------------------------------------------------------------------------
 
-template <class MainBufferType, class... Sinks> struct Suffixwise {
-  Suffixwise(const std::vector<const SequenceContainer *> &seqs,
+template <sequence_fragment_container T, class MainBufferType, class... Sinks> struct Suffixwise {
+  Suffixwise(std::span<const T> seqs,
              const TerminalRange &terms,
              std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
              std::shared_ptr<BufferMaker<MainBufferType>> &&buffers,
@@ -110,7 +111,7 @@ template <class MainBufferType, class... Sinks> struct Suffixwise {
   push_summary *graphStructure;
 
   // input buffers
-  const std::vector<const SequenceContainer *> &sequences;
+  std::span<const T> sequences;
   const TerminalRange &terminals;
 
   // shared auxilliary data

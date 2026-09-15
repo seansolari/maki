@@ -10,33 +10,6 @@ void TerminalBuffer::shrink(size_t new_size_) {
   _num_records = new_size_;
 }
 
-void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
-                          std::vector<size_t> const &blocks_) {
-  
-}
-
-void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
-                          LongSuffixGate &lock) {
-  oneapi::tbb::parallel_for(
-      (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
-        for (auto seq : data_[i]->terminals()) {
-          insert(lock, seq.begin(), seq.begin() + k, false);
-        }
-      });
-}
-
-void TerminalBuffer::fill(const std::vector<const SequenceContainer *> &data_,
-                          const std::vector<SuffixTable> &blocks_,
-                          ShortSuffix sfx_) {
-  oneapi::tbb::parallel_for(
-      (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
-        auto it = at(i == 0 ? 0 : blocks_[i - 1][sfx_]);
-        for (auto seq : data_[i]->fragments(k)) {
-          it = insert(it, seq.begin(), seq.end(), seq.endIsTerminal(), sfx_);
-        }
-      });
-}
-
 TerminalRange TerminalBuffer::asRange() const {
   return TerminalRange(k_eff, _lengthBytes, constBegin(), constEnd());
 }

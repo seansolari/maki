@@ -9,8 +9,6 @@
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
-#include "maki/core/seq/io.hpp"
-
 
 // -----------------------------------------------------------------------------
 // Construct abundance-weighted succinct de Bruijn graph
@@ -76,26 +74,125 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
+template <sequence_fragment_container T>
 struct SuffixwiseTerminals
-    : public dbg::Suffixwise<TerminalBuffer, WDBG_SINK_SET> {
+    : public dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET> {
 
-  using dbg::Suffixwise<TerminalBuffer, WDBG_SINK_SET>::Suffixwise;
+  using dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET>::Suffixwise;
 
-  static SuffixwiseTerminals
-  FromSequences(const std::vector<const SequenceContainer *> &seqs,
-                const TerminalRange &terminals, std::size_t k, std::size_t s,
-                push_summary *);
+  static SuffixwiseTerminals FromSequences(std::span<const T> seqs,
+                                           const TerminalRange &terminals,
+                                           std::size_t k, std::size_t s,
+                                           push_summary *str) {
+    auto suffixPlan = std::make_shared<std::vector<SuffixTable>>(
+        createSuffixPlan(seqs, k, s));
+    auto bufferFactory = std::make_shared<dbg::BufferMaker<TerminalBuffer>>(
+        suffixPlan->back().maxValue(), k, k - s);
+    return SuffixwiseTerminals(seqs, terminals, std::move(suffixPlan),
+                               std::move(bufferFactory), s, str);
+  }
 
-  std::unique_ptr<Bundle> operator()(uint64_t) const;
-  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t, ShortSuffix) const;
-  std::unique_ptr<Bundle> extractSuffix(uint64_t, ShortSuffix) const;
+  std::unique_ptr<Bundle> operator()(uint64_t idx) const {
+    auto sfx = ShortSuffix::fromIndex(idx, this->suffixSize);
+
+    LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
+                << ")";
+
+    if (sfx.size() < this->suffixSize) {
+      return extractPartialSuffix(idx, sfx);
+    } else {
+      return extractSuffix(idx, sfx);
+    }
+  }
+
+  std::unique_ptr<Bundle> extractSuffix(uint64_t idx, ShortSuffix sfx) const {
+    auto bfr = this->kmerBuffers->obtain();
+
+    bfr->collectKmers(this->sequences, *this->suffixCounts, sfx);
+
+    const std::size_t n = bfr->kmers.size();
+
+    LOG_DEBUG() << "Extracted " << n << " k-mers for suffix " << sfx.toString();
+
+    auto bnd = this->getBundle(idx);
+    auto &[edges, succ, edgeCounts] = bnd->payloads;
+
+    auto counts = pushRange(bfr->kmers, bfr->b.begin(), edges, succ, sfx.msb(),
+                            edgeCounts);
+
+    this->pushRegionStructure(counts);
+
+    this->kmerBuffers->release(bfr);
+    return bnd;
+  }
+
+  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t idx,
+                                               ShortSuffix sfx) const {
+    auto bfr = this->kmerBuffers->obtain();
+    bfr->setTerminals(this->terminals.retrieve(sfx));
+
+    const std::size_t n = bfr->terminals.size();
+
+    LOG_DEBUG() << "Extracted " << n << " terminal (partial) k-mers for suffix "
+                << sfx.toString();
+
+    auto bnd = this->getBundle(idx);
+    auto &[edges, succ, edgeCounts] = bnd->payloads;
+
+    auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ,
+                            sfx.msb(), edgeCounts);
+
+    this->pushRegionStructure(counts);
+
+    this->kmerBuffers->release(bfr);
+    return bnd;
+  }
 };
+
+// -----------------------------------------------------------------------------
+// Finalisation
+// -----------------------------------------------------------------------------
+
+WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
+                            CountBuffer &&counts, const std::string &out);
 
 // -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
 
-WeightedGraphFiles construct(const std::vector<const SequenceContainer *> &data,
-                             dbg::BuildOptions params = {});
+template <sequence_fragment_container T>
+WeightedGraphFiles construct(std::span<const T> data,
+                             dbg::BuildOptions params = {}) {
+  LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
+  LOG_INFO() << "Input chunks: " << data.size();
+
+  std::filesystem::create_directories(params.out);
+  LOG_INFO() << "Output directory: " << params.out;
+
+  TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
+                             .succ = params.out / "temp-succ.sdsl"},
+                   .str = {}};
+
+  // Graph edge counts
+  CountBuffer rawCounts;
+
+  LOG_INFO() << "Extracting terminal k-mers";
+  auto terminals = extractTerminalsDense(data, params.suffix_size);
+  LOG_INFO() << "Total terminal entries = " << terminals.size();
+
+  Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
+              CountSink(&rawCounts)};
+
+  ProcessChunks(SuffixwiseTerminals<T>::FromSequences(
+                    data, terminals.asRange(), params.kmer_size,
+                    params.suffix_size, &outp.str),
+                sinks, params.pool_size, params.reserve_per_chunk,
+                params.chunks());
+
+  LOG_INFO() << "Finalising sinks";
+  sinks.finalize();
+
+  return finalise(outp, params.kmer_size, std::move(rawCounts), params.out);
+}
 
 } // namespace wdbg

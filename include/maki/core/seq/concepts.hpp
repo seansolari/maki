@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iterator>
 #include <ranges>
+#include <type_traits>
 #include <utility>
 
 #include "seqan3/alphabet/nucleotide/dna4.hpp"
@@ -29,17 +30,6 @@ concept random_dna5_range =
     std::ranges::random_access_range<R> &&
     std::convertible_to<std::ranges::range_reference_t<R>, seqan3::dna5>;
 
-template <typename T>
-concept is_sequence_fragment_like = requires(const T &obj) {
-  typename T::range_type;
-  requires random_dna4_range<typename T::range_type>;
-
-  { obj.data() } -> std::same_as<const typename T::range_type&>;
-  { obj.id() } -> std::same_as<std::size_t>;
-  { obj.endIsTerminal() } -> std::same_as<bool>;
-  { obj.size() } -> std::same_as<std::size_t>;
-};
-
 template <random_dna4_range range_t> class SequenceFragment {
 public:
   using range_type = range_t;
@@ -47,7 +37,9 @@ public:
   explicit SequenceFragment(range_t &&rng, uint64_t id, bool terminal)
       : _rng(std::move(rng)), _fid(id), _terminal(terminal) {}
 
+  range_t &data() noexcept { return _rng; }
   range_t const &data() const noexcept { return _rng; }
+
   uint64_t id() const noexcept { return _fid; }
   bool endIsTerminal() const noexcept { return _terminal; }
   std::size_t size() const noexcept { return std::ranges::size(_rng); }
@@ -58,10 +50,21 @@ protected:
   bool _terminal;
 };
 
+template <typename T> struct is_sequence_fragment_t : std::false_type {};
+
+template <random_dna4_range R>
+struct is_sequence_fragment_t<SequenceFragment<R>> : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_sequence_fragment_v = is_sequence_fragment_t<T>::value;
+
+template <typename T>
+concept is_sequence_fragment = is_sequence_fragment_v<T>;
+
 template <typename R>
 concept sequence_fragment_input_range =
     std::ranges::input_range<R> &&
-    is_sequence_fragment_like<std::ranges::range_value_t<R>>;
+    is_sequence_fragment<std::ranges::range_value_t<R>>;
 
 template <typename T>
 concept countable_sequence_holder = requires(T obj, std::size_t k_) {
@@ -70,10 +73,11 @@ concept countable_sequence_holder = requires(T obj, std::size_t k_) {
 };
 
 template <typename T>
-concept sequence_like = countable_sequence_holder<T> && requires (T obj, std::size_t k_) {
-  { obj.terminals() } -> is_sequence_fragment_like;
-  { obj.fragments(k_) } -> is_sequence_fragment_like;
-};
+concept sequence_like =
+    countable_sequence_holder<T> && requires(T obj, std::size_t k_) {
+      { obj.terminals() } -> is_sequence_fragment;
+      { obj.fragments(k_) } -> is_sequence_fragment;
+    };
 
 template <typename T>
 concept sequence_container_like =
@@ -90,3 +94,8 @@ concept stranded_sequence_container_like =
       { obj.forwardFragments(k_) } -> sequence_fragment_input_range;
       { obj.reverseFragments(k_) } -> sequence_fragment_input_range;
     };
+
+template <typename T>
+concept sequence_fragment_container =
+    sequence_like<T> || sequence_container_like<T> ||
+    stranded_sequence_container_like<T>;

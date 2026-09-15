@@ -112,17 +112,159 @@ public:
   }
 
 public:
-  /**
-   * Fill with k-mer sequences that have a specific suffix.
-   */
-  void fill(const std::vector<const SequenceContainer *> &data_,
-            const std::vector<SuffixTable> &blocks_, ShortSuffix sfx_);
-  iterator insert(iterator it, Dna4SequenceConstIter begin,
-                  Dna4SequenceConstIter end, uint64_t colour,
-                  bool endIsTerminal);
-  iterator insert(iterator it, Dna4SequenceConstIter begin,
-                  Dna4SequenceConstIter end, uint64_t colour,
-                  bool endIsTerminal, ShortSuffix key);
+  // --------------
+  // Insert methods
+  // --------------
+
+  iterator insertRegion(iterator it, const random_dna4_range auto &sequence,
+                        uint64_t colour, bool endIsTerminal) {
+    auto seq_iter = std::ranges::begin(sequence);
+    auto seq_end = std::ranges::end(sequence);
+
+    Kmer kmer(k, seq_iter);
+    seq_iter += k;
+
+    uint8_t edge;
+
+    while (seq_iter != seq_end) {
+      edge = parsing::dna4ToShort(*seq_iter++);
+
+      it.writeKmer(kmer);
+      it.writeValue(BufferValue(colour, edge));
+      ++it;
+
+      kmer.roll(edge);
+    }
+
+    if (endIsTerminal) {
+      it.writeKmer(kmer);
+      it.writeValue(BufferValue((uint64_t)0u, terminalEdge));
+      ++it;
+    }
+
+    return it;
+  }
+
+  iterator insertRegion(iterator it, const random_dna4_range auto &sequence,
+                        uint64_t colour, bool endIsTerminal, ShortSuffix key) {
+    auto seq_iter = std::ranges::begin(sequence);
+    auto seq_end = std::ranges::end(sequence);
+
+    uint8_t s = key.size();
+    seq_iter += k - s;
+
+    // initialise
+    ShortSuffix suffix(s, seq_iter);
+    seq_iter += s;
+
+    uint64_t edge;
+
+    // fill
+    while (seq_iter != seq_end) {
+      edge = parsing::dna4ToLong(*seq_iter);
+
+      if (suffix == key) {
+        it.writeKmer(seq_iter - k, k_eff);
+        it.writeValue(BufferValue(colour, edge));
+        ++it;
+      }
+
+      suffix.roll(edge);
+      ++seq_iter;
+    }
+
+    // terminal edge
+    if ((suffix == key) && endIsTerminal) {
+      it.writeKmer(seq_iter - k, k_eff);
+      it.writeValue(BufferValue((uint64_t)0u, terminalEdge));
+      ++it;
+    }
+
+    return it;
+  }
+
+  template <random_dna4_range R>
+  iterator insertFragment(iterator it, SequenceFragment<R> &&fmt) {
+    return insertRegion(it, fmt.data(), fmt.id(), fmt.endIsTerminal());
+  }
+
+  template <random_dna4_range R>
+  iterator insertFragment(iterator it, SequenceFragment<R> &&fmt,
+                          ShortSuffix sfx_) {
+    return insertRegion(it, fmt.data(), fmt.id(), fmt.endIsTerminal(), sfx_);
+  }
+
+  // --------------------
+  // Container interfaces
+  // --------------------
+
+  iterator insertKmers(iterator it, const sequence_like auto &data) {
+    return insertFragment(it, data.fragments(k));
+  }
+
+  iterator insertKmers(iterator it, const sequence_container_like auto &data) {
+    for (auto &&fmt : data.fragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt));
+
+    return it;
+  }
+
+  iterator insertKmers(iterator it,
+                       const stranded_sequence_container_like auto &data) {
+    for (auto &&fmt : data.forwardFragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt));
+
+    for (auto &&fmt : data.reverseFragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt));
+
+    return it;
+  }
+
+  iterator insertKmers(iterator it, const sequence_like auto &data,
+                       ShortSuffix sfx_) {
+    return insertFragment(it, data.fragments(k), sfx_);
+  }
+
+  iterator insertKmers(iterator it, const sequence_container_like auto &data,
+                       ShortSuffix sfx_) {
+    for (auto &&fmt : data.fragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt), sfx_);
+
+    return it;
+  }
+
+  iterator insertKmers(iterator it,
+                       const stranded_sequence_container_like auto &data,
+                       ShortSuffix sfx_) {
+    for (auto &&fmt : data.forwardFragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt), sfx_);
+
+    for (auto &&fmt : data.reverseFragments(k))
+      it = insertFragment(it, std::forward<decltype(fmt)>(fmt), sfx_);
+
+    return it;
+  }
+
+  // ------------------------
+  // Generic parallel wrapper
+  // ------------------------
+  template <sequence_fragment_container T>
+  void fillKmers(std::span<const T> data_,
+                 std::span<const std::size_t> blocks_) {
+    oneapi::tbb::parallel_for(
+        (std::size_t)0, data_.size(), (std::size_t)1,
+        [&](std::size_t i) { insertKmers(at(blocks_[i]), data_[i]); });
+  }
+
+  template <sequence_fragment_container T>
+  void fillKmers(std::span<const T> data_, std::span<const SuffixTable> blocks_,
+                 ShortSuffix sfx_) {
+    oneapi::tbb::parallel_for(
+        (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
+          insertKmers(at(i == 0 ? 0 : blocks_[i - 1][sfx_]), data_[i], sfx_);
+        });
+  }
+
   void sort(KmerBuffer *temp);
   void sort();
 };

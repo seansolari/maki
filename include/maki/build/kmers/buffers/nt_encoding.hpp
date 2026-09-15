@@ -291,9 +291,11 @@ public:
   // Insert methods
   // --------------
 
-  template <random_dna4_iter Iter, std::sentinel_for<Iter> Sentinel>
-  void count(Iter it, Sentinel end) {
+  void countRegion(const random_dna4_range auto &sequence) {
     ShortSuffix suffix{s};
+
+    auto it = std::ranges::cbegin(sequence);
+    auto end = std::ranges::cend(sequence);
 
     // initialise suffix
     for (size_t i = 0; i < s; ++i)
@@ -307,32 +309,43 @@ public:
     }
   }
 
-  template <sequence_like T>
-  void count(const T &fmt, std::size_t k, std::size_t offset) {
-    auto it = fmt.begin();
-    auto end = fmt.end();
+  template <random_dna4_range R>
+  void countKmerSuffixes(SequenceFragment<R> &&fmt, std::size_t k,
+                         std::size_t offset) {
+    auto &sequence = fmt.data();
+    std::size_t size = fmt.size();
 
-    if (it != end && !fmt.endIsTerminal())
-      --end;
+    if (fmt.endIsTerminal())
+      sequence = sequence | std::views::take(--size);
 
-    std::size_t size = end - it;
     if (size >= k)
-      count(it + offset, end);
+      countRegion(sequence | std::views::drop(offset));
   }
 
-  template <sequence_container_like T>
-  void count(const T &data, std::size_t k, std::size_t offset) {
-    for (auto fmt : data.fragments(k))
-      count(fmt, k, offset);
+  // --------------------
+  // Container interfaces
+  // --------------------
+
+  void count(const sequence_like auto &data, std::size_t k,
+             std::size_t offset) {
+    countKmerSuffixes(data.fragments(k), k, offset);
   }
 
-  template <stranded_sequence_container_like T>
-  void count(const T &data, std::size_t k, std::size_t offset) {
-    for (auto fmt : data.forwardFragments(k))
-      count(fmt, k, offset);
+  void count(const sequence_container_like auto &data, std::size_t k,
+             std::size_t offset) {
+    std::ranges::for_each(data.fragments(k), [&](auto &&fmt) {
+      countKmerSuffixes(std::forward<decltype(fmt)>(fmt), k, offset);
+    });
+  }
 
-    for (auto fmt : data.reverseFragmentsFragments(k))
-      count(fmt, k, offset);
+  void count(const stranded_sequence_container_like auto &data, std::size_t k, std::size_t offset) {
+    std::ranges::for_each(data.forwardFragments(k), [&](auto &&fmt) {
+      countKmerSuffixes(std::forward<decltype(fmt)>(fmt), k, offset);
+    });
+
+    std::ranges::for_each(data.reverseFragments(k), [&](auto &&fmt) {
+      countKmerSuffixes(std::forward<decltype(fmt)>(fmt), k, offset);
+    });
   }
 
 private:
@@ -361,8 +374,8 @@ private:
  * cumulative number of k-mers with that suffix including all genomes before it
  * in the container.
  */
-template <class T>
-std::vector<SuffixTable> createSuffixPlan(std::span<T> data_, std::size_t k,
+template <sequence_fragment_container T>
+std::vector<SuffixTable> createSuffixPlan(std::span<const T> data_, std::size_t k,
                                           std::size_t s, std::size_t offset = 0,
                                           bool accumulate = true) {
   std::vector<SuffixTable> tables(data_.size());
