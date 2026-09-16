@@ -10,7 +10,8 @@
 // GFF data
 // -----------------------------------------------------------------------------
 
-ColouredGraphFiles constructGffColouredDbg(const GenomeManifest &manifest, dbg::BuildOptions params) {
+ColouredGraphFiles constructGffColouredDbg(const GenomeManifest &manifest,
+                                           dbg::BuildOptions params) {
 
   oneapi::tbb::global_control global_limit(
       oneapi::tbb::global_control::max_allowed_parallelism, params.threads);
@@ -36,13 +37,17 @@ ColouredGraphFiles constructFnaColouredDbg(const fs::path &fastaFile,
       parseFilterFNA(fastaFile, colours, params.threads, params.kmer_size);
 
   // construct graph
-  return cdbg::construct(genome, MetaColours(std::move(colours.ids)),
-                         params);
+  return cdbg::construct(genome, MetaColours(std::move(colours.ids)), params);
 }
 
 // -----------------------------------------------------------------------------
 // Fastq data
 // -----------------------------------------------------------------------------
+
+DeBruijnGraphFiles constructFqDbg(const reads::FastqDatasetChunkView &data,
+                                  dbg::BuildOptions params) {
+  return dbg::construct(data, params);
+}
 
 WeightedGraphFiles
 constructFqWeightedDbg(const reads::FastqDatasetChunkView &data,

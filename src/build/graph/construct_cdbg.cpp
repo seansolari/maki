@@ -9,7 +9,7 @@
 #include <sdsl/int_vector.hpp>
 #include <sdsl/io.hpp>
 
-namespace cdbg {
+namespace cdbg_detail {
 
 // -----------------------------------------------------------------------------
 // Finalisation
@@ -37,4 +37,4 @@ ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
   return outp;
 }
 
-} // namespace cdbg
+} // namespace cdbg_detail

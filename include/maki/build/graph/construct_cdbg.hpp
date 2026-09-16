@@ -50,7 +50,7 @@ struct BufferMaker<KmerBuffer> : public Factory<Buffers<KmerBuffer>> {
 
 } // namespace dbg
 
-namespace cdbg {
+namespace cdbg_detail {
 
 using Buffers = dbg::Buffers<KmerBuffer>;
 using BufferMaker = dbg::BufferMaker<KmerBuffer>;
@@ -62,13 +62,6 @@ using BufferMaker = dbg::BufferMaker<KmerBuffer>;
 using EdgeSink = SdslIntVectorOnDiskSink<4>;
 using SuccSink = SdslIntVectorOnDiskSink<1>;
 using ColourSink = ArchiveWriter<>;
-
-#define CDBG_SINK_SET EdgeSink, SuccSink, ColourSink
-
-using Sinks = std::tuple<CDBG_SINK_SET>;
-using Bundle = ChunkBundleT<CDBG_SINK_SET>;
-using BundlePool = ::BundlePool<CDBG_SINK_SET>;
-using Multi = MultiSink<CDBG_SINK_SET>;
 
 struct BufferPaths {
   std::filesystem::path edges;
@@ -85,13 +78,13 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
-template <container_span T>
-struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
+template <container_span T, class... Sinks>
+struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, Sinks...> {
   SuffixwiseKmers(const T &seqs, const TerminalRange &terms,
                   std::shared_ptr<std::vector<SuffixTable>> &&suffixPlan,
                   std::shared_ptr<dbg::BufferMaker<KmerBuffer>> &&buffers,
                   std::size_t s, MetaColours *cmap, push_summary *str)
-      : dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET>(
+      : dbg::Suffixwise<T, KmerBuffer, Sinks...>(
             seqs, terms, std::move(suffixPlan), std::move(buffers), s, str),
         colourMap(cmap) {}
 
@@ -109,7 +102,7 @@ struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
                            std::move(bufferFactory), s, cmap, str);
   }
 
-  std::unique_ptr<Bundle> operator()(uint64_t idx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>> operator()(uint64_t idx) const {
     auto sfx = ShortSuffix::fromIndex(idx, this->suffixSize);
 
     LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
@@ -122,7 +115,8 @@ struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
     }
   }
 
-  std::unique_ptr<Bundle> extractKmers(uint64_t idx, ShortSuffix sfx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>> extractKmers(uint64_t idx,
+                                                       ShortSuffix sfx) const {
     auto bfr = this->kmerBuffers->obtain();
 
     bfr->collectKmers(this->sequences, *this->suffixCounts, sfx);
@@ -144,8 +138,8 @@ struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
     return bnd;
   }
 
-  std::unique_ptr<Bundle> extractPartialKmers(uint64_t idx,
-                                              ShortSuffix sfx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>>
+  extractPartialKmers(uint64_t idx, ShortSuffix sfx) const {
     auto bfr = this->kmerBuffers->obtain();
     bfr->setTerminals(this->terminals.retrieve(sfx));
 
@@ -176,9 +170,16 @@ struct SuffixwiseKmers : public dbg::Suffixwise<T, KmerBuffer, CDBG_SINK_SET> {
 ColouredGraphFiles finalise(TempBuffers inp, std::size_t k, MetaColours &&cols,
                             const std::string &out);
 
+} // namespace cdbg_detail
+
 // -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
+
+namespace cdbg {
+
+using Multi = MultiSink<cdbg_detail::EdgeSink, cdbg_detail::SuccSink,
+                        cdbg_detail::ColourSink>;
 
 template <container_span T>
 ColouredGraphFiles construct(const T &data, MetaColours &&cmap,
@@ -189,21 +190,23 @@ ColouredGraphFiles construct(const T &data, MetaColours &&cmap,
   std::filesystem::create_directories(params.out);
   LOG_INFO() << "Output directory: " << params.out;
 
-  TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
-                             .succ = params.out / "temp-succ.sdsl",
-                             .colours = params.out / "temp-colours.maki"},
-                   .str = {}};
+  cdbg_detail::TempBuffers outp{
+      .files = {.edges = params.out / "temp-edges.sdsl",
+                .succ = params.out / "temp-succ.sdsl",
+                .colours = params.out / "temp-colours.maki"},
+      .str = {}};
 
   LOG_INFO() << "Extracting terminal k-mers";
   auto terminals = extractTerminalsSparse(data, params.kmer_size);
   LOG_INFO() << "Total terminal entries = " << terminals.size();
 
   LOG_INFO() << "Initialising sinks";
-  Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
-              ColourSink(outp.files.colours)};
+  Multi sinks{cdbg_detail::EdgeSink(outp.files.edges),
+              cdbg_detail::SuccSink(outp.files.succ),
+              cdbg_detail::ColourSink(outp.files.colours)};
 
   LOG_INFO() << "Processing chunks";
-  ProcessChunks(SuffixwiseKmers<T>::FromSequences(
+  ProcessChunks(cdbg_detail::SuffixwiseKmers<T>::FromSequences(
                     data, terminals.asRange(), params.kmer_size,
                     params.suffix_size, &cmap, &outp.str),
                 sinks, params.pool_size, params.reserve_per_chunk,

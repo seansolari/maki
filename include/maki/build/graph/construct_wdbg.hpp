@@ -9,6 +9,7 @@
 #include "maki/build/kmers/buffers/terminals.hpp"
 #include "maki/core/graph/wdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
+#include "maki/core/utils/algo.hpp"
 
 // -----------------------------------------------------------------------------
 // Construct abundance-weighted succinct de Bruijn graph
@@ -40,7 +41,7 @@ struct BufferMaker<TerminalBuffer> : public Factory<Buffers<TerminalBuffer>> {
 
 } // namespace dbg
 
-namespace wdbg {
+namespace dbg_detail {
 
 using Buffers = dbg::Buffers<TerminalBuffer>;
 using BufferMaker = dbg::BufferMaker<TerminalBuffer>;
@@ -52,13 +53,6 @@ using BufferMaker = dbg::BufferMaker<TerminalBuffer>;
 using EdgeSink = SdslIntVectorOnDiskSink<4>;
 using SuccSink = SdslIntVectorOnDiskSink<1>;
 using CountSink = CountBufferSink;
-
-#define WDBG_SINK_SET EdgeSink, SuccSink, CountSink
-
-using Sinks = std::tuple<WDBG_SINK_SET>;
-using Bundle = ChunkBundleT<WDBG_SINK_SET>;
-using BundlePool = ::BundlePool<WDBG_SINK_SET>;
-using Multi = MultiSink<WDBG_SINK_SET>;
 
 struct BufferPaths {
   std::filesystem::path edges;
@@ -74,11 +68,11 @@ struct TempBuffers {
 // Pipeline
 // -----------------------------------------------------------------------------
 
-template <container_span T>
+template <container_span T, class... Sinks>
 struct SuffixwiseTerminals
-    : public dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET> {
+    : public dbg::Suffixwise<T, TerminalBuffer, Sinks...> {
 
-  using dbg::Suffixwise<T, TerminalBuffer, WDBG_SINK_SET>::Suffixwise;
+  using dbg::Suffixwise<T, TerminalBuffer, Sinks...>::Suffixwise;
 
   static SuffixwiseTerminals FromSequences(const T &seqs,
                                            const TerminalRange &terminals,
@@ -92,7 +86,7 @@ struct SuffixwiseTerminals
                                std::move(bufferFactory), s, str);
   }
 
-  std::unique_ptr<Bundle> operator()(uint64_t idx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>> operator()(uint64_t idx) const {
     auto sfx = ShortSuffix::fromIndex(idx, this->suffixSize);
 
     LOG_DEBUG() << "Processing suffix index " << idx << " (size=" << sfx.size()
@@ -105,7 +99,8 @@ struct SuffixwiseTerminals
     }
   }
 
-  std::unique_ptr<Bundle> extractSuffix(uint64_t idx, ShortSuffix sfx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>> extractSuffix(uint64_t idx,
+                                                        ShortSuffix sfx) const {
     auto bfr = this->kmerBuffers->obtain();
 
     bfr->collectKmers(this->sequences, *this->suffixCounts, sfx);
@@ -115,10 +110,14 @@ struct SuffixwiseTerminals
     LOG_DEBUG() << "Extracted " << n << " k-mers for suffix " << sfx.toString();
 
     auto bnd = this->getBundle(idx);
-    auto &[edges, succ, edgeCounts] = bnd->payloads;
-
-    auto counts = pushRange(bfr->kmers, bfr->b.begin(), edges, succ, sfx.msb(),
-                            edgeCounts);
+    auto &edges = std::get<0>(bnd->paylods);
+    auto &succ = std::get<1>(bnd->payloads);
+    auto counts = call_tail(
+        [&](auto &&...args) {
+          return pushRange(bfr->kmers, bfr->b.begin(), edges, succ, sfx.msb(),
+                           std::forward<decltype(args)>(args)...);
+        },
+        bnd->payloads);
 
     this->pushRegionStructure(counts);
 
@@ -126,8 +125,8 @@ struct SuffixwiseTerminals
     return bnd;
   }
 
-  std::unique_ptr<Bundle> extractPartialSuffix(uint64_t idx,
-                                               ShortSuffix sfx) const {
+  std::unique_ptr<ChunkBundleT<Sinks...>>
+  extractPartialSuffix(uint64_t idx, ShortSuffix sfx) const {
     auto bfr = this->kmerBuffers->obtain();
     bfr->setTerminals(this->terminals.retrieve(sfx));
 
@@ -137,10 +136,14 @@ struct SuffixwiseTerminals
                 << sfx.toString();
 
     auto bnd = this->getBundle(idx);
-    auto &[edges, succ, edgeCounts] = bnd->payloads;
-
-    auto counts = pushRange(bfr->terminals, bfr->t.begin(), edges, succ,
-                            sfx.msb(), edgeCounts);
+    auto &edges = std::get<0>(bnd->paylods);
+    auto &succ = std::get<1>(bnd->payloads);
+    auto counts = call_tail(
+        [&](auto &&...args) {
+          return pushRange(bfr->terminals, bfr->t.begin(), edges, succ,
+                           sfx.msb(), std::forward<decltype(args)>(args)...);
+        },
+        bnd->payloads);
 
     this->pushRegionStructure(counts);
 
@@ -153,25 +156,82 @@ struct SuffixwiseTerminals
 // Finalisation
 // -----------------------------------------------------------------------------
 
+DeBruijnGraphFiles finalise(TempBuffers inp, std::size_t k,
+                            const std::string &out);
+
 WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
                             CountBuffer &&counts, const std::string &out);
+
+} // namespace dbg_detail
 
 // -----------------------------------------------------------------------------
 // API
 // -----------------------------------------------------------------------------
 
+namespace dbg {
+
+using Multi = MultiSink<dbg_detail::EdgeSink, dbg_detail::SuccSink>;
+
 template <container_span T>
-WeightedGraphFiles construct(const T &data,
-                             dbg::BuildOptions params = {}) {
-  LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
+using SuffixwiseTerminals =
+    dbg_detail::SuffixwiseTerminals<T, dbg_detail::EdgeSink,
+                                    dbg_detail::SuccSink>;
+
+template <container_span T>
+DeBruijnGraphFiles construct(const T &data, dbg::BuildOptions params = {}) {
+  LOG_INFO() << "Starting DBG construction, node size=" << params.kmer_size;
   LOG_INFO() << "Input chunks: " << data.size();
-  
+
   std::filesystem::create_directories(params.out);
   LOG_INFO() << "Output directory: " << params.out;
 
-  TempBuffers outp{.files = {.edges = params.out / "temp-edges.sdsl",
-                             .succ = params.out / "temp-succ.sdsl"},
-                   .str = {}};
+  dbg_detail::TempBuffers outp{
+      .files = {.edges = params.out / "temp-edges.sdsl",
+                .succ = params.out / "temp-succ.sdsl"},
+      .str = {}};
+
+  LOG_INFO() << "Extracting terminal k-mers";
+  auto terminals = extractTerminalsDense(data, params.suffix_size);
+  LOG_INFO() << "Total terminal entries = " << terminals.size();
+
+  Multi sinks{dbg_detail::EdgeSink(outp.files.edges),
+              dbg_detail::SuccSink(outp.files.succ)};
+
+  ProcessChunks(SuffixwiseTerminals<T>::FromSequences(
+                    data, terminals.asRange(), params.kmer_size,
+                    params.suffix_size, &outp.str),
+                sinks, params.pool_size, params.reserve_per_chunk,
+                params.chunks());
+
+  LOG_INFO() << "Finalising sinks";
+  sinks.finalize();
+
+  return dbg_detail::finalise(outp, params.kmer_size, params.out);
+}
+
+} // namespace dbg
+
+namespace wdbg {
+
+using Multi = MultiSink<dbg_detail::EdgeSink, dbg_detail::SuccSink,
+                        dbg_detail::CountSink>;
+
+template <container_span T>
+using SuffixwiseTerminals = dbg_detail::SuffixwiseTerminals<
+    T, dbg_detail::EdgeSink, dbg_detail::SuccSink, dbg_detail::CountSink>;
+
+template <container_span T>
+WeightedGraphFiles construct(const T &data, dbg::BuildOptions params = {}) {
+  LOG_INFO() << "Starting WDBG construction, node size=" << params.kmer_size;
+  LOG_INFO() << "Input chunks: " << data.size();
+
+  std::filesystem::create_directories(params.out);
+  LOG_INFO() << "Output directory: " << params.out;
+
+  dbg_detail::TempBuffers outp{
+      .files = {.edges = params.out / "temp-edges.sdsl",
+                .succ = params.out / "temp-succ.sdsl"},
+      .str = {}};
 
   // Graph edge counts
   CountBuffer rawCounts;
@@ -180,8 +240,9 @@ WeightedGraphFiles construct(const T &data,
   auto terminals = extractTerminalsDense(data, params.suffix_size);
   LOG_INFO() << "Total terminal entries = " << terminals.size();
 
-  Multi sinks{EdgeSink(outp.files.edges), SuccSink(outp.files.succ),
-              CountSink(&rawCounts)};
+  Multi sinks{dbg_detail::EdgeSink(outp.files.edges),
+              dbg_detail::SuccSink(outp.files.succ),
+              dbg_detail::CountSink(&rawCounts)};
 
   ProcessChunks(SuffixwiseTerminals<T>::FromSequences(
                     data, terminals.asRange(), params.kmer_size,

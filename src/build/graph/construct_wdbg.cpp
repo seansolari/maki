@@ -1,20 +1,36 @@
 
 #include "maki/build/graph/construct_wdbg.hpp"
 #include "maki/core/graph/archive/counts.hpp"
+#include "maki/core/graph/base.hpp"
 #include "maki/core/utils/logging.hpp"
 #include <oneapi/tbb/global_control.h>
 
-namespace wdbg {
+namespace dbg_detail {
 
 // -----------------------------------------------------------------------------
 // Finalisation
 // -----------------------------------------------------------------------------
 
+DeBruijnGraphFiles finalise(TempBuffers inp, std::size_t k,
+                            const std::string &out) {
+  LOG_INFO() << "Finalising de Bruijn graph (k=" << k << ")";
+  DeBruijnGraphFiles outp(out);
+  dbg::detail::finaliseGraphBuffers(inp.files.edges, inp.files.succ, outp);
+
+  DeBruijnGraph g;
+  g.k = k;
+  dbg::detail::finaliseGraphStructure(g, inp.str);
+
+  dbg::detail::serialize(g, outp.meta);
+
+  LOG_INFO() << "Graph construction complete";
+  return outp;
+}
+
 WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
                             CountBuffer &&counts, const std::string &out) {
 
   LOG_INFO() << "Finalising weighted de Bruijn graph (k=" << k << ")";
-
   WeightedGraphFiles outp(out);
   dbg::detail::finaliseGraphBuffers(inp.files.edges, inp.files.succ, outp);
 
@@ -35,4 +51,4 @@ WeightedGraphFiles finalise(TempBuffers inp, std::size_t k,
   return outp;
 }
 
-} // namespace wdbg
+} // namespace dbg_detail
