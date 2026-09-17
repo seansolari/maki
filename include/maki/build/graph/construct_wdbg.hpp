@@ -110,7 +110,7 @@ struct SuffixwiseTerminals
     LOG_DEBUG() << "Extracted " << n << " k-mers for suffix " << sfx.toString();
 
     auto bnd = this->getBundle(idx);
-    auto &edges = std::get<0>(bnd->paylods);
+    auto &edges = std::get<0>(bnd->payloads);
     auto &succ = std::get<1>(bnd->payloads);
     auto counts = call_tail(
         [&](auto &&...args) {
@@ -136,7 +136,7 @@ struct SuffixwiseTerminals
                 << sfx.toString();
 
     auto bnd = this->getBundle(idx);
-    auto &edges = std::get<0>(bnd->paylods);
+    auto &edges = std::get<0>(bnd->payloads);
     auto &succ = std::get<1>(bnd->payloads);
     auto counts = call_tail(
         [&](auto &&...args) {

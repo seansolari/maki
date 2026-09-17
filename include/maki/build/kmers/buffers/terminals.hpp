@@ -299,17 +299,17 @@ public:
   }
 
   template <random_dna4_range R>
-  iterator insertFragmentTerminals(iterator it, SequenceFragment<R> &&fmt) {
+  iterator insertFragmentTerminals(iterator it, const SequenceFragment<R> &fmt) {
     return insertRegion(it, fmt.data() | std::views::take(k), false);
   }
 
   template <random_dna4_range R>
-  void insertFragmentTerminals(LongSuffixGate &lock, SequenceFragment<R> &&fmt) {
+  void insertFragmentTerminals(LongSuffixGate &lock, const SequenceFragment<R> &fmt) {
     insertRegion(lock, fmt.data() | std::views::take(k), false);
   }
 
   template <random_dna4_range R>
-  iterator insertFragmentKmers(iterator it, SequenceFragment<R> &&fmt, ShortSuffix sfx_) {
+  iterator insertFragmentKmers(iterator it, const SequenceFragment<R> &fmt, ShortSuffix sfx_) {
     return insertRegion(it, fmt.data(), fmt.endIsTerminal(), sfx_);
   }
 
@@ -394,10 +394,10 @@ public:
         });
   }
 
-  void fillKmers(const container_span auto &data_, std::span<const std::size_t> blocks_, ShortSuffix sfx_) {
+  void fillKmers(const container_span auto &data_, std::span<const SuffixTable> blocks_, ShortSuffix sfx_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
-          insertKmers(at(i == 0 ? 0 : blocks_[i - 1]), data_[i], sfx_);
+          insertKmers(at(i == 0 ? 0 : blocks_[i - 1][sfx_]), data_[i], sfx_);
         });
   }
 

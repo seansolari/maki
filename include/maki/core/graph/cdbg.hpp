@@ -4,6 +4,7 @@
 #include "colours.hpp"
 #include "maki/core/graph/archive/archive_reader.hpp"
 #include <cereal/types/array.hpp>
+#include <cereal/types/base_class.hpp>
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -24,5 +25,7 @@ struct ColouredGraph : public DeBruijnGraph {
 private:
   // serialise to disk
   friend class cereal::access;
-  template <class Archive> void serialize(Archive &ar) { ar(k, cmap, F, C); }
+  template <class Archive> void serialize(Archive &ar) {
+    ar(cereal::base_class<DeBruijnGraph>(this), cmap);
+  }
 };

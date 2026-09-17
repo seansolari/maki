@@ -6,6 +6,7 @@
 #include <sdsl/rank_support_v5.hpp>
 #include <sdsl/select_support_mcl.hpp>
 #include <sdsl/wm_int.hpp>
+#include <cereal/types/polymorphic.hpp>
 
 namespace fs = std::filesystem;
 using wavelet_matrix = sdsl::wm_int<>;
@@ -98,4 +99,8 @@ protected:
   inline std::size_t WSucc(std::size_t i, uint8_t c) const {
     return W.select(W.rank(i, c) + 1, c);
   }
+
+public:
+  friend class cereal::access;
+  template <class Archive> void serialize(Archive &ar) { ar(k, F, C); }
 };

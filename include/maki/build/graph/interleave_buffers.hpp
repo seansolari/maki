@@ -20,6 +20,20 @@ struct value_comp {
   }
 };
 
+struct edge_comp {
+  inline constexpr bool operator()(const BufferValue &lhs,
+                                   const BufferValue &rhs) const {
+    return lhs.edge() < rhs.edge();
+  }
+};
+
+struct edge_eq {
+  inline constexpr bool operator()(const BufferValue &lhs,
+                                   const BufferValue &rhs) const {
+    return lhs.edge() == rhs.edge();
+  }
+};
+
 struct push_summary {
   std::array<std::size_t, 5> F = {0, 0, 0, 0, 0}, C = {0, 0, 0, 0, 0};
 };
@@ -50,6 +64,13 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
  */
 void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
               uint8_t msb_dna5, CountBuffer &c);
+
+/**
+ * Push a node into the graph buffers, comprising graph
+ * structure (edges, succ).
+ */
+void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+              uint8_t msb_dna5);
 
 /**
  * Iterate over k-mers and push structure into graph buffers.

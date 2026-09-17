@@ -184,12 +184,12 @@ public:
   }
 
   template <random_dna4_range R>
-  iterator insertFragment(iterator it, SequenceFragment<R> &&fmt) {
+  iterator insertFragment(iterator it, const SequenceFragment<R> &fmt) {
     return insertRegion(it, fmt.data(), fmt.id(), fmt.endIsTerminal());
   }
 
   template <random_dna4_range R>
-  iterator insertFragment(iterator it, SequenceFragment<R> &&fmt,
+  iterator insertFragment(iterator it, const SequenceFragment<R> &fmt,
                           ShortSuffix sfx_) {
     return insertRegion(it, fmt.data(), fmt.id(), fmt.endIsTerminal(), sfx_);
   }

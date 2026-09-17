@@ -294,8 +294,8 @@ public:
   void countRegion(const random_dna4_range auto &sequence) {
     ShortSuffix suffix{s};
 
-    auto it = std::ranges::cbegin(sequence);
-    auto end = std::ranges::cend(sequence);
+    auto it = std::ranges::begin(sequence);
+    auto end = std::ranges::end(sequence);
 
     // initialise suffix
     for (size_t i = 0; i < s; ++i)
@@ -310,16 +310,16 @@ public:
   }
 
   template <random_dna4_range R>
-  void countKmerSuffixes(SequenceFragment<R> &&fmt, std::size_t k,
+  void countKmerSuffixes(const SequenceFragment<R> &fmt, std::size_t k,
                          std::size_t offset) {
-    auto &sequence = fmt.data();
+    const auto &sequence = fmt.data();
     std::size_t size = fmt.size();
 
     if (fmt.endIsTerminal())
-      sequence = sequence | std::views::take(--size);
+      --size;
 
     if (size >= k)
-      countRegion(sequence | std::views::drop(offset));
+      countRegion(sequence | std::views::take(size) | std::views::drop(offset));
   }
 
   // --------------------
@@ -338,7 +338,8 @@ public:
     });
   }
 
-  void count(const stranded_sequence_container_like auto &data, std::size_t k, std::size_t offset) {
+  void count(const stranded_sequence_container_like auto &data, std::size_t k,
+             std::size_t offset) {
     std::ranges::for_each(data.forwardFragments(k), [&](auto &&fmt) {
       countKmerSuffixes(std::forward<decltype(fmt)>(fmt), k, offset);
     });
@@ -374,8 +375,9 @@ private:
  * cumulative number of k-mers with that suffix including all genomes before it
  * in the container.
  */
-std::vector<SuffixTable> createSuffixPlan(const container_span auto &data_, std::size_t k,
-                                          std::size_t s, std::size_t offset = 0,
+std::vector<SuffixTable> createSuffixPlan(const container_span auto &data_,
+                                          std::size_t k, std::size_t s,
+                                          std::size_t offset = 0,
                                           bool accumulate = true) {
   std::vector<SuffixTable> tables(data_.size());
 

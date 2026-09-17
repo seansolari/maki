@@ -95,3 +95,41 @@ void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
   ++pkt.str.C[msb_dna5];
   pkt.data.clear();
 }
+
+void pushNode(packet &pkt, sdsl::int_vector<4> &edges, sdsl::bit_vector &succ,
+              uint8_t msb_dna5) {
+  if (pkt.data.empty()) {
+    return;
+  }
+
+  // sort temp data and make it unique, considering only edges
+  std::sort(pkt.data.begin(), pkt.data.end(), edge_comp{});
+  auto it = pkt.data.begin(), end = std::unique(it, pkt.data.end(), edge_eq{});
+  // if there are valid edges other than `$`, then `$` is not required
+  {
+    auto valid = std::find_if(
+        it, end, [](const BufferValue &v) { return v.edge() != 0b000; });
+    if (valid != end)
+      it = valid;
+  }
+
+  while (it != end) {
+    uint64_t edge = it->edge();
+    ++it;
+    // insert new edge
+    ++pkt.str.F[msb_dna5];
+    if (pkt.last[edge] != pkt.block) {
+      edges.push_back(edge | 0b1000);
+      pkt.last[edge] = pkt.block;
+    } else {
+      edges.push_back(edge);
+    }
+    // attach edge to node
+    succ.push_back(0);
+  }
+
+  // finalise node
+  succ.back() = 1;
+  ++pkt.str.C[msb_dna5];
+  pkt.data.clear();
+}

@@ -1,7 +1,6 @@
 
 #include "maki/build/graph/build_colours.hpp"
-#include "maki/build/io/fasta.hpp"
-#include "maki/core/seq/concepts.hpp"
+#include "maki/build/io/filter.hpp"
 #include "maki/core/utils/tempfile.hpp"
 #include "maki/maki.h"
 #include "test_common.hpp"
@@ -9,19 +8,6 @@
 #include <gtest/gtest.h>
 
 using ::testing::ContainerEq;
-
-Dna4Genome parseGenome(const std::string &fastaFile, Colours &colours,
-                       std::size_t k) {
-  // base input file stream that reads bytes
-  zstr::ifstream zis(fastaFile);
-  std::string fastaData(std::istreambuf_iterator<char>(zis), {});
-
-  Dna4Genome obj;
-  std::istringstream fs(fastaData);
-  parseFastaStream(obj, fs, colours, k);
-
-  return obj;
-}
 
 const size_t minContigSize = 3;
 
@@ -99,32 +85,30 @@ inline std::string MakeTempPath(const char *ext) {
 
 class ParseChunks : public testing::Test {
 protected:
-  ParseChunks() : fna(MakeTempPath(".fna")), c(), xgenome() {
+  ParseChunks() : fna(MakeTempPath(".fna")), c() {
     std::string data =
         ">seq1\nACGTACGTACGTACGTACGTACGTACGATCAGTCAGTCAGTCGTA\n>"
         "seq2\nAGTACGTCGTACGATCGTC\n>seq3\nATCGTCGATGCTAGCTAGCTAGCTAGCTACGT\n>"
         "seq4\nGTACGTGCTAGCTAGCTGACTCGATGCATTAA\n>seq5\nTAGTATATATAGTAGTAGT\n";
     writeToFna(data, fna);
-    xgenome = parseFilterFNA(fna, c, threads, kmer_size);
   }
-  ~ParseChunks() { std::filesystem::remove(fna); }
 
-  inline std::vector<const SequenceContainer *> getView() const {
-    std::vector<const SequenceContainer *> ptrs;
-    for (const auto &chunk : xgenome.chunks) {
-      ptrs.push_back(&chunk);
-    }
-    return ptrs;
+  ChunkedDna4Genome parse() {
+    auto genome = parseGenome(fna, c, kmer_size);
+    return chunkFNA(std::move(genome), 16, kmer_size);
   }
+
+  ~ParseChunks() { std::filesystem::remove(fna); }
 
   std::string fna;
   uint8_t kmer_size = 3;
   size_t threads = 2;
   Colours c;
-  ChunkedDna4Genome xgenome;
 };
 
 TEST_F(ParseChunks, CheckStructure) {
+  auto xgenome = parse();
+
   // check IDs
   ASSERT_EQ(c.getOrAssign("seq1"), 1);
   ASSERT_EQ(c.getOrAssign("seq2"), 2);
@@ -132,65 +116,72 @@ TEST_F(ParseChunks, CheckStructure) {
   ASSERT_EQ(c.getOrAssign("seq4"), 4);
   ASSERT_EQ(c.getOrAssign("seq5"), 5);
 
-  ASSERT_EQ(xgenome.genome.contigs[0].sequences[0][0].nullFeatureId, 1);
-  ASSERT_EQ(xgenome.genome.contigs[0].sequences[1][0].nullFeatureId, 1);
-  ASSERT_EQ(xgenome.genome.contigs[1].sequences[0][0].nullFeatureId, 2);
-  ASSERT_EQ(xgenome.genome.contigs[1].sequences[1][0].nullFeatureId, 2);
-  ASSERT_EQ(xgenome.genome.contigs[2].sequences[0][0].nullFeatureId, 3);
-  ASSERT_EQ(xgenome.genome.contigs[2].sequences[1][0].nullFeatureId, 3);
-  ASSERT_EQ(xgenome.genome.contigs[3].sequences[0][0].nullFeatureId, 4);
-  ASSERT_EQ(xgenome.genome.contigs[3].sequences[1][0].nullFeatureId, 4);
-  ASSERT_EQ(xgenome.genome.contigs[4].sequences[0][0].nullFeatureId, 5);
-  ASSERT_EQ(xgenome.genome.contigs[4].sequences[1][0].nullFeatureId, 5);
-
   // check sequence metadata
-  ASSERT_EQ(xgenome.chunks.size(), 18);
+  ASSERT_EQ(xgenome.size(), 18);
 
-  ASSERT_FALSE(xgenome.chunks[0].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[0].numTerminals(kmer_size), kmer_size);
-  ASSERT_FALSE(xgenome.chunks[1].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[1].numTerminals(kmer_size), 0);
-  ASSERT_TRUE(xgenome.chunks[2].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[2].numTerminals(kmer_size), 0);
-  ASSERT_FALSE(xgenome.chunks[3].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[3].numTerminals(kmer_size), kmer_size);
-  ASSERT_FALSE(xgenome.chunks[4].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[4].numTerminals(kmer_size), 0);
-  ASSERT_TRUE(xgenome.chunks[5].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[5].numTerminals(kmer_size), 0);
-  ASSERT_TRUE(xgenome.chunks[6].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[6].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[7].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[7].numTerminals(kmer_size), kmer_size);
-  ASSERT_FALSE(xgenome.chunks[8].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[8].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[9].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[9].numTerminals(kmer_size), 0);
-  ASSERT_FALSE(xgenome.chunks[10].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[10].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[11].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[11].numTerminals(kmer_size), 0);
-  ASSERT_FALSE(xgenome.chunks[12].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[12].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[13].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[13].numTerminals(kmer_size), 0);
-  ASSERT_FALSE(xgenome.chunks[14].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[14].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[15].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[15].numTerminals(kmer_size), 0);
-  ASSERT_TRUE(xgenome.chunks[16].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[16].numTerminals(kmer_size), kmer_size);
-  ASSERT_TRUE(xgenome.chunks[17].endIsTerminal());
-  ASSERT_EQ(xgenome.chunks[17].numTerminals(kmer_size), kmer_size);
+  ASSERT_FALSE(xgenome[0].endIsTerminal());
+  ASSERT_EQ(xgenome[0].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[0].id(), 1);
+  ASSERT_FALSE(xgenome[1].endIsTerminal());
+  ASSERT_EQ(xgenome[1].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[1].id(), 1);
+  ASSERT_TRUE(xgenome[2].endIsTerminal());
+  ASSERT_EQ(xgenome[2].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[2].id(), 1);
+  ASSERT_FALSE(xgenome[3].endIsTerminal());
+  ASSERT_EQ(xgenome[3].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[3].id(), 1);
+  ASSERT_FALSE(xgenome[4].endIsTerminal());
+  ASSERT_EQ(xgenome[4].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[4].id(), 1);
+  ASSERT_TRUE(xgenome[5].endIsTerminal());
+  ASSERT_EQ(xgenome[5].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[5].id(), 1);
+  ASSERT_TRUE(xgenome[6].endIsTerminal());
+  ASSERT_EQ(xgenome[6].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[6].id(), 2);
+  ASSERT_TRUE(xgenome[7].endIsTerminal());
+  ASSERT_EQ(xgenome[7].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[7].id(), 2);
+  ASSERT_FALSE(xgenome[8].endIsTerminal());
+  ASSERT_EQ(xgenome[8].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[8].id(), 3);
+  ASSERT_TRUE(xgenome[9].endIsTerminal());
+  ASSERT_EQ(xgenome[9].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[9].id(), 3);
+  ASSERT_FALSE(xgenome[10].endIsTerminal());
+  ASSERT_EQ(xgenome[10].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[10].id(), 3);
+  ASSERT_TRUE(xgenome[11].endIsTerminal());
+  ASSERT_EQ(xgenome[11].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[11].id(), 3);
+  ASSERT_FALSE(xgenome[12].endIsTerminal());
+  ASSERT_EQ(xgenome[12].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[12].id(), 4);
+  ASSERT_TRUE(xgenome[13].endIsTerminal());
+  ASSERT_EQ(xgenome[13].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[13].id(), 4);
+  ASSERT_FALSE(xgenome[14].endIsTerminal());
+  ASSERT_EQ(xgenome[14].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[14].id(), 4);
+  ASSERT_TRUE(xgenome[15].endIsTerminal());
+  ASSERT_EQ(xgenome[15].numTerminals(kmer_size), 0);
+  ASSERT_EQ(xgenome[15].id(), 4);
+  ASSERT_TRUE(xgenome[16].endIsTerminal());
+  ASSERT_EQ(xgenome[16].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[16].id(), 5);
+  ASSERT_TRUE(xgenome[17].endIsTerminal());
+  ASSERT_EQ(xgenome[17].numTerminals(kmer_size), kmer_size);
+  ASSERT_EQ(xgenome[17].id(), 5);
 }
 
 TEST_F(ParseChunks, NumKmers) {
-  auto view = getView();
+  auto xgenome = parse();
 
   // predicted sequence lengths
   std::vector<std::size_t> actual;
-  for (auto rng : view) {
-    actual.push_back(rng->numKmers(kmer_size));
+  for (std::size_t i = 0; i < xgenome.size(); ++i) {
+    actual.push_back(xgenome[i].numKmers(kmer_size));
   }
 
   // check
@@ -200,12 +191,12 @@ TEST_F(ParseChunks, NumKmers) {
 }
 
 TEST_F(ParseChunks, NumTerminals) {
-  auto view = getView();
+  auto xgenome = parse();
 
   // predicted sequence lengths
   std::vector<std::size_t> actual;
-  for (auto rng : view) {
-    actual.push_back(rng->numTerminals(kmer_size));
+  for (std::size_t i = 0; i < xgenome.size(); ++i) {
+    actual.push_back(xgenome[i].numTerminals(kmer_size));
   }
 
   // check
@@ -217,14 +208,12 @@ TEST_F(ParseChunks, NumTerminals) {
 }
 
 TEST_F(ParseChunks, FragmentView) {
-  auto view = getView();
+  auto xgenome = parse();
 
   // output sequences
   std::vector<Dna4Sequence> sequenceChunks;
-  for (auto rng : view) {
-    for (auto seq : rng->fragments(kmer_size)) {
-      sequenceChunks.emplace_back(seq.begin(), seq.end());
-    }
+  for (std::size_t i = 0; i < xgenome.size(); ++i) {
+    sequenceChunks.emplace_back(xgenome[i].fragments(kmer_size));
   }
 
   // check
@@ -255,14 +244,13 @@ TEST_F(ParseChunks, FragmentView) {
 }
 
 TEST_F(ParseChunks, TerminalView) {
-  auto view = getView();
+  auto xgenome = parse();
 
   // output sequences
   std::vector<Dna4Sequence> sequenceChunks;
-  for (auto rng : view) {
-    for (auto seq : rng->terminals()) {
-      sequenceChunks.emplace_back(seq.begin(), seq.end());
-    }
+  for (std::size_t i = 0; i < xgenome.size(); ++i) {
+    if (xgenome[i].numTerminals(kmer_size) > 0)
+      sequenceChunks.emplace_back(xgenome[i].terminals());
   }
 
   // check

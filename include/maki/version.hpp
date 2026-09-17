@@ -8,9 +8,9 @@
 //!\brief The major version as MACRO.
 #define MAKI_VERSION_MAJOR 2
 //!\brief The minor version as MACRO.
-#define MAKI_VERSION_MINOR 0
+#define MAKI_VERSION_MINOR 1
 //!\brief The patch version as MACRO.
-#define MAKI_VERSION_PATCH 2
+#define MAKI_VERSION_PATCH 0
 //!\brief The release candidate number. 0 means stable release, >= 1 means release candidate.
 #define MAKI_RELEASE_CANDIDATE 1
 

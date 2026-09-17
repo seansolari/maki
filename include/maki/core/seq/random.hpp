@@ -1,5 +1,5 @@
 
-#include "maki/build/io/fasta.hpp"
+#include "maki/build/io/gff.hpp"
 #include "maki/core/seq/io.hpp"
 
 using namespace seqan3::literals;

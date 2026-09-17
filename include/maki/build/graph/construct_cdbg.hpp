@@ -10,6 +10,7 @@
 #include "maki/build/kmers/buffers/kmers.hpp"
 #include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/build/kmers/construct_terminals.hpp"
 #include "maki/core/graph/cdbg.hpp"
 #include "maki/core/seq/concepts.hpp"
 #include <cstddef>
@@ -182,6 +183,10 @@ using Multi = MultiSink<cdbg_detail::EdgeSink, cdbg_detail::SuccSink,
                         cdbg_detail::ColourSink>;
 
 template <container_span T>
+using SuffixwiseKmers = cdbg_detail::SuffixwiseKmers<
+    T, cdbg_detail::EdgeSink, cdbg_detail::SuccSink, cdbg_detail::ColourSink>;
+
+template <container_span T>
 ColouredGraphFiles construct(const T &data, MetaColours &&cmap,
                              dbg::BuildOptions params = {}) {
   LOG_INFO() << "Starting CDBG construction";
@@ -206,7 +211,7 @@ ColouredGraphFiles construct(const T &data, MetaColours &&cmap,
               cdbg_detail::ColourSink(outp.files.colours)};
 
   LOG_INFO() << "Processing chunks";
-  ProcessChunks(cdbg_detail::SuffixwiseKmers<T>::FromSequences(
+  ProcessChunks(SuffixwiseKmers<T>::FromSequences(
                     data, terminals.asRange(), params.kmer_size,
                     params.suffix_size, &cmap, &outp.str),
                 sinks, params.pool_size, params.reserve_per_chunk,

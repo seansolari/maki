@@ -33,11 +33,15 @@ ColouredGraphFiles constructFnaColouredDbg(const fs::path &fastaFile,
                                            dbg::BuildOptions params) {
   // parse data
   Colours colours;
-  auto genome =
-      parseFilterFNA(fastaFile, colours, params.threads, params.kmer_size);
+  auto genome = parseGenome(fastaFile, colours, params.kmer_size);
+
+  // chunk genome
+  std::size_t chunksize =
+      ChunkedDna4Genome::calculateChunksize(genome, params.threads);
+  auto xgenome = chunkFNA(std::move(genome), chunksize, params.kmer_size);
 
   // construct graph
-  return cdbg::construct(genome, MetaColours(std::move(colours.ids)), params);
+  return cdbg::construct(xgenome, MetaColours(std::move(colours.ids)), params);
 }
 
 // -----------------------------------------------------------------------------

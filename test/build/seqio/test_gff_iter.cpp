@@ -1,10 +1,9 @@
 
-#include "maki/build/io/fasta.hpp"
+#include "maki/build/io/gff.hpp"
 #include "maki/maki.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <ostream>
-#include <vector>
 
 using ::testing::ElementsAreArray;
 
@@ -51,7 +50,8 @@ struct _SegmentToken {
   }
 };
 
-_SegmentToken operator-(const SequenceFragment &lhs,
+template <random_dna4_range R>
+_SegmentToken operator-(const SequenceFragment<R> &lhs,
                         Dna4SequenceConstIter rhs) {
   return {static_cast<size_t>(lhs.begin() - rhs),
           static_cast<size_t>(lhs.end() - rhs), lhs.id(), lhs.endIsTerminal()};

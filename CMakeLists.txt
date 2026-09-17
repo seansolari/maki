@@ -20,12 +20,12 @@ include (maki-config-version)
 
 project (maki
          LANGUAGES CXX
-         VERSION 2.0.2
+         VERSION 2.1.0
          DESCRIPTION "metagenomics using an annotated k-mer index"
          HOMEPAGE_URL "https://github.com/seansolari/maki-engine"
          )
 
-find_package (maki 2.0 REQUIRED HINTS ${MAKI_MODULE_PATH})
+find_package (maki 2.1 REQUIRED HINTS ${MAKI_MODULE_PATH})
 
 maki_config_print ("Using maki-${MAKI_VERSION}.")
 

@@ -37,12 +37,17 @@ public:
   explicit SequenceFragment(range_t &&rng, uint64_t id, bool terminal)
       : _rng(std::move(rng)), _fid(id), _terminal(terminal) {}
 
-  range_t &data() noexcept { return _rng; }
-  range_t const &data() const noexcept { return _rng; }
-
-  uint64_t id() const noexcept { return _fid; }
-  bool endIsTerminal() const noexcept { return _terminal; }
-  std::size_t size() const noexcept { return std::ranges::size(_rng); }
+  inline constexpr range_t &data() noexcept { return _rng; }
+  inline constexpr range_t const &data() const noexcept { return _rng; }
+  inline constexpr auto begin() noexcept { return std::ranges::begin(_rng); }
+  inline constexpr auto begin() const noexcept { return std::ranges::begin(_rng); }
+  inline constexpr auto cbegin() const noexcept { return std::ranges::cbegin(_rng); }
+  inline constexpr auto end() noexcept { return std::ranges::end(_rng); }
+  inline constexpr auto end() const noexcept { return std::ranges::end(_rng); }
+  inline constexpr auto cend() const noexcept { return std::ranges::end(_rng); }
+  inline constexpr uint64_t id() const noexcept { return _fid; }
+  inline constexpr bool endIsTerminal() const noexcept { return _terminal; }
+  inline constexpr std::size_t size() const noexcept { return std::ranges::size(_rng); }
 
 protected:
   range_t _rng;

@@ -1,4 +1,5 @@
 #include "maki/build/io/filter.hpp"
+#include "maki/build/io/gff.hpp"
 #include "maki/core/utils/logging.hpp"
 
 #include <seqan3/alphabet/views/complement.hpp>
@@ -111,8 +112,8 @@ void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
   }
 }
 
-ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
-                                 std::size_t granularity, std::size_t k) {
+Dna4Genome parseGenome(const std::string &fastaFile, Colours &colours,
+                       std::size_t k) {
   // base input file stream that reads bytes
   zstr::ifstream zis(fastaFile);
   std::string fastaData(std::istreambuf_iterator<char>(zis), {});
@@ -123,8 +124,10 @@ ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
   std::istringstream fs(fastaData);
   parseFastaStream(genome, fs, colours, k);
 
-  // Chunk data
-  std::size_t chunksize =
-      ChunkedDna4Genome::calculateChunksize(genome, granularity);
-  return ChunkedDna4Genome(std::move(genome), chunksize, k);
+  return genome;
+}
+
+ChunkedDna4Genome chunkFNA(Dna4Genome &&genome, std::size_t ntChunksize,
+                           std::size_t k) {
+  return ChunkedDna4Genome(std::move(genome), ntChunksize, k);
 }

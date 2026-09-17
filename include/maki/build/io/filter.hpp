@@ -13,6 +13,7 @@ struct FastaFragment {
       : _it(it), _begin(begin), _end(end), _id(id) {}
 
   inline std::size_t size() const noexcept { return _end - _begin; }
+  inline uint64_t id() const noexcept { return _id; }
 
   inline void setEndToTerminal() { _terminal = true; }
   inline bool endIsTerminal() const noexcept { return _terminal; }
@@ -63,5 +64,8 @@ static_assert(container_span<ChunkedDna4Genome>);
 void parseFastaStream(Dna4Genome &genome, std::istream &fastaStream,
                       Colours &colours, std::size_t minContigSize);
 
-ChunkedDna4Genome parseFilterFNA(const std::string &fastaFile, Colours &colours,
-                                 std::size_t granularity, std::size_t k);
+Dna4Genome parseGenome(const std::string &fastaFile, Colours &colours,
+                       std::size_t k);
+
+ChunkedDna4Genome chunkFNA(Dna4Genome &&genome, std::size_t ntChunksize,
+                           std::size_t k);

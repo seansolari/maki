@@ -21,5 +21,6 @@ struct WeightedGraph : public DeBruijnGraph {
 private:
   // serialise to disk
   friend class cereal::access;
-  template <class Archive> void serialize(Archive &ar) { ar(k, F, C, occ); }
+  template <class Archive> void serialize(Archive &ar) { 
+    ar(cereal::base_class<DeBruijnGraph>(this), occ); }
 };

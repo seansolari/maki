@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-#include "maki/build/io/fasta.hpp"
+#include "maki/build/io/gff.hpp"
 #include "maki/maki.h"
 
 using ::testing::ElementsAreArray;
