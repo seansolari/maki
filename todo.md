@@ -10,7 +10,6 @@
 
   - Singularity recipe.
   - Compress metacolour representation.
-  - Use rrna genes hits to estimate genome size. In cxfy: (abundance of rrna * estimated genome size from rrna) to estimate how many read you expect, compared to how many reads have been classified. tells you whether unclassified reads belong to a bacteria you have a signal for, vs something you dont have a signal for.
   - Add Newick support if necessary.
 
 ## Planned updates
@@ -21,7 +20,6 @@
     - **DONE** - Script to create datasets from manifest.
     - **DONE** - Create manifests, job script and parameter yaml.
     - **DONE** - Download genomes from manifest.
-    - Setup and submit jobs on M3.
   - Eukaryotic genome graph construction benchmarking
 
 ### Mon 11 May, 2026 - Python bindings and ATB

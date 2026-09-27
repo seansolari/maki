@@ -1,25 +1,23 @@
-# maki
+# maki (pre-alpha)
 
-## Build using `cmake`
+Note unit tests for core functionality are still being developed.
 
-### Prepare conda environment
+## Build from source
 
 These steps ensure an up-to-date version of `cmake`, and `gxx` compiler (at least g++ 10 is required to support C++ Concepts).
 
 ```{console}
 $ mamba create -n [NAME] -c anaconda -c conda-forge cmake gcc gxx zlib tbb tbb-devel pybind11
 $ mamba activate [NAME]
-$ python -m pip install -e .
 ```
 
-### Build using cmake
+Installing with the `setuptools` first builds the core C++ library and bindings with `cmake`, and then installs the Python application (& CLI).
 
 ```{console}
-$ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-$ cmake --build build --config Release --target maki-build-targets -j $(nproc --all) --
+$ python -m pip install .
 ```
 
-#### Note - conda-packaged compilers (VSCode)
+## Command Line Interface
 
-To use a compiler installer within a conda environment (through the VSCode interface), add the conda `bin` path (via `conda env list`)  to `Cmake: Additional Compiler Search Dirs` settings.
+For a list of available commands, run `maki --help`.
 
