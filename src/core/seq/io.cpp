@@ -3,16 +3,6 @@
 
 #include <filesystem>
 
-std::string toString(const Dna4Sequence &seq) {
-  std::string result;
-  result.reserve(seq.size());
-
-  for (auto c : seq)
-    result.push_back(seqan3::to_char(c));
-
-  return result;
-}
-
 std::string toString(std::vector<Dna4Sequence> const &v, const char *delim) {
   size_t resultSize = 0;
   for (auto const &seq : v)

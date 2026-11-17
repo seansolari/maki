@@ -5,39 +5,79 @@
 #include <span>
 #include <vector>
 
+/**
+ * @brief Create bit-packed vectors.
+ * @note Holds raw values until `clear()` is called.
+ */
 class ArrayBuilder {
 public:
+  /**
+   * @brief Reserve slots.
+   * @param size_ Number of slots to reserve.
+   */
   void reserve(std::size_t size_) {
     values_.reserve(size_);
   }
 
+  /**
+   * @brief `true` if there are no values to pack.
+   * @return true 
+   * @return false 
+   */
   bool empty() const noexcept {
     return values_.empty();
   }
 
+  /**
+   * @brief Get value at slot `i`.
+   * @param i
+   * @return uint64_t 
+   */
   uint64_t get(std::size_t i) {
     return values_[i];
   }
 
+  /**
+   * @brief Push value.
+   * @param v Value to append.
+   */
   void push(uint64_t v) {
     values_.push_back(v);
     max_ = std::max(max_, v);
   }
 
+  /**
+   * @brief Reset container (calls `clear()` on values).
+   */
   void clear() {
     values_.clear();
     max_ = 0;
   }
 
-  uint64_t size() const { return values_.size(); }
+  /**
+   * @brief Number of values in container.
+   * @return uint64_t 
+   */
+  uint64_t size() const {
+    return values_.size();
+  }
 
+  /**
+   * @brief Calculate bit width based on current values in container.
+   * @note Calculated based on bits required to represent largest current value.
+   * @return uint8_t 
+   */
   uint8_t required_bit_width() const {
     if (max_ == 0)
       return 1;
     return 64 - __builtin_clzll(max_);
   }
 
-  // Produce RAW_PACKED byte vector
+  /**
+   * @brief Write bit-packed values to external container.
+   * @note Resets size and contents of the external container.
+   * @param out 
+   */
   void finalize_packed(std::vector<uint8_t> &out) const {
     const uint64_t n = values_.size();
     const uint8_t w = required_bit_width();
@@ -66,7 +106,13 @@ public:
     }
   }
 
-  std::span<const uint64_t> view() const { return std::span<const uint64_t>(values_.begin(), values_.end()); }
+  /**
+   * @brief Get view on current values.
+   * @return std::span<const uint64_t> 
+   */
+  std::span<const uint64_t> view() const {
+    return std::span<const uint64_t>(values_.begin(), values_.end());
+  }
 
 private:
   std::vector<uint64_t> values_;

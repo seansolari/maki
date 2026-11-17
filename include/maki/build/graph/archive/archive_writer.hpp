@@ -16,12 +16,29 @@
 #include "sink_manager.hpp"
 #include "sink_policies.hpp"
 
+/**
+ * @brief Container for raw data to be written into an archive.
+ */
 struct ArchivePayload {
   ArrayBuilder raw;
   std::vector<uint8_t> bytes;
 
+  /**
+   * @brief Reserve `size_` slots.
+   * @param size_ 
+   */
   inline void reserve(std::size_t size_) { raw.reserve(size_); }
+
+  /**
+   * @brief Empty current payload.
+   */
   inline void clear() { raw.clear(); }
+
+  /**
+   * @brief `true` if no values are in the payload.
+   * @return true 
+   * @return false 
+   */
   inline bool empty() const noexcept { return raw.empty(); }
 };
 

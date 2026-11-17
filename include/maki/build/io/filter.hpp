@@ -12,8 +12,9 @@ struct FastaFragment {
                 uint64_t id)
       : _it(it), _begin(begin), _end(end), _id(id) {}
 
-  inline std::size_t size() const noexcept { return _end - _begin; }
-  inline uint64_t id() const noexcept { return _id; }
+  constexpr inline std::size_t size() const noexcept { return _end - _begin; }
+  constexpr inline uint64_t id() const noexcept { return _id; }
+  constexpr inline Dna4Sequence sequence() const { return Dna4Sequence(_it + _begin, _it + _end); }
 
   inline void setEndToTerminal() { _terminal = true; }
   inline bool endIsTerminal() const noexcept { return _terminal; }

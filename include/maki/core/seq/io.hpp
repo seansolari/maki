@@ -83,7 +83,17 @@ inline void reverseWriteMerTo(random_dna4_iter auto _it, OutputPtr out,
                                   << (2 * (i % bpPerRecord));
 }
 
-std::string toString(const Dna4Sequence &);
+template <typename T>
+std::string toString(const seqan3::bitpacked_sequence<T> &seq) {
+  std::string result;
+  result.reserve(seq.size());
+
+  for (auto c : seq)
+    result.push_back(seqan3::to_char(c));
+
+  return result;
+}
+
 std::string toString(std::vector<Dna4Sequence> const &, const char *);
 
 enum InputFileType {

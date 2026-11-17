@@ -10,9 +10,22 @@
 
 using ::testing::ElementsAreArray;
 
-// Helper to produce a valid 9-field GFF line.
-// GFF fields: 0:seqid 1:source 2:type 3:start 4:end 5:score 6:strand 7:phase
-// 8:attributes
+/**
+ * @brief Helper to produce a valid 9-field GFF line.
+ *
+ * GFF fields: 0:seqid 1:source 2:type 3:start 4:end 5:score 6:strand 7:phase 8:attributes
+ * 
+ * @param seqid 
+ * @param start 
+ * @param end 
+ * @param strand 
+ * @param attrs 
+ * @param source 
+ * @param type 
+ * @param score 
+ * @param phase 
+ * @return std::string 
+ */
 static std::string MakeGffLine(std::string_view seqid, std::string_view start,
                                std::string_view end, std::string_view strand,
                                std::string_view attrs,
@@ -36,7 +49,16 @@ static std::string MakeGffLine(std::string_view seqid, std::string_view start,
   return line;
 }
 
-// --- Convenience assertions ---
+/**
+ * @brief Check structure of `gffRecord`.
+ * 
+ * @param res 
+ * @param exp_seqid 
+ * @param exp_begin 
+ * @param exp_end 
+ * @param exp_strand 
+ * @param exp_id 
+ */
 static void
 ExpectSuccessWithId(const std::pair<gffRecord, std::optional<std::string>> &res,
                     std::string_view exp_seqid, int64_t exp_begin,

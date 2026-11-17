@@ -318,19 +318,24 @@ struct FastqDatasetRange {
   constexpr forward_view_type forwardSequences() const {
     return reads | detail::flatten_fragments | detail::view_forward_reads;
   }
+
   constexpr reverse_view_type reverseSequences() const {
     return reads | detail::flatten_fragments | detail::view_reverse_reads;
   }
+
   constexpr forward_view_type forwardTerminals() const {
     return forwardSequences();
   }
+
   constexpr reverse_view_type reverseTerminals() const {
     return reverseSequences();
   }
+
   constexpr forward_view_type
   forwardFragments([[maybe_unused]] std::size_t k) const {
     return forwardSequences();
   }
+
   constexpr reverse_view_type
   reverseFragments([[maybe_unused]] std::size_t k) const {
     return reverseSequences();
@@ -340,9 +345,7 @@ struct FastqDatasetRange {
 static_assert(stranded_sequence_container_like<FastqDatasetRange>);
 
 /**
- * A lightweight deterministic partition over a FastqDataset.
- *
- * No per-chunk pointers, iterators, or spans are stored. Each range is
+ * A lightweight deterministic partition over a FastqDataset. Each range is
  * calculated from:
  *
  *     floor(i * dataset_size / chunk_count)
@@ -362,7 +365,10 @@ public:
   constexpr bool empty() const noexcept { return false; }
 
   FastqDatasetRange range(std::size_t chunk_index) const;
-  FastqDatasetRange operator[](std::size_t chunk_index) const;
+  
+  constexpr FastqDatasetRange operator[](std::size_t chunk_index) const {
+    return range(chunk_index);
+  }
 
 private:
   /**

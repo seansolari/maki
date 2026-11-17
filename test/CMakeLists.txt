@@ -20,15 +20,26 @@ endmacro ()
 
 # test suite
 
-ADD_TEST ("build/seqio/test_detect_file_types.cpp")
-ADD_TEST ("build/seqio/test_gff_parser.cpp")
-ADD_TEST ("build/seqio/test_gff_iter.cpp")
-ADD_TEST ("build/seqio/test_chunked_fasta.cpp")
+ADD_TEST ("1seqio/test_detect_file_types.cpp")
+
+# colours
 
 # ADD_TEST ("build/colours/test_buffer_value.cpp")
 # ADD_TEST ("build/colours/test_colours.cpp")
 # ADD_TEST ("build/colours/test_metacolours.cpp")
 # ADD_TEST ("build/colours/test_construct_registry.cpp")
+
+# parsing
+
+ADD_TEST ("1seqio/parsers/test_gff_parser.cpp")
+ADD_TEST ("1seqio/parsers/test_gff_iter.cpp")
+ADD_TEST ("1seqio/parsers/test_fasta_parser.cpp")
+ADD_TEST ("1seqio/parsers/test_fastq_parser.cpp")
+
+# chunking
+
+ADD_TEST ("1seqio/chunking/test_fastq_chunking.cpp")
+ADD_TEST ("1seqio/chunking/test_fasta_chunking.cpp")
 
 # ADD_TEST ("build/suffixes/test_suffix_encoding.cpp")
 # ADD_TEST ("build/suffixes/test_suffix_counting.cpp")
@@ -50,7 +61,6 @@ ADD_TEST ("build/seqio/test_chunked_fasta.cpp")
 
 # ADD_TEST ("core/graph/test_navigate.cpp")
 
-# ADD_TEST ("classify/seqio/test_fastq_parser.cpp")
 # ADD_TEST ("classify/interleave/test_elm_merge_small.cpp")
 # ADD_TEST ("classify/interleave/test_elm_merge_large.cpp")
 # ADD_TEST ("classify/interleave/test_merge.cpp")

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <ios>
 #include <random>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 
@@ -56,6 +57,19 @@ fs::path create_temporary_file(fs::path const &base, const char *ext,
     i++;
   }
   return path;
+}
+
+TempFile::TempFile(std::string const &contents, std::filesystem::path tmpdir,
+                   const char *ext) {
+  path_ = tempio::create_temporary_file(tmpdir, ext);
+
+  std::ofstream out(path_);
+  out << contents;
+}
+
+TempFile::~TempFile() {
+  std::error_code ec;
+  std::filesystem::remove(path_, ec);
 }
 
 } // namespace tempio
