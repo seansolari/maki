@@ -1,19 +1,40 @@
+#include "maki/build/io/fastq.hpp"
+#include "maki/core/utils/tempfile.hpp"
+#include "view_common.hpp"
 #include <gtest/gtest.h>
 
-namespace {
+#include <sstream>
+#include <string>
+#include <vector>
 
-std::vector<std::string> collectSequences(auto const &range) {
-  std::vector<std::string> result;
+inline std::string makeFastq(std::vector<std::string> const &sequences) {
+  std::ostringstream out;
 
-  for (auto const &fragment : range)
-    result.push_back(to_string(fragment));
+  for (std::size_t i = 0; i < sequences.size(); ++i) {
+    auto const &seq = sequences[i];
 
-  return result;
+    out << "@read_" << i << '\n';
+    out << seq << '\n';
+    out << "+\n";
+    out << std::string(seq.size(), 'I') << '\n';
+  }
+
+  return out.str();
 }
 
-} // namespace
+class FastqDatasetChunkViewTests : public testing::Test {
+protected:
+  inline reads::FastqDatasetChunkView
+  makeFastqView(std::vector<std::string> const &sequences, std::size_t chunk) {
+    tempio::TempFastqFile fq(makeFastq(sequences));
+    ds = reads::FastqDataset::fromUnpaired(fq.path());
+    return reads::FastqDatasetChunkView(ds, chunk);
+  }
 
-TEST(FastqDatasetChunkView, ReadsRemainForwardOnlyInternally) {
+  reads::FastqDataset ds;
+};
+
+TEST_F(FastqDatasetChunkViewTests, ReadsRemainForwardOnlyInternally) {
   auto view = makeFastqView({"ACGTACGT"}, 1);
 
   auto chunk = view.range(0);
@@ -24,13 +45,12 @@ TEST(FastqDatasetChunkView, ReadsRemainForwardOnlyInternally) {
   EXPECT_EQ(seqs[0], "ACGTACGT");
 }
 
-TEST(FastqDatasetChunkView, ReverseFragmentsGeneratedOnDemand) {
-  auto view = makeFastqView({"ACGTACGT"}, 1);
+TEST_F(FastqDatasetChunkViewTests, ReverseFragmentsGeneratedOnDemand) {
+  auto view = makeFastqView({"ACGTACGTA"}, 1);
 
   auto chunk = view.range(0);
 
   auto forward = collectSequences(chunk.forwardFragments(3));
-
   auto reverse = collectSequences(chunk.reverseFragments(3));
 
   ASSERT_EQ(forward.size(), 1u);
@@ -39,7 +59,7 @@ TEST(FastqDatasetChunkView, ReverseFragmentsGeneratedOnDemand) {
   EXPECT_EQ(reverse[0], revcomp(forward[0]));
 }
 
-TEST(FastqDatasetChunkView, AllReadsHaveColourZero) {
+TEST_F(FastqDatasetChunkViewTests, AllReadsHaveColourZero) {
   auto view = makeFastqView({"AAAA", "CCCC", "GGGG"}, 1);
 
   auto chunk = view.range(0);
@@ -53,7 +73,7 @@ TEST(FastqDatasetChunkView, AllReadsHaveColourZero) {
   }
 }
 
-TEST(FastqDatasetChunkView, SplitsReadsOnN) {
+TEST_F(FastqDatasetChunkViewTests, SplitsReadsOnN) {
   auto view = makeFastqView({"AAAANCCCC"}, 1);
 
   auto chunk = view.range(0);
@@ -66,7 +86,7 @@ TEST(FastqDatasetChunkView, SplitsReadsOnN) {
   EXPECT_EQ(seqs[1], "CCCC");
 }
 
-TEST(FastqDatasetChunkView, ConsecutiveNsDoNotCreateEmptyReads) {
+TEST_F(FastqDatasetChunkViewTests, ConsecutiveNsDoNotCreateEmptyReads) {
   auto view = makeFastqView({"AAAANNNNCCCC"}, 1);
 
   auto chunk = view.range(0);
@@ -76,7 +96,8 @@ TEST(FastqDatasetChunkView, ConsecutiveNsDoNotCreateEmptyReads) {
   ASSERT_EQ(seqs.size(), 2u);
 }
 
-TEST(FastqDatasetChunkView, ForwardAndReverseContainSameNumberOfFragments) {
+TEST_F(FastqDatasetChunkViewTests,
+       ForwardAndReverseContainSameNumberOfFragments) {
   auto view = makeFastqView({"AAAA", "CCCC", "GGGG"}, 1);
 
   auto chunk = view.range(0);
@@ -88,7 +109,7 @@ TEST(FastqDatasetChunkView, ForwardAndReverseContainSameNumberOfFragments) {
   EXPECT_EQ(forward.size(), reverse.size());
 }
 
-TEST(FastqDatasetChunkView, ForwardAndReverseTerminalsMatch) {
+TEST_F(FastqDatasetChunkViewTests, ForwardAndReverseTerminalsMatch) {
   auto view = makeFastqView({"AAAANCCCC"}, 1);
 
   auto chunk = view.range(0);
@@ -104,7 +125,7 @@ TEST(FastqDatasetChunkView, ForwardAndReverseTerminalsMatch) {
   }
 }
 
-TEST(FastqDatasetChunkView, EmptyInputProducesNoFragments) {
+TEST_F(FastqDatasetChunkViewTests, EmptyInputProducesNoFragments) {
   auto view = makeFastqView({}, 1);
 
   auto chunk = view.range(0);

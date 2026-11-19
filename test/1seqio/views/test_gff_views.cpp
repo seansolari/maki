@@ -5,28 +5,6 @@
 #include "maki/core/utils/tempfile.hpp"
 #include "view_common.hpp"
 
-namespace {
-
-std::vector<std::string> collectSequences(sequence_fragment_input_range auto &&range) {
-  std::vector<std::string> result;
-
-  for (const auto &fragment : range)
-    result.push_back(toString(Dna4Sequence(fragment.data())));
-
-  return result;
-}
-
-std::vector<uint64_t> collectIds(sequence_fragment_input_range auto &&range) {
-  std::vector<uint64_t> ids;
-
-  for (auto const &fragment : range)
-    ids.push_back(fragment.id());
-
-  return ids;
-}
-
-} // namespace
-
 class Dna4GenomeTests : public testing::Test {
 protected:
   Colours c;
