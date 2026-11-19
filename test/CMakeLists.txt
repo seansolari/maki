@@ -19,15 +19,10 @@ macro (ADD_TEST test_file)
 endmacro ()
 
 # test suite
+# ----------
 
 ADD_TEST ("1seqio/test_detect_file_types.cpp")
-
-# colours
-
-# ADD_TEST ("build/colours/test_buffer_value.cpp")
-# ADD_TEST ("build/colours/test_colours.cpp")
-# ADD_TEST ("build/colours/test_metacolours.cpp")
-# ADD_TEST ("build/colours/test_construct_registry.cpp")
+ADD_TEST ("1seqio/test_colours.cpp")
 
 # parsing
 
@@ -38,8 +33,14 @@ ADD_TEST ("1seqio/parsers/test_fastq_parser.cpp")
 
 # chunking
 
-ADD_TEST ("1seqio/chunking/test_fastq_chunking.cpp")
 ADD_TEST ("1seqio/chunking/test_fasta_chunking.cpp")
+ADD_TEST ("1seqio/chunking/test_fastq_chunking.cpp")
+
+# sequence views
+
+ADD_TEST ("1seqio/views/test_gff_views.cpp")
+ADD_TEST ("1seqio/views/test_fasta_chunk_views.cpp")
+ADD_TEST ("1seqio/views/test_fastq_views.cpp")
 
 # ADD_TEST ("build/suffixes/test_suffix_encoding.cpp")
 # ADD_TEST ("build/suffixes/test_suffix_counting.cpp")
@@ -47,6 +48,10 @@ ADD_TEST ("1seqio/chunking/test_fasta_chunking.cpp")
 # ADD_TEST ("build/suffixes/test_kmer_buffer.cpp")
 # ADD_TEST ("build/suffixes/test_terminal_buffer.cpp")
 # ADD_TEST ("build/suffixes/test_sorting.cpp")
+
+# ADD_TEST ("build/colours/test_buffer_value.cpp")
+# ADD_TEST ("build/colours/test_metacolours.cpp")
+# ADD_TEST ("build/colours/test_construct_registry.cpp")
 
 # ADD_TEST ("build/archives/test_packed_array.cpp")
 # ADD_TEST ("build/archives/test_archive_basic.cpp")

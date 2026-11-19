@@ -39,6 +39,9 @@ ChunkedDna4Genome::ChunkedDna4Genome(Dna4Genome &&genome,
                                      std::size_t ntChunksize,
                                      std::size_t overlap)
     : _genome(std::move(genome)), _chunks() {
+  assert(ntChunksize > overlap);
+  ntChunksize -= overlap;
+
   for (auto &&fragment : _genome.raw_contigs()) {
     if (fragment.size() < overlap)
       LOG_WARN() << "fragment " << fragment.id() << " size " << fragment.size()

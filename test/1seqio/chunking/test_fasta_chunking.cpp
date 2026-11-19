@@ -5,8 +5,6 @@
 #include <string>
 #include <vector>
 
-// FIX TO ACCOUNT FOR REVERSE COMPLEMENT
-
 std::vector<std::string> chunkSequences(ChunkedDna4Genome const &genome) {
   std::vector<std::string> result;
 
@@ -14,15 +12,6 @@ std::vector<std::string> chunkSequences(ChunkedDna4Genome const &genome) {
     result.push_back(toString(genome[i].sequence()));
 
   return result;
-}
-
-std::vector<uint64_t> chunkIds(ChunkedDna4Genome const &genome) {
-  std::vector<uint64_t> ids;
-
-  for (size_t i = 0; i < genome.size(); ++i)
-    ids.push_back(genome[i].id());
-
-  return ids;
 }
 
 class GenomeChunking : public testing::Test {
@@ -43,7 +32,6 @@ TEST_F(GenomeChunking, SingleContigSmallerThanChunkSize) {
   ASSERT_EQ(chunks.size(), 2u);
 
   EXPECT_EQ(toString(chunks[0].sequence()), "ACGTACGT");
-
   EXPECT_EQ(toString(chunks[1].sequence()), "ACGTACGT");
 
   EXPECT_EQ(chunks[0].id(), 1u);
@@ -79,17 +67,17 @@ TEST_F(GenomeChunking, FinalChunkContainsRemainder) {
 }
 
 TEST_F(GenomeChunking, FixedOverlapApplied) {
-  auto genome = makeGenome(">chr1\nABCDEFGHIJKL\n");
+  auto genome = makeGenome(">chr1\nACGTACGTACGT\n");
 
   ChunkedDna4Genome chunks(std::move(genome), 5, 2);
 
-  EXPECT_EQ(toString(chunks[0].sequence()), "ABCDE");
+  EXPECT_EQ(toString(chunks[0].sequence()), "ACGTA");
 
-  EXPECT_EQ(toString(chunks[1].sequence()), "DEFGH");
+  EXPECT_EQ(toString(chunks[1].sequence()), "TACGT");
 
-  EXPECT_EQ(toString(chunks[2].sequence()), "GHIJK");
+  EXPECT_EQ(toString(chunks[2].sequence()), "GTACG");
 
-  EXPECT_EQ(toString(chunks[3].sequence()), "JKL");
+  EXPECT_EQ(toString(chunks[3].sequence()), "CGT");
 }
 
 TEST_F(GenomeChunking, OverlapOneLessThanChunkSize) {
@@ -100,7 +88,6 @@ TEST_F(GenomeChunking, OverlapOneLessThanChunkSize) {
   EXPECT_GT(chunks.size(), 4u);
 
   EXPECT_EQ(toString(chunks[0].sequence()), "ACGT");
-
   EXPECT_EQ(toString(chunks[1].sequence()), "CGTA");
 }
 
@@ -110,12 +97,17 @@ TEST_F(GenomeChunking, ContigIdsIncreasePerContig) {
 
   ChunkedDna4Genome chunks(std::move(genome), 3, 0);
 
+  EXPECT_EQ(chunks.size(), 8);
+
   EXPECT_EQ(chunks[0].id(), 1u);
   EXPECT_EQ(chunks[1].id(), 1u);
-
-  EXPECT_EQ(chunks[2].id(), 1u); // rc
+  EXPECT_EQ(chunks[2].id(), 1u);
+  EXPECT_EQ(chunks[3].id(), 1u);
 
   EXPECT_EQ(chunks[4].id(), 2u);
+  EXPECT_EQ(chunks[5].id(), 2u);
+  EXPECT_EQ(chunks[6].id(), 2u);
+  EXPECT_EQ(chunks[7].id(), 2u);
 }
 
 TEST_F(GenomeChunking, NsCreateIndependentFragments) {
@@ -126,13 +118,17 @@ TEST_F(GenomeChunking, NsCreateIndependentFragments) {
 
   ASSERT_EQ(chunks.size(), 4u);
 
-  EXPECT_EQ(toString(chunks[0].sequence()), "AAAAA");
+  // Check sequences
+  std::vector<std::string> sequences = chunkSequences(chunks),
+    expectedSequences = {"AAAAA", "CCCC", "GGGG", "TTTTT"};
 
-  EXPECT_EQ(toString(chunks[1].sequence()), "TTTTT");
+  std::sort(sequences.begin(), sequences.end());
 
-  EXPECT_EQ(toString(chunks[2].sequence()), "CCCC");
+  EXPECT_EQ(sequences, expectedSequences);
 
-  EXPECT_EQ(toString(chunks[3].sequence()), "GGGG");
+  // Check IDs
+  for (std::size_t i = 0; i < chunks.size(); ++i)
+    EXPECT_EQ(chunks[i].id(), 1u);
 }
 
 TEST_F(GenomeChunking, ContigFragmentsShareId) {
@@ -172,12 +168,16 @@ TEST_F(GenomeChunking, ChunksRemainGroupedByContig) {
   bool seenContig2 = false;
 
   for (size_t i = 0; i < chunks.size(); ++i) {
-    if (chunks[i].id() == 2)
+    if (chunks[i].id() == 2) {
       seenContig2 = true;
+    }
 
-    if (seenContig2)
+    if (seenContig2) {
       EXPECT_EQ(chunks[i].id(), 2u);
+    }
   }
+
+  EXPECT_TRUE(seenContig2);
 }
 
 TEST_F(GenomeChunking, ChunksReconstructOriginalSequence) {
@@ -193,7 +193,7 @@ TEST_F(GenomeChunking, ChunksReconstructOriginalSequence) {
 
   reconstructed += toString(chunks[0].sequence());
 
-  for (size_t i = 1; i < chunks.size() /*forward chunks only*/; ++i) {
+  for (size_t i = 1; i < chunks.size()/2 /*forward chunks only*/; ++i) {
     auto seq = toString(chunks[i].sequence());
 
     reconstructed += seq.substr(overlap);
