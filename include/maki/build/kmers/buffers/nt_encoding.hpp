@@ -33,8 +33,8 @@ public:
   ShortSuffix(random_dna4_range auto &&rng_)
       : ShortSuffix(std::ranges::size(rng_), 0) {
     std::size_t i = 0;
-    for (uint64_t nt : rng_ | std::views::transform([](seqan3::dna4 &&nt) {
-                         return parsing::dna4ToLong(std::move(nt));
+    for (uint64_t nt : rng_ | std::views::transform([](seqan3::dna4 nt) {
+                         return parsing::dna4ToLong(nt);
                        })) {
       _data |= nt << (2 * i++);
     }
@@ -309,13 +309,35 @@ public:
     }
   }
 
+  /**
+   * Count suffixes of a sequence fragment.
+   *
+   * If `fmt.endIsTerminal()`, this count includes the last
+   * suffix of the fragment (whose edge would be '$' in the
+   * resulting de Bruijn graph), otherwise the last valid
+   * suffix is one before the final suffix of the sequence.
+   *
+   * `k` is used as the minimum size filter for the fragment
+   * to be considered, otherwise the fragment is ignored. This
+   * must take into account whether the sequence is terminal.
+   * For example, if the total fragment length is 8 and `k`
+   * is also 8, then the k-mer size is `k+1` where the prefix
+   * is the entire sequence and the outgoing edge would be '$'.
+   * If this is an interior fragment, there are no suffixes to be
+   * counted.
+   *
+   * `offset` describes the offset where counting starts. For
+   * example, to count 3-suffixes of k-mers for a k-mer size
+   * of 7, the offset should be 4 before this is the start
+   * of the suffix of the first k-mer.
+   */
   template <random_dna4_range R>
   void countKmerSuffixes(const SequenceFragment<R> &fmt, std::size_t k,
                          std::size_t offset) {
     const auto &sequence = fmt.data();
     std::size_t size = fmt.size();
 
-    if (fmt.endIsTerminal())
+    if (!fmt.endIsTerminal())
       --size;
 
     if (size >= k)

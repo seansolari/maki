@@ -8,21 +8,17 @@
 #include <seqan3/alphabet/nucleotide/dna4.hpp>
 
 namespace parsing {
-template <typename O> inline O dna4ToRank(seqan3::dna4 &&nt) {
-  return static_cast<O>(seqan3::to_rank(std::forward<seqan3::dna4>(nt)));
+template <typename O> inline O dna4ToRank(seqan3::dna4 nt) {
+  return static_cast<O>(seqan3::to_rank(nt));
 }
 
-inline uint8_t dna4ToShort(seqan3::dna4 &&nt) {
-  return dna4ToRank<uint8_t>(std::forward<seqan3::dna4>(nt));
-}
+inline uint8_t dna4ToShort(seqan3::dna4 nt) { return dna4ToRank<uint8_t>(nt); }
 
-inline uint64_t dna4ToLong(seqan3::dna4 &&nt) {
-  return dna4ToRank<uint64_t>(std::forward<seqan3::dna4>(nt));
-}
+inline uint64_t dna4ToLong(seqan3::dna4 nt) { return dna4ToRank<uint64_t>(nt); }
 
-inline uint64_t dna4ToDna5(uint64_t &&nt) { return (nt + 1) & 0b00000111; }
+inline uint64_t dna4ToDna5(uint64_t nt) { return (nt + 1) & 0b00000111; }
 
-inline seqan3::dna4 dna5ToDna4(uint64_t &&rnk) {
+inline seqan3::dna4 dna5ToDna4(uint64_t rnk) {
   return seqan3::assign_rank_to((rnk - 1) & 0b11, seqan3::dna4{});
 }
 
