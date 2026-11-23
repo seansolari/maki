@@ -79,6 +79,38 @@ inline void reverseWriteMerTo(random_dna4_iter auto _it, OutputPtr out,
                                   << (2 * (i % bpPerRecord));
 }
 
+template <typename InputPtr, typename O = std::remove_pointer_t<InputPtr>>
+Dna4Sequence readMerFrom(InputPtr in, uint8_t k) {
+  constexpr size_t bpPerRecord = sizeof(O) * 4;
+
+  Dna4Sequence result;
+  result.resize(k);
+
+  size_t pos = 0;
+
+  // Complete records
+  for (size_t i = 0; i < k / bpPerRecord; ++i) {
+    O val = *in++;
+
+    for (size_t j = 0; j < bpPerRecord; ++j) {
+      uint8_t rank = static_cast<uint8_t>((val >> (2 * j)) & 0b11);
+      result[pos++] = seqan3::dna4{}.assign_rank(rank);
+    }
+  }
+
+  // Partial final record
+  if (size_t rem = k % bpPerRecord) {
+    O val = *in;
+
+    for (size_t j = 0; j < rem; ++j) {
+      uint8_t rank = static_cast<uint8_t>((val >> (2 * j)) & 0b11);
+      result[pos++] = seqan3::dna4{}.assign_rank(rank);
+    }
+  }
+
+  return result;
+}
+
 template <typename T>
 std::string toString(const seqan3::bitpacked_sequence<T> &seq) {
   std::string result;

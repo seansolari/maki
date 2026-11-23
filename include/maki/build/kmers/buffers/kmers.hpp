@@ -25,7 +25,7 @@ public:
                          uint32_t value_offset)
       : BaseIterType(p, w), _key_bytes(key_bytes), _value_offset(value_offset) {
   }
-  constexpr inline void writeKmer(Dna4SequenceConstIter in, uint8_t kEff) const
+  constexpr inline void writeKmer(random_dna4_iter auto in, uint8_t kEff) const
     requires(!std::is_const_v<T>)
   {
     writeMerTo(in, this->_data, kEff);
@@ -36,6 +36,10 @@ public:
   {
     std::memcpy(this->_data, kmer.data(), _key_bytes);
     return;
+  }
+  inline Dna4Sequence readKmer(uint8_t kEff) const {
+    assert(2*kEff <= 4*_key_bytes);
+    return readMerFrom(this->_data, kEff);
   }
   inline uint8_t readEdge() const {
     return *(this->_data + _value_offset) & 0b111;
@@ -255,8 +259,8 @@ public:
         [&](std::size_t i) { insertKmers(at(blocks_[i]), data_[i]); });
   }
 
-  void fillKmers(const container_span auto &data_, std::span<const SuffixTable> blocks_,
-                 ShortSuffix sfx_) {
+  void fillKmers(const container_span auto &data_,
+                 std::span<const SuffixTable> blocks_, ShortSuffix sfx_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertKmers(at(i == 0 ? 0 : blocks_[i - 1][sfx_]), data_[i], sfx_);
