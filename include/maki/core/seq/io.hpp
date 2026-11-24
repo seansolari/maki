@@ -111,6 +111,28 @@ Dna4Sequence readMerFrom(InputPtr in, uint8_t k) {
   return result;
 }
 
+template <typename InputPtr, typename O = std::remove_pointer_t<InputPtr>>
+  requires std::random_access_iterator<InputPtr>
+inline seqan3::bitpacked_sequence<seqan3::dna4>
+reverseReadMerFrom(InputPtr in, uint8_t k, uint8_t n) {
+  constexpr size_t bpPerRecord = sizeof(O) * 4;
+
+  seqan3::bitpacked_sequence<seqan3::dna4> result;
+  result.resize(n);
+
+  for (std::size_t j = 0; j < n; ++j) {
+    const std::size_t pos = k - n + j;
+
+    O cell = *(in + (pos / bpPerRecord));
+
+    uint8_t rank = (cell >> (2 * (pos % bpPerRecord))) & 0b11;
+
+    result[j] = seqan3::dna4{}.assign_rank(rank);
+  }
+
+  return result;
+}
+
 template <typename T>
 std::string toString(const seqan3::bitpacked_sequence<T> &seq) {
   std::string result;

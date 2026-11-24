@@ -13,6 +13,7 @@
 #include "kmers.hpp"
 #include "maki/build/utils/bits.hpp"
 #include "maki/core/seq/concepts.hpp"
+#include "maki/core/seq/io.hpp"
 #include "nt_encoding.hpp"
 
 template <typename T>
@@ -73,6 +74,20 @@ public:
   inline uint32_t lengthBytes() const noexcept { return _lengthBytes; }
   inline uint32_t keyBytes() const noexcept { return _seqBytes + _lengthBytes; }
   inline size_t readSize() const { return deser(this->_data, _lengthBytes); }
+  inline Dna4Sequence readKmer() const {
+    const auto len = static_cast<uint8_t>(readSize());
+    return reverseReadMerFrom(this->_data + _lengthBytes, _k_eff, len);
+  }
+  inline LongSuffix readTerminal() const {
+    LongSuffix result(_k_eff);
+    auto seq = reverseReadMerFrom(this->_data + _lengthBytes, _k_eff,
+                                  static_cast<uint8_t>(readSize()));
+
+    for (auto const nt : seq)
+      result.push(seqan3::to_rank(nt));
+
+    return result;
+  }
   inline T readEdge() const { return *(this->_data + _valueOffset); }
   inline T readValue() const { return readEdge(); }
   inline T *data() { return this->_data; }
@@ -107,6 +122,10 @@ public:
       : BaseBufferType(numRecords, _valueBytes, k_, k_eff_, lengthBytes),
         _lengthBytes(lengthBytes), _seqBytes(_key_bytes - _lengthBytes) {}
 
+  /**
+   * Automatically calculate smallest number of bytes required to hold size
+   * information for terminals up to length `k`.
+   */
   explicit TerminalBuffer(uint64_t numRecords, uint8_t k_, uint8_t k_eff_,
                           autofit_tag_t)
       : TerminalBuffer(numRecords, k_, k_eff_, required_bytes(k_eff_)) {}
@@ -115,6 +134,10 @@ public:
       : BaseBufferType(numRecords, _valueBytes, k_, k_, lengthBytes),
         _lengthBytes(lengthBytes), _seqBytes(_key_bytes - _lengthBytes) {}
 
+  /**
+   * Automatically calculate smallest number of bytes required to hold size
+   * information for terminals up to length `k`.
+   */
   explicit TerminalBuffer(uint64_t numRecords, uint8_t k_, autofit_tag_t)
       : TerminalBuffer(numRecords, k_, required_bytes(k_)) {}
 
@@ -195,19 +218,20 @@ public:
     return _data.at(idx, _lengthBytes, _seqBytes, valueOffset(), k_eff);
   }
 
-public:
-  // --------------
-  // Insert methods
-  // --------------
+protected:
+  static constexpr auto as_short_tfm = std::views::transform(
+      [](seqan3::dna4 nt) { return parsing::dna4ToShort(nt); });
 
-  // insert a sequence range
+public:
+  /**
+   * Insert terminals from a sequence range, allowing insertion of full
+   * size terminals, i.e. k-mers.
+   */
   iterator insertRegion(iterator it, const random_dna4_range auto &sequence,
                         bool endIsTerminal) {
     LongSuffix tl(k_eff /* here, will be same as k */);
 
-    for (uint8_t edge : sequence | std::views::transform([](seqan3::dna4 &&nt) {
-                          return parsing::dna4ToShort(std::move(nt));
-                        })) {
+    for (uint8_t edge : sequence | as_short_tfm) {
       it.writeKey(tl);
       it.writeEdge(edge);
       ++it;
@@ -224,7 +248,10 @@ public:
     return it;
   }
 
-  // insert terminals from a sequence range with a given suffix
+  /**
+   * Insert terminals from a sequence range that have a given suffix,
+   * allowing insertion of full size terminals, i.e. k-mers.
+   */
   iterator insertRegion(iterator it, const random_dna4_range auto &sequence,
                         bool endIsTerminal, ShortSuffix key) {
     auto seq_iter = std::ranges::begin(sequence);
@@ -269,17 +296,18 @@ public:
     return it;
   }
 
-  // competitively insert a suffix if it has not been seen before (`lock` must
-  // be shared between threads)
-  void insertRegion(LongSuffixGate &lock, const random_dna4_range auto &sequence,
+  /**
+   * Competitively (thread-safe) insert suffixes that have not been seen
+   * before (`lock` must be shared between threads).
+   */
+  void insertRegion(LongSuffixGate &lock,
+                    const random_dna4_range auto &sequence,
                     bool endIsTerminal) {
     LongSuffix tl(k_eff /* here, will be same as k */);
 
     std::optional<std::size_t> p = std::nullopt;
 
-    for (uint8_t edge : sequence | std::views::transform([](seqan3::dna4 &&nt) {
-                          return parsing::dna4ToShort(std::move(nt));
-                        })) {
+    for (uint8_t edge : sequence | as_short_tfm) {
       if (p = lock.trySet(tl, edge); p) {
         auto it = at(p.value());
         it.writeKey(tl);
@@ -298,40 +326,66 @@ public:
     }
   }
 
+  /**
+   * Insert terminals from a sequence fragment at position marked
+   * by `it`.
+   */
   template <random_dna4_range R>
-  iterator insertFragmentTerminals(iterator it, const SequenceFragment<R> &fmt) {
+  iterator insertFragmentTerminals(iterator it,
+                                   const SequenceFragment<R> &fmt) {
     return insertRegion(it, fmt.data() | std::views::take(k), false);
   }
 
+  /**
+   * Insert terminals from a sequence fragment based on a shared lock.
+   * `LongSuffixGate` must be shared between all threads modifying this
+   * container, and tracks the number of elements inserted at any given
+   * time. It ensures that only new (distinct) terminals are inserted.
+   * Note, this method assumes the container has been allocated with enough
+   * space to hold the data, and does not resize nor perform bounds
+   * checking before attempting to write new data.
+   */
   template <random_dna4_range R>
-  void insertFragmentTerminals(LongSuffixGate &lock, const SequenceFragment<R> &fmt) {
+  void insertFragmentTerminals(LongSuffixGate &lock,
+                               const SequenceFragment<R> &fmt) {
     insertRegion(lock, fmt.data() | std::views::take(k), false);
   }
 
+  /**
+   * Insert terminals from a sequence fragment at position marked
+   * by `it` if it has a given suffix.
+   * Rather than inserting just terminal sequences, this method
+   * inserts both terminals and k-mers, where a k-mer corresponds
+   * to a terminal of size `k`, and once a k-mer reaches maximum size,
+   * proceeding k-mers are formed by inserting bases at the most
+   * sigificant position and removing the least significant, so that
+   * the terminal size stays at `k`.
+   * This method is useful when one wants to compare true terminals
+   * (partial k-mers) with full k-mers in the same container.
+   */
   template <random_dna4_range R>
-  iterator insertFragmentKmers(iterator it, const SequenceFragment<R> &fmt, ShortSuffix sfx_) {
+  iterator insertFragmentKmers(iterator it, const SequenceFragment<R> &fmt,
+                               ShortSuffix sfx_) {
     return insertRegion(it, fmt.data(), fmt.endIsTerminal(), sfx_);
   }
-
-  // --------------------
-  // Container interfaces
-  // --------------------
 
   iterator insertTerminals(iterator it, const sequence_like auto &data) {
     return insertFragmentTerminals(it, data.terminals());
   }
 
-  iterator insertTerminals(iterator it, const sequence_container_like auto &data) {
+  iterator insertTerminals(iterator it,
+                           const sequence_container_like auto &data) {
     for (auto &&fmt : data.terminals())
       it = insertFragmentTerminals(it, std::forward<decltype(fmt)>(fmt));
 
     return it;
   }
 
-  iterator insertTerminals(iterator it, const stranded_sequence_container_like auto &data) {
+  iterator insertTerminals(iterator it,
+                           const stranded_sequence_container_like auto &data) {
     for (auto &&fmt : data.forwardTerminals())
       it = insertFragmentTerminals(it, std::forward<decltype(fmt)>(fmt));
-    
+
     for (auto &&fmt : data.reverseTerminals())
       it = insertFragmentTerminals(it, std::forward<decltype(fmt)>(fmt));
 
@@ -342,12 +396,14 @@ public:
     insertFragmentTerminals(lock, data.terminals());
   }
 
-  void insertTerminals(LongSuffixGate &lock, const sequence_container_like auto &data) {
+  void insertTerminals(LongSuffixGate &lock,
+                       const sequence_container_like auto &data) {
     for (auto &&fmt : data.terminals())
       insertFragmentTerminals(lock, std::forward<decltype(fmt)>(fmt));
   }
 
-  void insertTerminals(LongSuffixGate &lock, const stranded_sequence_container_like auto &data) {
+  void insertTerminals(LongSuffixGate &lock,
+                       const stranded_sequence_container_like auto &data) {
     for (auto &&fmt : data.forwardTerminals())
       insertFragmentTerminals(lock, std::forward<decltype(fmt)>(fmt));
 
@@ -355,32 +411,33 @@ public:
       insertFragmentTerminals(lock, std::forward<decltype(fmt)>(fmt));
   }
 
-  iterator insertKmers(iterator it, const sequence_like auto &data, ShortSuffix sfx_) {
+  iterator insertKmers(iterator it, const sequence_like auto &data,
+                       ShortSuffix sfx_) {
     return insertFragmentKmers(it, data.fragments(k), sfx_);
   }
 
-  iterator insertKmers(iterator it, const sequence_container_like auto &data, ShortSuffix sfx_) {
+  iterator insertKmers(iterator it, const sequence_container_like auto &data,
+                       ShortSuffix sfx_) {
     for (auto &&fmt : data.fragments(k))
       it = insertFragmentKmers(it, std::forward<decltype(fmt)>(fmt), sfx_);
 
     return it;
   }
 
-  iterator insertKmers(iterator it, const stranded_sequence_container_like auto &data, ShortSuffix sfx_) {
+  iterator insertKmers(iterator it,
+                       const stranded_sequence_container_like auto &data,
+                       ShortSuffix sfx_) {
     for (auto &&fmt : data.forwardFragments(k))
       it = insertFragmentKmers(it, std::forward<decltype(fmt)>(fmt), sfx_);
-    
+
     for (auto &&fmt : data.reverseFragments(k))
       it = insertFragmentKmers(it, std::forward<decltype(fmt)>(fmt), sfx_);
 
     return it;
   }
 
-  // ------------------------
-  // Generic parallel wrapper
-  // ------------------------
-
-  void fillTerminals(const container_span auto &data_, std::span<const std::size_t> blocks_) {
+  void fillTerminals(const container_span auto &data_,
+                     std::span<const std::size_t> blocks_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertTerminals(at(i == 0 ? 0 : blocks_[i - 1]), data_[i]);
@@ -389,12 +446,12 @@ public:
 
   void fillTerminals(const container_span auto &data_, LongSuffixGate &lock) {
     oneapi::tbb::parallel_for(
-        (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
-          insertTerminals(lock, data_[i]);
-        });
+        (std::size_t)0, data_.size(), (std::size_t)1,
+        [&](std::size_t i) { insertTerminals(lock, data_[i]); });
   }
 
-  void fillKmers(const container_span auto &data_, std::span<const SuffixTable> blocks_, ShortSuffix sfx_) {
+  void fillKmers(const container_span auto &data_,
+                 std::span<const SuffixTable> blocks_, ShortSuffix sfx_) {
     oneapi::tbb::parallel_for(
         (std::size_t)0, data_.size(), (std::size_t)1, [&](std::size_t i) {
           insertKmers(at(i == 0 ? 0 : blocks_[i - 1][sfx_]), data_[i], sfx_);

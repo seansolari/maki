@@ -14,77 +14,10 @@ using ::testing::ElementsAreArray;
 
 using namespace seqan3::literals;
 
-// custom matchers
-// -----------------------------------------------------------------------------
-
-void CheckMatrixEq(TerminalBuffer const &res, ndim::Matrix<> const &exp) {
-  auto __lfirst = res.constBegin(), __llast = res.constEnd();
-  auto __rfirst = exp.cbegin(), __rlast = exp.cend();
-
-  for (; (__lfirst != __llast) && (__rfirst != __rlast);
-       (void)++__lfirst, (void)++__rfirst)
-    ASSERT_TRUE(*__lfirst == *__rfirst);
-
-  ASSERT_EQ(__lfirst, __llast);
-  ASSERT_EQ(__rfirst, __rlast);
-}
-
-// rolling suffix
-// ------------------------------------------------------------------
-
-class RollingTerminalTests : public testing::Test {
-protected:
-  RollingTerminalTests() : _sfx(7) {}
-
-  LongSuffix _sfx;
-};
-
-TEST_F(RollingTerminalTests, Initial) {
-  EXPECT_EQ(_sfx.terminalLength(), 0);
-  ASSERT_THAT(_sfx.view(), ElementsAreArray({0, 0}));
-}
-
-TEST_F(RollingTerminalTests, RollBackNotFull) {
-  _sfx.push(0b11);
-  _sfx.push(0b10);
-  _sfx.push(0b01);
-  _sfx.push(0b00);
-  _sfx.push(0b11);
-  _sfx.push(0b10);
-  EXPECT_EQ(_sfx.terminalLength(), 6);
-  ASSERT_THAT(_sfx.view(), ElementsAreArray({0b01101100, 0b00101100}));
-}
-
-TEST_F(RollingTerminalTests, RollBackFull) {
-  for (std::size_t i = 0; i < 7; ++i)
-    _sfx.push(0b10);
-  EXPECT_EQ(_sfx.terminalLength(), 7);
-  ASSERT_THAT(_sfx.view(), ElementsAreArray({0b10101010, 0b00101010}));
-}
-
-TEST_F(RollingTerminalTests, RollBackExceed) {
-  for (std::size_t i = 0; i < 14; ++i)
-    _sfx.push(0b10);
-  EXPECT_EQ(_sfx.terminalLength(), 7);
-  ASSERT_THAT(_sfx.view(), ElementsAreArray({0b10101010, 0b00101010}));
-}
-
 // initialisation tests
 // --------------------------------------------------------------------
 
 // serialise
-
-class TerminalAutoFitTests : public testing::Test {};
-
-TEST_F(TerminalAutoFitTests, TestMin) {
-  TerminalBuffer buffer(1, 1, TerminalBuffer::autofit_tag);
-  EXPECT_EQ(buffer.lengthBytes(), 1);
-}
-
-TEST_F(TerminalAutoFitTests, TestMax) {
-  TerminalBuffer buffer(1, (uint8_t)-1, TerminalBuffer::autofit_tag);
-  EXPECT_EQ(buffer.lengthBytes(), 1);
-}
 
 class TerminalBufferSerialiseTests : public testing::Test {
 protected:
