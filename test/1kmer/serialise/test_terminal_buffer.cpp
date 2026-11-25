@@ -1,5 +1,6 @@
 
 #include "maki/build/kmers/buffers/terminals.hpp"
+#include "maki/core/seq/concepts.hpp"
 #include "maki/core/seq/io.hpp"
 #include <gtest/gtest.h>
 
@@ -131,14 +132,17 @@ TEST(TerminalBuffer, InsertRegionIncludesFullLengthKmer) {
 TEST(TerminalBuffer, InsertRegionWithSuffixMatch) {
   constexpr uint8_t k = 7;
 
-  auto seq = "ACGTACGT"_dna4;
+  auto seq = "ACGTACGAT"_dna4;
   ShortSuffix suffix{"TA"_dna4};
 
-  TerminalBuffer buf(8, k, TerminalBuffer::autofit_tag);
+  TerminalBuffer buf(8, k, k - 2, TerminalBuffer::autofit_tag);
 
   auto end = buf.insertRegion(buf.begin(), seq, false, suffix);
 
-  EXPECT_GT(std::distance(buf.begin(), end), 0);
+  EXPECT_EQ(std::distance(buf.begin(), end), 1);
+
+  --end;
+  EXPECT_EQ(end.readKmer(), Dna4Sequence{"ACG"_dna4});
 }
 
 TEST(TerminalBuffer, InsertRegionWithSuffixMiss) {
@@ -212,3 +216,57 @@ TEST(TerminalBuffer, LockDistinguishesPaddingFromRealBases) {
 
   EXPECT_EQ(lock.count(), 6);
 }
+
+TEST(TerminalBuffer, InsertFragmentTerminalsExactK) {
+  constexpr uint8_t k = 5;
+
+  TerminalBuffer buf(16, k, TerminalBuffer::autofit_tag);
+
+  auto end = buf.insertFragmentTerminals(
+      buf.begin(), SequenceFragment("ACGTA"_dna4, 0, true));
+
+  ASSERT_EQ(std::distance(buf.begin(), end), 5);
+
+  EXPECT_EQ(buf.at(0).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{""_dna4});
+
+  EXPECT_EQ(buf.at(1).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"A"_dna4});
+
+  EXPECT_EQ(buf.at(2).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AC"_dna4});
+
+  EXPECT_EQ(buf.at(3).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"ACG"_dna4});
+
+  EXPECT_EQ(buf.at(4).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"ACGT"_dna4});
+}
+
+TEST(TerminalBuffer, InsertFragmentTerminalsIgnoreCompleteKmers) {
+  constexpr uint8_t k = 5;
+
+  TerminalBuffer buf(16, k, TerminalBuffer::autofit_tag);
+
+  auto end = buf.insertFragmentTerminals(
+      buf.begin(), SequenceFragment("ACGTACGT"_dna4, 0, true));
+
+  ASSERT_EQ(std::distance(buf.begin(), end), 5);
+
+  EXPECT_EQ(buf.at(0).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{""_dna4});
+
+  EXPECT_EQ(buf.at(1).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"A"_dna4});
+
+  EXPECT_EQ(buf.at(2).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AC"_dna4});
+
+  EXPECT_EQ(buf.at(3).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"ACG"_dna4});
+
+  EXPECT_EQ(buf.at(4).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"ACGT"_dna4});
+}
+
+// add other tests

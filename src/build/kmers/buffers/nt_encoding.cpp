@@ -148,10 +148,10 @@ bool LongSuffixGate::trySetBit(const LongSuffix &sfx, uint8_t dna4_edge) {
 std::size_t LongSuffixGate::calculateBitPosition(const LongSuffix &sfx,
                                                  uint8_t dna4_edge) {
   auto dna5_edge = parsing::dna4ToDna5(dna4_edge);
-  if (sfx.size() == 0)
+  if (sfx.terminalLength() == 0)
     return dna5_edge;
   else {
-    return 5 * (ShortSuffix::numSuffixes(sfx.size() - 1) + sfx.rank()) +
+    return 5 * (ShortSuffix::numSuffixes(sfx.terminalLength() - 1) + sfx.rank()) +
            dna5_edge;
   }
 }
