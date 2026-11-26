@@ -269,4 +269,74 @@ TEST(TerminalBuffer, InsertFragmentTerminalsIgnoreCompleteKmers) {
             seqan3::bitpacked_sequence<seqan3::dna4>{"ACGT"_dna4});
 }
 
-// add other tests
+TEST(TerminalBuffer, InsertFragmentKmersExactK) {
+  constexpr uint8_t k = 5;
+
+  TerminalBuffer buf(16, k, k - 2, TerminalBuffer::autofit_tag);
+
+  auto end = buf.insertFragmentKmers(buf.begin(),
+                                     SequenceFragment("ACGTA"_dna4, 0, true),
+                                     ShortSuffix{"AC"_dna4});
+
+  ASSERT_EQ(std::distance(buf.begin(), end), 1);
+
+  EXPECT_EQ(buf.at(0).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{""_dna4});
+
+  EXPECT_EQ(buf.at(0).readEdge(), 0b10);
+}
+
+TEST(TerminalBuffer, InsertFragmentKmersCompleteSequence) {
+  constexpr uint8_t k = 5;
+
+  TerminalBuffer buf(32, k, k - 2, TerminalBuffer::autofit_tag);
+
+  auto end = buf.insertFragmentKmers(buf.begin(),
+                                     SequenceFragment("ACGTACGT"_dna4, 0, true),
+                                     ShortSuffix{"AC"_dna4});
+
+  ASSERT_EQ(std::distance(buf.begin(), end), 2);
+
+  EXPECT_EQ(buf.at(0).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{""_dna4});
+
+  EXPECT_EQ(buf.at(0).readEdge(), 0b10);
+
+  EXPECT_EQ(buf.at(1).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"CGT"_dna4});
+
+  EXPECT_EQ(buf.at(0).readEdge(), 0b10);
+}
+
+TEST(TerminalBuffer, InsertFragmentKmersPreservesTerminalLengths) {
+  constexpr uint8_t k = 5;
+
+  TerminalBuffer buf(16, k, k-1, TerminalBuffer::autofit_tag);
+
+  auto end = buf.insertFragmentKmers(
+      buf.begin(), SequenceFragment("AAAAAAAA"_dna4, 0, false),
+      ShortSuffix{"A"_dna4});
+
+  ASSERT_EQ(std::distance(buf.begin(), end), 7);
+
+  EXPECT_EQ(buf.at(0).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{""_dna4});
+
+  EXPECT_EQ(buf.at(1).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"A"_dna4});
+
+  EXPECT_EQ(buf.at(2).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AA"_dna4});
+
+  EXPECT_EQ(buf.at(3).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AAA"_dna4});
+
+  EXPECT_EQ(buf.at(4).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AAAA"_dna4});
+
+  EXPECT_EQ(buf.at(5).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AAAA"_dna4});
+
+  EXPECT_EQ(buf.at(6).readKmer(),
+            seqan3::bitpacked_sequence<seqan3::dna4>{"AAAA"_dna4});
+}
