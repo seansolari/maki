@@ -52,6 +52,9 @@ ADD_TEST ("1suffix/test_suffix_gate.cpp")
 ADD_TEST ("1kmer/serialise/test_kmer_buffer.cpp")
 ADD_TEST ("1kmer/serialise/test_terminal_buffer.cpp")
 
+ADD_TEST ("1kmer/ops/test_kmer_sorting.cpp")
+ADD_TEST ("1kmer/ops/test_terminal_sorting.cpp")
+
 # ADD_TEST ("build/suffixes/test_terminal_buffer.cpp")
 # ADD_TEST ("build/suffixes/test_sorting.cpp")
 

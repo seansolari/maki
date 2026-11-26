@@ -267,7 +267,10 @@ public:
         });
   }
 
+  // invalidates iterators
   void sort(KmerBuffer *temp);
+
+  // invalidates iterators
   void sort();
 };
 
