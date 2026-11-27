@@ -1,54 +1,15 @@
 
-#include "maki/build/kmers/buffers/nt_encoding.hpp"
 #include "maki/build/kmers/buffers/terminals.hpp"
-#include "seqan3/alphabet/nucleotide/dna4.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include "test_common.hpp"
 
 using ::testing::ContainerEq;
 
 using seqan3::operator""_dna4;
 
-namespace {
-
-LongSuffix makeTerminal(uint8_t k, std::string_view seq) {
-  LongSuffix t(k);
-
-  for (char c : seq) {
-    t.push(seqan3::to_rank(seqan3::dna4{}.assign_char(c)));
-  }
-
-  return t;
-}
-
-void writeRecord(TerminalBuffer::iterator it, LongSuffix const &t,
-                 unsigned char edge_) {
-  it.writeKey(t);
-  it.writeEdge(edge_);
-}
-
-std::vector<std::string> exportKmers(const TerminalBuffer &buffer) {
-  std::vector<std::string> expected;
-
-  for (auto it = buffer.begin(), end = buffer.end(); it != end; ++it) {
-    expected.push_back(toString(it.readKmer()));
-  }
-
-  return expected;
-}
-
-std::vector<unsigned char> exportEdges(const TerminalBuffer &buffer) {
-  std::vector<unsigned char> expected;
-
-  for (auto it = buffer.begin(), end = buffer.end(); it != end; ++it) {
-    expected.push_back(it.readEdge());
-  }
-
-  return expected;
-}
-
-} // namespace
 
 TEST(TerminalBufferSort, SortTerminalsOnly) {
   constexpr uint8_t k = 5;

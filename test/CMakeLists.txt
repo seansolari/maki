@@ -54,6 +54,8 @@ ADD_TEST ("1kmer/serialise/test_terminal_buffer.cpp")
 
 ADD_TEST ("1kmer/ops/test_kmer_sorting.cpp")
 ADD_TEST ("1kmer/ops/test_terminal_sorting.cpp")
+ADD_TEST ("1kmer/ops/test_kmer_compare.cpp")
+ADD_TEST ("1kmer/ops/test_terminal_compare.cpp")
 
 # ADD_TEST ("build/suffixes/test_terminal_buffer.cpp")
 # ADD_TEST ("build/suffixes/test_sorting.cpp")
